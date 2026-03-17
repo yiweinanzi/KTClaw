@@ -360,6 +360,23 @@
       ],
       "notes": "Using reference images 1 and 2 provided by user.",
       "subtasks": []
+    },
+    {
+      "id": "DESIGN-013",
+      "title": "Convert Team Map to Light Theme",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-012"
+      ],
+      "description": "Ensure the Team Map Frame is aligned with the AutoClaw Light Theme.",
+      "acceptance_criteria": [
+        "Dark mode classes removed from Frame 3",
+        "Hierarchy tree styles visible in light theme"
+      ],
+      "notes": "Requested by user after reviewing Frame 3.",
+      "subtasks": []
     }
   ]
 }

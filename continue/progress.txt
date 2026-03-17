@@ -323,3 +323,21 @@ Blockers:
 
 Next recommended step:
 - Await user approval on the newly constructed Team Overview (Image 1) and Map (Image 2) sections before slicing them up for React adoption.
+
+[2026-03-17 16:16 +08:00] Session: DESIGN-013 Team Map Light Theme
+Focus: Convert Team Map (Frame 3) to light theme based on user feedback.
+
+What changed:
+- Removed dark theme specific overrides in HTML style.
+- Re-colored the tree diagram borders, nodes, and icons to use soft pastel backgrounds and accent boarders in light mode (`var(--bg-main)`, `var(--line)`).
+- Re-colored left sidebar text items inside Frame 3 to use AutoClaw light theme gray.
+- Adjusted floating map controls to use light box shadows.
+
+Results:
+- Frame 3 now matches the color palette of Frame 1 and Frame 2 natively.
+
+Blockers:
+- None.
+
+Next recommended step:
+- Await user approval on the Light Theme map before beginning React implementation `BUILD-005`.
