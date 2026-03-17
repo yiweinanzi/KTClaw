@@ -78,3 +78,37 @@ Blockers:
 
 Next recommended step:
 - Open the static preview again and collect visual feedback before moving to the next product task.
+
+[2026-03-17 12:32 +08:00] Session: shell-sketch visual alignment
+Focus: Make the current workbench UI feel closer to the approved shell-sketch-v4 layout
+
+What changed:
+- Restyled the left sidebar into a warmer, larger work-object rail with rounded accordion cards.
+- Moved clone items into more visual session cards with avatar gradients, description copy, and right-aligned timestamps.
+- Refined the center workbench header and empty state to better match the approved sketch rhythm.
+- Restyled the right context rail into softer rounded cards and simplified the top controls.
+- Adjusted the composer framing to better match the approved workbench shell.
+
+Validation run:
+- `npm exec --yes pnpm@10.31.0 test -- tests/unit/workbench-context-rail.test.tsx tests/unit/workbench-sidebar.test.tsx tests/unit/workbench-shell.test.tsx`
+- `npm exec --yes pnpm@10.31.0 test -- tests/unit/browser-preview.test.ts tests/unit/settings-store-layout.test.ts tests/unit/workbench-context-rail.test.tsx tests/unit/workbench-sidebar.test.tsx tests/unit/settings-center.test.tsx tests/unit/workbench-shell.test.tsx`
+- `npm exec --yes pnpm@10.31.0 run typecheck`
+- `npm exec --yes pnpm@10.31.0 run lint`
+- `npm exec --yes pnpm@10.31.0 run build:vite`
+
+Results:
+- Visual workbench tests passed after selector updates.
+- Full targeted verification passed.
+- typecheck passed.
+- lint passed with one pre-existing warning in `electron/api/routes/providers.ts`.
+- build:vite passed.
+
+Decisions:
+- Kept the approved information architecture unchanged.
+- Changed only the presentation layer to better match the confirmed shell sketch.
+
+Blockers:
+- None for this task.
+
+Next recommended step:
+- Reopen the browser preview and collect the next round of UI feedback.

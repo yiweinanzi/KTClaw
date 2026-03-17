@@ -3,7 +3,7 @@
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "review",
   "current_focus": "VERIFY-001",
-  "last_updated": "2026-03-17T12:05:00+08:00",
+  "last_updated": "2026-03-17T12:32:00+08:00",
   "tasks": [
     {
       "id": "PERSIST-001",
@@ -172,7 +172,7 @@
         "Core sidebar/context/settings placeholders are present",
         "i18n labels cover new UI surfaces"
       ],
-      "notes": "Static workbench placeholders, team structure, context rail cards, settings-center placeholders, and browser-safe preview fallback are present.",
+      "notes": "Static workbench placeholders, team structure, context rail cards, settings-center placeholders, browser-safe preview fallback, and shell-sketch-aligned visual styling are present.",
       "subtasks": []
     },
     {
@@ -193,7 +193,7 @@
         "Typecheck/lint/build pass",
         "README sync rule is satisfied"
       ],
-      "notes": "Targeted unit tests, browser-preview test, typecheck, lint, and build:vite all ran. Lint only reports a pre-existing warning in electron/api/routes/providers.ts. Static browser preview now avoids crashing when window.electron is unavailable.",
+      "notes": "Targeted unit tests, browser-preview test, typecheck, lint, and build:vite all ran after the shell-style polish. Lint only reports a pre-existing warning in electron/api/routes/providers.ts. Static browser preview now avoids crashing when window.electron is unavailable.",
       "subtasks": []
     }
   ]

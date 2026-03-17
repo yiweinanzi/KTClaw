@@ -5,7 +5,6 @@ import { Sidebar } from '@/components/layout/Sidebar';
 
 const mockSetSidebarCollapsed = vi.fn();
 const mockSwitchSession = vi.fn();
-const mockNewSession = vi.fn();
 const mockDeleteSession = vi.fn();
 const mockLoadSessions = vi.fn(async () => {});
 const mockLoadHistory = vi.fn(async () => {});
@@ -22,7 +21,6 @@ const mockChatState = {
   sessionLabels: { 'agent:main:session-1': 'Alpha Session' },
   sessionLastActivity: { 'agent:main:session-1': Date.now() },
   switchSession: mockSwitchSession,
-  newSession: mockNewSession,
   deleteSession: mockDeleteSession,
   loadSessions: mockLoadSessions,
   loadHistory: mockLoadHistory,
@@ -37,7 +35,7 @@ const mockGatewayState = {
 };
 
 const mockAgentsState = {
-  agents: [{ id: 'main', name: '主分身' }],
+  agents: [{ id: 'main', name: 'KaiTianClaw' }],
   fetchAgents: mockFetchAgents,
 };
 
@@ -59,13 +57,16 @@ vi.mock('@/stores/agents', () => ({
   useAgentsStore: (selector: (state: typeof mockAgentsState) => unknown) => selector(mockAgentsState),
 }));
 
-vi.mock('@/lib/host-api', () => ({
-  hostApiFetch: vi.fn(async () => ({ success: true })),
-}));
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => {
+      if (key === 'common:sidebar.settings') return '设置';
+      if (key === 'common:actions.confirm') return '确认';
+      if (key === 'common:actions.delete') return '删除';
+      if (key === 'common:actions.cancel') return '取消';
+      if (key === 'common:sidebar.deleteSessionConfirm') return '确认删除';
+      return key;
+    },
   }),
 }));
 
@@ -75,17 +76,17 @@ describe('workbench sidebar', () => {
     vi.clearAllMocks();
   });
 
-  it('renders work-object accordion groups with clone sessions and settings footer', () => {
+  it('renders accordion groups with clone sessions and settings footer', () => {
     render(
       <MemoryRouter>
         <Sidebar />
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('button', { name: '分身' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '团队' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'IM 频道' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '定时任务' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /分身.*会话列表/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /团队.*组织框架/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /IM 频道.*外部入口/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /定时任务.*计划执行/ })).toBeInTheDocument();
     expect(screen.getByText('Alpha Session')).toBeInTheDocument();
     expect(screen.getByText('设置')).toBeInTheDocument();
   });
@@ -100,7 +101,6 @@ describe('workbench sidebar', () => {
 
     const aside = container.querySelector('aside');
     expect(aside).toBeInTheDocument();
-    expect(aside).toHaveClass('w-16');
+    expect(aside).toHaveClass('w-20');
   });
 });
-

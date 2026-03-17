@@ -386,7 +386,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   return (
     <div
       className={cn(
-        "p-4 pb-6 w-full mx-auto transition-all duration-300",
+        "w-full mx-auto px-6 pb-6 pt-2 transition-all duration-300",
         isEmpty ? "max-w-3xl" : "max-w-4xl"
       )}
       onDragOver={handleDragOver}
@@ -408,7 +408,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         )}
 
         {/* Input Row */}
-        <div className={`relative bg-white dark:bg-card rounded-[28px] shadow-sm border p-1.5 transition-all ${dragOver ? 'border-primary ring-1 ring-primary' : 'border-black/10 dark:border-white/10'}`}>
+        <div className={`relative rounded-[36px] border bg-white/95 p-2 shadow-[0_10px_30px_rgba(0,0,0,0.04)] transition-all dark:bg-card ${dragOver ? 'border-primary ring-1 ring-primary' : 'border-black/8 dark:border-white/10'}`}>
           {selectedTarget && (
             <div className="px-2.5 pt-2 pb-1">
               <button
