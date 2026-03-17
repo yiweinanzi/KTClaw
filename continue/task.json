@@ -1,9 +1,9 @@
 {
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
-  "current_phase": "review",
-  "current_focus": "VERIFY-001",
-  "last_updated": "2026-03-17T12:32:00+08:00",
+  "current_phase": "planned",
+  "current_focus": "BUILD-005",
+  "last_updated": "2026-03-17T14:45:00+08:00",
   "tasks": [
     {
       "id": "PERSIST-001",
@@ -194,6 +194,45 @@
         "README sync rule is satisfied"
       ],
       "notes": "Targeted unit tests, browser-preview test, typecheck, lint, and build:vite all ran after the shell-style polish. Lint only reports a pre-existing warning in electron/api/routes/providers.ts. Static browser preview now avoids crashing when window.electron is unavailable.",
+      "subtasks": []
+    },
+    {
+      "id": "DESIGN-005",
+      "title": "Deliver Figma full-page design review for KaiTianClaw",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-001",
+        "DESIGN-002",
+        "DESIGN-003",
+        "DESIGN-004"
+      ],
+      "description": "Create a Chinese-first full-page KaiTianClaw review deck that fuses ClawPort and OpenClaw Control Center capabilities into the current ClawX information architecture, with ChatGPT-web-inspired visual language.",
+      "acceptance_criteria": [
+        "Review deck covers workbench empty state, active conversation, team/channel/scheduled-task view, and grouped settings-center views",
+        "Layout rhythm, color system, material hierarchy, and navigation-to-workbench relationship are documented",
+        "Primary review artifact is delivered through Figma MCP when available, with a local HTML board as fallback"
+      ],
+      "notes": "Delivered the review deck through Figma MCP to file 7gBaKvTT8oFRYkPqN02p2F and kept the local source board at docs/figma-review/kaitianclaw-design-board.html. The approved visual direction is ChatGPT-workbench fusion: keep the current workbench-first IA, borrow ClawPort's left-rail operational rhythm and OpenClaw Control Center's lightweight governance cards, then restyle the full deck with ChatGPT-web-inspired neutral surfaces and green accents.",
+      "subtasks": []
+    },
+    {
+      "id": "BUILD-005",
+      "title": "Apply approved KaiTianClaw review deck to current source",
+      "type": "build",
+      "status": "planned",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-005"
+      ],
+      "description": "Translate the approved Figma review deck into the existing ClawX workbench and settings-center implementation without introducing a disconnected new frontend.",
+      "acceptance_criteria": [
+        "Current workbench shell visually aligns with the approved review deck",
+        "Settings center reflects the approved grouped page structure and card hierarchy",
+        "Implementation stays on the current source mainline and preserves the renderer/main API boundary"
+      ],
+      "notes": "Start from the approved Figma deck and local HTML review board instead of inventing a new layout direction during implementation.",
       "subtasks": []
     }
   ]

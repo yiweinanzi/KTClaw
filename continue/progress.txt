@@ -112,3 +112,50 @@ Blockers:
 
 Next recommended step:
 - Reopen the browser preview and collect the next round of UI feedback.
+
+[2026-03-17 14:45 +08:00] Session: DESIGN-005 Figma full-page review delivery
+Focus: Deliver the KaiTianClaw full-page design review before further business/UI implementation
+
+What changed:
+- Recovered context from `continue/`, the existing spec/plan files, and the requested repo checks before taking action.
+- Re-ran the required verification commands:
+  - `npm exec --yes pnpm@10.31.0 test -- tests/unit/browser-preview.test.ts tests/unit/settings-store-layout.test.ts tests/unit/workbench-context-rail.test.tsx tests/unit/workbench-sidebar.test.tsx tests/unit/settings-center.test.tsx tests/unit/workbench-shell.test.tsx`
+  - `npm exec --yes pnpm@10.31.0 run typecheck`
+  - `npm exec --yes pnpm@10.31.0 run lint`
+  - `npm exec --yes pnpm@10.31.0 run build:vite`
+- Added `DESIGN-005` to `continue/task.json`, promoted it through `brainstorming -> planned -> in_progress -> done`, and seeded `BUILD-005` as the next planned implementation task.
+- Reviewed `reference/clawport-ui-main` and `reference/openclaw-control-center-main`, plus their screenshot assets, to extract layout rhythm, card hierarchy, and functional coverage.
+- Reworked `docs/figma-review/kaitianclaw-design-board.html` into a Chinese-first review deck with:
+  - top review summary for layout rhythm / color system / material hierarchy / navigation-vs-workbench relationship
+  - workbench empty state
+  - workbench active conversation state
+  - team / IM / scheduled-task operations view
+  - settings center basic / workflow view
+  - settings center capability / governance view
+  - collapsed left-rail state
+- Served the local design board on `http://127.0.0.1:4173/kaitianclaw-design-board.html` and delivered it to Figma MCP.
+
+Figma delivery:
+- Existing file used: `KaiTianClaw UI Review Board`
+- File key: `7gBaKvTT8oFRYkPqN02p2F`
+- Captured node URL: `https://www.figma.com/design/7gBaKvTT8oFRYkPqN02p2F?node-id=4-2`
+
+Results:
+- Targeted unit tests passed: 6 files / 9 tests.
+- typecheck passed.
+- lint completed with the same pre-existing warning in `electron/api/routes/providers.ts`.
+- build:vite passed.
+- Local board served with HTTP 200.
+- Figma capture completed successfully, and `get_screenshot` confirmed the imported design node is populated.
+
+Decisions:
+- Final design direction is `ChatGPT workbench fusion`: use ChatGPT-web-inspired neutral surfaces and green accents, ClawPort's operational shell rhythm, and OpenClaw Control Center's lightweight governance/status cards.
+- Keep homepage = main workbench.
+- Keep the left sidebar as work objects rather than route navigation.
+- Keep deep configuration in Settings Center secondary pages instead of reintroducing a dashboard-first home.
+
+Blockers:
+- Playwright MCP browser launch was blocked by a local Chrome profile/session conflict, so browser verification switched to localhost reachability + headless Chrome capture + successful Figma import.
+
+Next recommended step:
+- Start `BUILD-005` and translate the approved review deck into the current ClawX source without diverging from the existing app architecture.
