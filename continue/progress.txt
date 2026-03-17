@@ -373,3 +373,20 @@ Blockers:
 
 Next recommended step:
 - Once approved, proceed with `BUILD-005` to implement this design in React.
+
+[2026-03-17 16:29 +08:00] Session: DESIGN-016 Premium Team Overview & Map Styling
+Focus: Upgrade visual design of Team Overview cards and Map nodes with glassmorphism and animations.
+
+What changed:
+- Frame 2 Staff cards: Added `.staff-card` hover lifting effects (`translateY(-4px)`), deep shadow on hover, and a subtle glassmorphic backdrop filter with a white gradient overlay.
+- Frame 2 Staff card avatars: Added hover rotation scale effects and gradient backgrounds.
+- Frame 3 Map nodes (`.map-node`): Added blur backdrop filters, strong layered drop shadows, hover lift (`translateY(-6px) scale(1.02)`), and dynamic gradient backgrounds on the top borders and node icons.
+
+Results:
+- Cards now feel premium, clickable, and responsive to user interaction, fitting a modern dynamic web design aesthetic.
+
+Blockers:
+- None.
+
+Next recommended step:
+- User review of these advanced hover states and shadow styles before code translation.

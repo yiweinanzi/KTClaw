@@ -2,8 +2,8 @@
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "in_progress",
-  "current_focus": "DESIGN-015",
-  "last_updated": "2026-03-17T16:25:00+08:00",
+  "current_focus": "DESIGN-016",
+  "last_updated": "2026-03-17T16:29:00+08:00",
   "tasks": [
     {
       "id": "PERSIST-001",
@@ -409,6 +409,23 @@
         "Right sidebar with Agent details exists in Frame 1"
       ],
       "notes": "Requested by user pointing to reference image 2.",
+      "subtasks": []
+    },
+    {
+      "id": "DESIGN-016",
+      "title": "Premium Team Overview & Map Styling",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-015"
+      ],
+      "description": "Upgrade visual design of Team Overview cards and Map nodes with glassmorphism and micro-animations.",
+      "acceptance_criteria": [
+        "Team cards have glassmorphism and hover animations",
+        "Map nodes have gradient borders and hover animations"
+      ],
+      "notes": "Requested by user to innovate visually on the list & map beyond the static reference.",
       "subtasks": []
     }
   ]

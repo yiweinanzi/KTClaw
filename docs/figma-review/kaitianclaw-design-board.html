@@ -534,12 +534,33 @@
     }
     .staff-card {
       border: 1px solid var(--staff-line);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-      background: #FAFBFC;
+      border-radius: var(--radius-xl);
+      padding: 24px;
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       display: flex;
       flex-direction: column;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+      overflow: hidden;
     }
+    .staff-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .staff-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+      border-color: rgba(245, 63, 63, 0.3);
+    }
+    .staff-card > * { position: relative; z-index: 1; }
+
     .staff-card-top {
       display: flex;
       align-items: center;
@@ -549,15 +570,20 @@
     .staff-card-avatar {
       width: 64px;
       height: 64px;
-      border-radius: 12px;
-      background: white;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #ffffff 0%, #f4f5f7 100%);
       border: 1px solid var(--staff-line);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 32px;
+      transition: transform 0.3s ease;
     }
-    .staff-card-title h3 { margin: 0 0 4px 0; font-size: 18px; }
+    .staff-card:hover .staff-card-avatar {
+      transform: scale(1.05) rotate(-3deg);
+    }
+    .staff-card-title h3 { margin: 0 0 4px 0; font-size: 18px; font-weight: 600; letter-spacing: -0.2px; }
     .staff-card-title p { margin: 0; font-size: 13px; color: var(--text-muted); }
 
     .staff-table {
@@ -567,7 +593,7 @@
     }
     .staff-table td {
       padding: 12px 0;
-      border-bottom: 1px dashed var(--staff-line);
+      border-bottom: 1px solid rgba(229, 230, 235, 0.5);
       vertical-align: top;
     }
     .staff-table tr:last-child td { border-bottom: none; }
@@ -587,15 +613,25 @@
       margin: 0 32px 32px;
     }
     .staff-footer-row {
-      background: white;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border: 1px solid var(--staff-line);
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-lg);
       padding: 16px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-weight: 500;
       font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    .staff-footer-row:hover {
+      background: #FFFFFF;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      border-color: #D9D9D9;
     }
 
     /* --- Map View Specifics (Image 2) --- */
@@ -710,64 +746,93 @@
     
     .map-node {
       display: inline-block;
-      width: 200px;
-      background: var(--bg-main);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-md);
-      padding: 12px;
+      width: 220px;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(229, 230, 235, 0.8);
+      border-radius: var(--radius-lg);
+      padding: 16px;
       text-align: left;
       position: relative;
-      box-shadow: var(--shadow-sm);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255,255,255,0.8);
+      transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      cursor: pointer;
+      overflow: hidden;
     }
-    .map-node.top-border-yellow { border-top: 2px solid #F5A623; }
-    .map-node.top-border-green { border-top: 2px solid #7ED321; }
-    .map-node.top-border-purple { border-top: 2px solid #BD10E0; }
-    .map-node.top-border-red { border-top: 2px solid #D0021B; }
-    .map-node.top-border-cyan { border-top: 2px solid #50E3C2; }
+    .map-node.top-border-yellow { border-top: 3px solid #F5A623; }
+    .map-node.top-border-yellow .node-icon { background: linear-gradient(135deg, #FFF3E0, #FFE0B2); color: #F5A623; }
+    .map-node.top-border-yellow:hover { border-color: rgba(245, 166, 35, 0.4); }
+
+    .map-node.top-border-green { border-top: 3px solid #00B42A; }
+    .map-node.top-border-green .node-icon { background: linear-gradient(135deg, #E8FFEA, #B7F4C8); color: #00B42A; }
+    .map-node.top-border-green:hover { border-color: rgba(0, 180, 42, 0.4); }
+    
+    .map-node.top-border-purple { border-top: 3px solid #9F18F9; }
+    .map-node.top-border-purple .node-icon { background: linear-gradient(135deg, #F9F0FF, #E5C3FF); color: #9F18F9; }
+    .map-node.top-border-purple:hover { border-color: rgba(159, 24, 249, 0.4); }
+
+    .map-node.top-border-red { border-top: 3px solid #F53F3F; }
+    .map-node.top-border-red .node-icon { background: linear-gradient(135deg, #FFEBE8, #FFC5C0); color: #F53F3F; }
+    .map-node.top-border-red:hover { border-color: rgba(245, 63, 63, 0.4); }
+
+    .map-node.top-border-cyan { border-top: 3px solid #14C9C9; }
+    .map-node.top-border-cyan .node-icon { background: linear-gradient(135deg, #E6FFFA, #B5F5EC); color: #14C9C9; }
+    .map-node.top-border-cyan:hover { border-color: rgba(20, 201, 201, 0.4); }
+
+    .map-node > * { color: var(--text-dark); position: relative; z-index: 1; }
 
     .node-header {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 12px;
+      margin-bottom: 12px;
     }
     .node-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 4px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       background: var(--item-hover);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      color: var(--text-dark);
-    }
-    .node-title {
       font-size: 14px;
-      font-weight: 500;
+      font-weight: bold;
+      color: inherit; /* adopts border color through cascade hack */
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      transition: transform 0.3s ease;
+    }
+    .map-node:hover .node-icon { transform: rotate(5deg) scale(1.1); }
+    .node-title {
+      font-size: 15px;
+      font-weight: 600;
       color: var(--text-dark);
+      letter-spacing: -0.2px;
     }
     .node-sub {
-      font-size: 11px;
+      font-size: 12px;
       color: var(--text-muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      line-height: 1.4;
     }
     .node-stats {
       display: flex;
       gap: 6px;
-      margin-top: 10px;
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(229, 230, 235, 0.6);
     }
     .stat-pill {
-      font-size: 10px;
-      padding: 2px 6px;
-      border-radius: 999px;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
       background: var(--staff-bg);
       color: var(--text-muted);
+      font-weight: 500;
+      transition: background 0.2s;
     }
-    .stat-pill.red { color: #F53F3F; }
-    .stat-pill.green { color: #00B42A; }
+    .map-node:hover .stat-pill { background: rgba(0,0,0,0.04); }
+    .stat-pill.red { color: #E8353E; background: #FFEBEB; }
+    .stat-pill.green { color: #00B42A; background: #E8FFEA; }
 
     .map-zoom-controls {
       position: absolute;
@@ -1384,7 +1449,7 @@
                 <!-- Root Node -->
                 <div class="map-node top-border-yellow">
                   <div class="node-header">
-                    <div class="node-icon" style="background:#FFF3E0; color:#F5A623">💼</div>
+                    <div class="node-icon">💼</div>
                     <div>
                       <div class="node-title">Jarvis</div>
                       <div class="node-sub">Orchestrator</div>
@@ -1402,7 +1467,7 @@
                   <li>
                     <div class="map-node top-border-yellow">
                       <div class="node-header">
-                        <div class="node-icon" style="background:#FFF3E0; color:#F5A623">R</div>
+                        <div class="node-icon">R</div>
                         <div>
                           <div class="node-title">Robin</div>
                           <div class="node-sub">Agent</div>
@@ -1432,7 +1497,7 @@
                       <li>
                         <div class="map-node top-border-green">
                           <div class="node-header">
-                            <div class="node-icon" style="background:#E8FFEA; color:#00B42A">L</div>
+                            <div class="node-icon">L</div>
                             <div>
                               <div class="node-title">LEADS</div>
                               <div class="node-sub">Robin Sub-Agent</div>
@@ -1448,7 +1513,7 @@
                   <li>
                     <div class="map-node top-border-purple">
                       <div class="node-header">
-                        <div class="node-icon" style="background:#F9F0FF; color:#BD10E0">P</div>
+                        <div class="node-icon">P</div>
                         <div>
                           <div class="node-title">Pulse</div>
                           <div class="node-sub">Agent</div>
@@ -1467,7 +1532,7 @@
                       <li>
                         <div class="map-node top-border-red">
                           <div class="node-header">
-                            <div class="node-icon" style="background:#FFEBE8; color:#F53F3F">F</div>
+                            <div class="node-icon">F</div>
                             <div>
                               <div class="node-title">FEED</div>
                               <div class="node-sub">Pulse Sub-Agent</div>
@@ -1483,7 +1548,7 @@
                   <li>
                     <div class="map-node top-border-cyan">
                       <div class="node-header">
-                        <div class="node-icon" style="background:#E6FFFA; color:#14C9C9">P</div>
+                        <div class="node-icon">P</div>
                         <div>
                           <div class="node-title">PROOF</div>
                           <div class="node-sub">Agent</div>
