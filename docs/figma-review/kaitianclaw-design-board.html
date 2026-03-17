@@ -182,6 +182,45 @@ body{background:#e8e8ed;font-family:'Inter',system-ui,sans-serif;padding:48px 0;
 .cron-right{text-align:right}
 .cron-next{font-size:12px;color:var(--tx2);margin-bottom:3px}
 .cron-expr{font-size:11px;font-family:monospace;color:var(--tx3)}
+
+/* Staff Cards */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;padding:0}
+.staff-card{background:#fff;border:1px solid var(--bd);border-radius:var(--r2);padding:20px;cursor:pointer;transition:.2s}
+.staff-card:hover{box-shadow:var(--sh2);transform:translateY(-3px)}
+.sc-head{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.sc-av{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.sc-name{font-size:15px;font-weight:600}
+.sc-role{font-size:12px;color:var(--tx2)}
+.sc-row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;border-top:1px solid var(--bd)}
+.sc-row:first-child{border-top:none}
+.sc-lbl{color:var(--tx3);width:60px;flex-shrink:0}
+.sc-val{color:var(--tx);font-weight:500;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Team Map */
+.map-canvas{flex:1;position:relative;background:var(--bg2);overflow:auto;display:flex;flex-direction:column;align-items:center;padding:40px 32px}
+.map-level{display:flex;gap:32px;justify-content:center;position:relative}
+.map-node{background:#fff;border:1px solid var(--bd);border-radius:var(--r2);padding:16px 20px;min-width:180px;text-align:center;cursor:pointer;transition:.2s;position:relative}
+.map-node:hover{box-shadow:var(--sh2);transform:translateY(-2px)}
+.map-node.root{border-color:var(--ac);border-width:2px}
+.mn-av{width:36px;height:36px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:6px}
+.mn-name{font-size:14px;font-weight:600;margin-bottom:2px}
+.mn-role{font-size:11px;color:var(--tx2)}
+.mn-badges{display:flex;gap:4px;justify-content:center;margin-top:8px;flex-wrap:wrap}
+.mn-badge{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:500}
+.mn-b-tool{background:#eef;color:#55c}
+.mn-b-report{background:#efe;color:#5a5}
+.mn-b-cron{background:#ffe;color:#a85}
+.map-connector{width:2px;height:40px;background:var(--bd);margin:0 auto}
+.map-connectors{display:flex;justify-content:center;position:relative;height:40px}
+.map-connectors::before{content:'';position:absolute;top:0;left:50%;width:2px;height:20px;background:var(--bd)}
+.map-connectors::after{content:'';position:absolute;top:20px;height:2px;background:var(--bd)}
+.map-hline{height:2px;background:var(--bd);margin:0 auto}
+.map-controls{position:absolute;bottom:20px;left:20px;display:flex;flex-direction:column;gap:4px}
+.map-controls button{width:32px;height:32px;border:1px solid var(--bd);border-radius:var(--r);background:#fff;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:.15s}
+.map-controls button:hover{background:var(--bg3)}
+.map-legend{position:absolute;top:16px;right:16px;display:flex;gap:12px;font-size:11px;color:var(--tx3)}
+.map-legend span{display:flex;align-items:center;gap:4px}
+.map-legend .dot{width:6px;height:6px;border-radius:50%}
 </style>
 </head>
 <body>
@@ -205,7 +244,7 @@ body{background:#e8e8ed;font-family:'Inter',system-ui,sans-serif;padding:48px 0;
 <div class="si"><span class="ic">👥</span><span class="itx">团队总览</span></div>
 <div class="si"><span class="ic">🗺</span><span class="itx">团队看板</span></div>
 </div>
-<div class="sbf"><div class="uav"></div><span class="un" style="font-size:13px;font-weight:500">Administrator</span></div>
+<div class="sbf"><div class="uav"></div><span class="un" style="font-size:13px;font-weight:500;flex:1">Administrator</span><span class="ib" style="font-size:16px;width:28px;height:28px" title="设置">⚙</span></div>
 </aside>
 <main class="ma">
 <div class="tb"><div class="tt">KTClaw <span style="color:var(--tx3);font-size:12px">▾</span></div><div class="ta"><button class="bo">📄 文件</button><button class="bo">🤖 Agent</button></div></div>
@@ -213,13 +252,13 @@ body{background:#e8e8ed;font-family:'Inter',system-ui,sans-serif;padding:48px 0;
 <div class="lm">✦</div>
 <h2>有什么我可以帮你的？</h2>
 <div class="sg">
-<div class="sc"><b>代码重构方案</b>提取 src/utils 核心逻辑并编写单测</div>
-<div class="sc"><b>检查系统健康度</b>调出监控面板，查昨日定时任务状态</div>
-<div class="sc"><b>撰写周报汇总</b>收集近 5 天 Git commit 生成团队周报</div>
-<div class="sc"><b>查看团队记忆</b>总结关于架构设计的长期记忆</div>
+<div class="sc"><b>🔧 代码重构方案</b>提取 src/utils 核心逻辑并编写单测</div>
+<div class="sc"><b>📊 检查系统健康度</b>调出监控面板，查昨日定时任务状态</div>
+<div class="sc"><b>📝 撰写周报汇总</b>收集近 5 天 Git commit 生成团队周报</div>
+<div class="sc"><b>🧠 查看团队记忆</b>总结关于架构设计的长期记忆</div>
 </div>
 </div>
-<div class="cc"><div class="cw"><div class="cb"><button class="cb-btn cb-at">📎</button><textarea class="ci" placeholder="给 KTClaw 发送消息..." rows="1"></textarea><button class="cb-btn cb-s">➤</button></div><div class="cf">Agent 在本地安全运行 · 由 AI 模型生成内容</div></div></div>
+<div class="cc"><div class="cw"><div class="cb"><button class="cb-btn cb-at">📎</button><textarea class="ci" placeholder="给 KTClaw 发送消息..." rows="1"></textarea><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:10px;background:var(--bg3);font-size:11px;color:var(--tx2);cursor:pointer;white-space:nowrap;flex-shrink:0" title="切换模型">GLM-5 ▾</span><button class="cb-btn cb-s">➤</button></div><div class="cf">Agent 在本地安全运行 · 由 AI 模型生成内容</div></div></div>
 </main>
 </div>
 </div>
@@ -267,9 +306,9 @@ body{background:#e8e8ed;font-family:'Inter',system-ui,sans-serif;padding:48px 0;
 </div>
 </div>
 
-<!-- ===== Frame 3: 团队总览 (Bento) ===== -->
+<!-- ===== Frame 3: 团队总览 (Cards) ===== -->
 <div class="fw">
-<h1 class="ft">03 团队总览 / 员工与分工 <span>Bento Box 布局，左栏折叠</span></h1>
+<h1 class="ft">03 团队总览 / 员工与分工 <span>卡片式布局，点击可跳转 Map</span></h1>
 <div class="aw">
 <aside class="sb col">
 <div class="sbh" style="justify-content:center;padding:0"><div class="ib">☰</div></div>
@@ -289,16 +328,120 @@ body{background:#e8e8ed;font-family:'Inter',system-ui,sans-serif;padding:48px 0;
 </aside>
 <main class="ma">
 <div class="vc">
-<div class="vch"><div><h1>员工与分工总览</h1><p>所有激活的 Agent 角色及当前工作状态</p></div><div class="ta"><button class="bo">+ 雇佣新员工</button></div></div>
-<table class="ct">
-<thead><tr><th style="width:25%">员工角色</th><th style="width:13%">状态</th><th style="width:30%">正在处理</th><th>最近产出</th></tr></thead>
-<tbody>
-<tr><td><div class="tc"><div class="tca">✦</div><div class="tci"><h4>KTClaw 主脑</h4><p>Orchestrator</p></div></div></td><td><span class="sb-badge sg-g"><span class="sd"></span>工作中</span></td><td>处理「代码重构与提取方案」</td><td>架构大纲 v1.2</td></tr>
-<tr><td><div class="tc"><div class="tca">🔍</div><div class="tci"><h4>沉思小助手</h4><p>信息提取</p></div></div></td><td><span class="sb-badge sg-y"><span class="sd"></span>待命</span></td><td>无任务</td><td>Agent 生态早报</td></tr>
-<tr><td><div class="tc"><div class="tca">🤖</div><div class="tci"><h4>Monkey</h4><p>字幕打轴</p></div></div></td><td><span class="sb-badge sg-y"><span class="sd"></span>待命</span></td><td>YouTube URL 入列</td><td>Monkey Asset...</td></tr>
-<tr><td><div class="tc"><div class="tca">⚠️</div><div class="tci"><h4>安全审核</h4><p>权限检查</p></div></div></td><td><span class="sb-badge sg-r"><span class="sd"></span>阻断</span></td><td>拦截 /root 读取</td><td>Access Denied</td></tr>
-</tbody>
-</table>
+<div class="vch"><div><h1>员工与分工总览</h1><p>所有激活的 Agent 角色及当前工作状态 · 点击卡片查看 Map</p></div><div class="ta"><button class="bo">+ 雇佣新员工</button></div></div>
+<div class="card-grid">
+<div class="staff-card">
+<div class="sc-head"><div class="sc-av" style="background:#e8f5e9">✦</div><div><div class="sc-name">KTClaw 主脑</div><div class="sc-role">Orchestrator</div></div></div>
+<div class="sc-row"><span class="sc-lbl">当前状态</span><span class="sc-val"><span class="sb-badge sg-g"><span class="sd"></span>工作中</span></span></div>
+<div class="sc-row"><span class="sc-lbl">正在处理</span><span class="sc-val">代码重构与提取方案</span></div>
+<div class="sc-row"><span class="sc-lbl">最近产出</span><span class="sc-val">架构大纲 v1.2</span></div>
+<div class="sc-row"><span class="sc-lbl">是否排班</span><span class="sc-val">已排班</span></div>
+</div>
+<div class="staff-card">
+<div class="sc-head"><div class="sc-av" style="background:#e3f2fd">🔍</div><div><div class="sc-name">沉思小助手</div><div class="sc-role">信息提取</div></div></div>
+<div class="sc-row"><span class="sc-lbl">当前状态</span><span class="sc-val"><span class="sb-badge sg-y"><span class="sd"></span>待命</span></span></div>
+<div class="sc-row"><span class="sc-lbl">下一项</span><span class="sc-val">每日 07:30 晨报</span></div>
+<div class="sc-row"><span class="sc-lbl">最近产出</span><span class="sc-val">Agent 生态早报</span></div>
+<div class="sc-row"><span class="sc-lbl">是否排班</span><span class="sc-val">已排班</span></div>
+</div>
+<div class="staff-card">
+<div class="sc-head"><div class="sc-av" style="background:#fff3e0">🤖</div><div><div class="sc-name">Monkey</div><div class="sc-role">字幕打轴</div></div></div>
+<div class="sc-row"><span class="sc-lbl">当前状态</span><span class="sc-val"><span class="sb-badge sg-y"><span class="sd"></span>待命</span></span></div>
+<div class="sc-row"><span class="sc-lbl">正在处理</span><span class="sc-val">YouTube URL 入列</span></div>
+<div class="sc-row"><span class="sc-lbl">最近产出</span><span class="sc-val">Monkey Asset Batch #11</span></div>
+<div class="sc-row"><span class="sc-lbl">是否排班</span><span class="sc-val">未排班</span></div>
+</div>
+<div class="staff-card">
+<div class="sc-head"><div class="sc-av" style="background:#feeceb">⚠️</div><div><div class="sc-name">安全审核</div><div class="sc-role">权限检查</div></div></div>
+<div class="sc-row"><span class="sc-lbl">当前状态</span><span class="sc-val"><span class="sb-badge sg-r"><span class="sd"></span>阻断</span></span></div>
+<div class="sc-row"><span class="sc-lbl">正在处理</span><span class="sc-val">拦截 /root 读取</span></div>
+<div class="sc-row"><span class="sc-lbl">最近产出</span><span class="sc-val">Access Denied</span></div>
+<div class="sc-row"><span class="sc-lbl">是否排班</span><span class="sc-val">未排班</span></div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+
+<!-- ===== Frame 3b: 团队 Map ===== -->
+<div class="fw">
+<h1 class="ft">03b 团队 Map / 层级关系 <span>从员工卡片点击进入，查看团队拓扑</span></h1>
+<div class="aw">
+<aside class="sb col">
+<div class="sbh" style="justify-content:center;padding:0"><div class="ib">☰</div></div>
+<div class="sbc">
+<div class="si"><span class="ic">✦</span></div>
+<div class="si"><span class="ic">🔍</span></div>
+<div style="height:1px;background:var(--bd);margin:12px 8px"></div>
+<div class="si"><span class="ic">💬</span></div>
+<div style="height:1px;background:var(--bd);margin:12px 8px"></div>
+<div class="si"><span class="ic">📋</span></div>
+<div class="si"><span class="ic">📅</span></div>
+<div style="height:1px;background:var(--bd);margin:12px 8px"></div>
+<div class="si on"><span class="ic">👥</span></div>
+<div class="si"><span class="ic">🗺</span></div>
+</div>
+<div class="sbf"><div class="uav"></div></div>
+</aside>
+<main class="ma">
+<div class="map-canvas">
+<div class="map-legend">
+<span><span class="dot" style="background:var(--ac)"></span>活跃</span>
+<span><span class="dot" style="background:#ef4444"></span>阻断</span>
+<span><span class="dot" style="background:var(--tx3)"></span>待命</span>
+</div>
+<!-- Root Node -->
+<div class="map-level">
+<div class="map-node root">
+<div class="mn-av" style="background:#e8f5e9">✦</div>
+<div class="mn-name">KTClaw 主脑</div>
+<div class="mn-role">Orchestrator</div>
+<div class="mn-badges"><span class="mn-badge mn-b-tool">4 tools</span><span class="mn-badge mn-b-report">3 reports</span></div>
+</div>
+</div>
+<!-- Connector -->
+<div class="map-connector"></div>
+<!-- Horizontal line spanning children -->
+<div style="width:680px"><div class="map-hline"></div></div>
+<!-- Row connectors -->
+<div style="display:flex;gap:32px;justify-content:center">
+<div style="width:180px"><div style="width:2px;height:20px;background:var(--bd);margin:0 auto"></div></div>
+<div style="width:180px"><div style="width:2px;height:20px;background:var(--bd);margin:0 auto"></div></div>
+<div style="width:180px"><div style="width:2px;height:20px;background:var(--bd);margin:0 auto"></div></div>
+</div>
+<!-- Child Nodes -->
+<div class="map-level">
+<div class="map-node">
+<div class="mn-av" style="background:#e3f2fd">🔍</div>
+<div class="mn-name">沉思小助手</div>
+<div class="mn-role">信息提取</div>
+<div class="mn-badges"><span class="mn-badge mn-b-tool">2 tools</span><span class="mn-badge mn-b-cron">1 cron</span></div>
+</div>
+<div class="map-node">
+<div class="mn-av" style="background:#fff3e0">🤖</div>
+<div class="mn-name">Monkey</div>
+<div class="mn-role">字幕打轴</div>
+<div class="mn-badges"><span class="mn-badge mn-b-tool">2 tools</span><span class="mn-badge mn-b-cron">1 cron</span></div>
+</div>
+<div class="map-node" style="border-color:#ef4444">
+<div class="mn-av" style="background:#feeceb">⚠️</div>
+<div class="mn-name">安全审核</div>
+<div class="mn-role">权限检查</div>
+<div class="mn-badges"><span class="mn-badge mn-b-tool">1 tool</span></div>
+</div>
+</div>
+<!-- Map Controls -->
+<div class="map-controls">
+<button>＋</button>
+<button>－</button>
+<button>⛶</button>
+</div>
+<!-- View Switcher -->
+<div style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:4px;padding:3px;background:#fff;border:1px solid var(--bd);border-radius:var(--r)">
+<span class="bo" style="padding:4px 14px;font-size:12px">Teams</span>
+<span class="bo on" style="padding:4px 14px;font-size:12px;background:var(--bg3)">Hierarchy</span>
+</div>
 </div>
 </main>
 </div>

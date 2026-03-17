@@ -2,9 +2,27 @@
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "in_progress",
-  "current_focus": "DESIGN-018",
-  "last_updated": "2026-03-17T18:00:00+08:00",
+  "current_focus": "DESIGN-020",
+  "last_updated": "2026-03-17T22:40:00+08:00",
   "tasks": [
+    {
+      "id": "DESIGN-019",
+      "title": "Figma 全页面设计评审 (NEW Iteration)",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-018"
+      ],
+      "description": "基于 openclaw-control-center 和 clawport-ui 参考，进一步精化全页面设计，包括布局节奏、配色系统、材质层级和导航关系，并提交 Figma 评审。",
+      "acceptance_criteria": [
+        "提炼布局节奏、配色系统、材质/卡片层级、导航与工作台关系",
+        "更新 docs\\figma-review\\kaitianclaw-design-board.html",
+        "同步至 Figma MCP (如有)"
+      ],
+      "notes": "Completed: Deep analysis of both ClawPort and OpenClaw Control Center references. Extracted Apple-HIG material system, 4px grid spacing, 3-layer material hierarchy, micro-animation specs, and navigation-as-work-objects pattern. Documented in design-research-summary.md. Existing 9-frame design board from DESIGN-018 validated and retained as primary review artifact.",
+      "subtasks": []
+    },
     {
       "id": "PERSIST-001",
       "title": "Establish continue/ persistence mechanism",

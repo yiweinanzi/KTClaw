@@ -562,3 +562,58 @@ Blockers:
 
 Next recommended step:
 - User review of the 9-frame design deck; then proceed with BUILD-005 to translate approved designs into React.
+
+[2026-03-17 22:30 +08:00] Session: DESIGN-019 深度参考分析与设计提炼
+Focus: 基于 ClawPort 和 OpenClaw Control Center 参考项目的深度设计分析
+
+What changed:
+- 恢复上下文: 运行全量回归检查 (6 test files / 9 tests pass, typecheck pass, lint pass, build:vite pass)
+- 深度分析 reference/clawport-ui-main:
+  - 提取 Apple HIG 材质系统 (4 主题: dark/glass/color/light)
+  - 提取设计令牌系统 (4px grid spacing, material layers, shadow tokens)
+  - 提取交互规范 (hover-lift, btn-scale, panel-slide-in 动画)
+  - 提取导航模式 (220px 固定侧栏, flat nav items + badge, 右侧按需面板)
+  - 提取排版规范 (Apple HIG typography scale)
+- 深度分析 reference/openclaw-control-center-main:
+  - 提取 7-section 信息架构
+  - 提取卡片密度和间距规范
+  - 提取轻量级治理卡片模式
+- 重写 docs/figma-review/design-research-summary.md 为完整设计提炼文档:
+  - 布局节奏 (sidebar 240/56px, main flex-1, drawer 360px)
+  - 配色系统 (AutoClaw 暖色方向 + Dark 预留)
+  - 三层材质体系 (L0 背景 / L1 卡片 / L2 悬浮)
+  - 导航与工作台关系 (左侧栏=工作对象 非路由)
+  - 微交互规范 (6 种核心交互动画)
+  - 字体与排版规范
+- 验证现有 9 帧设计评审板 (DESIGN-018) 仍有效且完整
+
+Decisions:
+- 现有 9 帧 HTML design board 保留为主评审制品，不做破坏性重写
+- 设计提炼文档作为实现阶段的视觉规范来源
+- 下一步实现应从 design-research-summary.md 提取设计令牌
+
+Blockers:
+- None.
+
+Next recommended step:
+- 开始 BUILD-005: 将批准的设计稿翻译到现有 ClawX React 源码
+
+[2026-03-17 22:45 +08:00] Session: DESIGN-020 设计草图精化
+Focus: 根据用户反馈优化 3 处设计
+
+What changed:
+- Frame 01 (主工作台/空态):
+  - 左下角账号旁添加了齿轮设置入口图标
+  - 对话输入框内添加 GLM-5 模型切换下拉
+  - 四个建议卡片各添加了 emoji icon (????????)
+- Frame 03 (团队总览):
+  - 从表格布局改为卡片式网格 (card-grid)
+  - 每张卡片展示：头像、名称、角色、当前状态、正在处理、最近产出、是否排班
+  - 卡片带 hover 效果 (translateY + shadow)
+- Frame 03b (新增: 团队 Map):
+  - 层级关系拓扑图，Root=KTClaw主脑，子节点=沉思/Monkey/安全审核
+  - 带连线、badge (tools/reports/crons)
+  - 左下缩放控制、右上图例、底部 Teams/Hierarchy 切换
+- 新增 CSS: staff-card 卡片样式、map-canvas/map-node 地图样式
+
+Next: 等待用户审查设计并给出下一步反馈
