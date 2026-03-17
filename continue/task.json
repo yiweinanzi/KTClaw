@@ -2,7 +2,7 @@
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "in_progress",
-  "current_focus": "DESIGN-009",
+  "current_focus": "DESIGN-010",
   "last_updated": "2026-03-17T15:58:00+08:00",
   "tasks": [
     {
@@ -306,6 +306,25 @@
         "折叠栏关键状态"
       ],
       "notes": "Using HTML board to emulate Figma review.",
+      "subtasks": []
+    },
+    {
+      "id": "DESIGN-010",
+      "title": "Homepage UI alignment with AutoClaw Reference",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-009"
+      ],
+      "description": "Align homepage to single-column AutoClaw style with 4 left accordions and File/Agent right drawer.",
+      "acceptance_criteria": [
+        "Color scheme matches AutoClaw screenshot",
+        "Left rail has 4 accordions: 分身, Channel频道, 任务, 团队管理",
+        "Right rail has only File and Agent, collapsible",
+        "Single column main area"
+      ],
+      "notes": "Delivered as high fidelity HTML",
       "subtasks": []
     }
   ]

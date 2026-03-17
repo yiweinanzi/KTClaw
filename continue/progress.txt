@@ -284,3 +284,23 @@ Blockers:
 
 Next recommended step:
 - Acknowledge Figma delivery local HTML status and proceed towards frontend implementation on actual React tree.
+
+[2026-03-17 15:58 +08:00] Session: DESIGN-010 Single-column AutoClaw Homepage Layout
+Focus: Redesign the homepage mockup to strictly follow the AutoClaw reference image structure.
+
+What changed:
+- Removed multi-frame review board, replaced completely with a single high-fidelity, single-column central canvas view.
+- Re-styled colors to match the AutoClaw light gray/warm off-white background and light coral accents.
+- Re-structured the left sidebar: 4 accordion sections (分身, Channel 频道, 任务, 团队管理) representing only work objects.
+- Integrated the strictly-limited Top-Right actions ("文件" and "Agent") that control the collapsible right panel.
+- Recreated the Right Sidebar containing Agent properties exactly as depicted in the AutoClaw specification.
+- Addressed "单列模式草图" by establishing one monolithic workbench canvas in the center.
+
+Results:
+- docs/figma-review/kaitianclaw-design-board.html has been fully refreshed to precisely match the AutoClaw reference UI.
+
+Blockers:
+- None.
+
+Next recommended step:
+- Request user review for this precise homepage layout.

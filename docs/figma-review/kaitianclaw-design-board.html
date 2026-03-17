@@ -3,154 +3,52 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KaiTianClaw Design Review Board</title>
-  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  <title>KaiTianClaw - AutoClaw Single Column Mockup</title>
   <style>
     :root {
-      --bg: #FFFFFF;
-      --bg-sidebar: #F9F9F9;
-      --panel: #FFFFFF;
-      --panel-soft: #F3F4F6;
-      --line: #E5E7EB;
-      --line-strong: #D1D5DB;
-      --text: #111827;
-      --muted: #6B7280;
-      --accent: #10A37F;
-      --accent-hover: #0E906F;
-      --accent-soft: #E6F6F2;
-      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-      --radius-xl: 16px;
-      --radius-lg: 12px;
+      --bg-sidebar: #F7F7F9;
+      --bg-main: #FFFFFF;
+      --line: #EBECEF;
+      --text-dark: #1D2129;
+      --text-muted: #86909C;
+      --text-light: #C9CDD4;
+      --accent: #F53F3F; 
+      --accent-hover: #F76560;
+      --accent-bg: #FFECE8;
+      --item-hover: #F2F3F5;
+      --item-active: #FFFFFF;
+      --radius-sm: 4px;
       --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 10px rgba(0,0,0,0.08);
     }
-
+    
     * { box-sizing: border-box; }
-
     body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      color: var(--text);
-      background: #F3F4F6;
-    }
-
-    .page {
-      max-width: 1920px;
-      margin: 0 auto;
-      padding: 32px;
-      display: grid;
-      gap: 32px;
-    }
-
-    .hero {
-      background: var(--panel);
-      border-radius: var(--radius-xl);
-      padding: 32px;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .hero-top {
+      margin: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text-dark);
+      background: #E5E6EB; 
       display: flex;
-      gap: 12px;
-      margin-bottom: 24px;
+      justify-content: center;
+      padding: 40px;
     }
-
-    .chip {
-      padding: 4px 12px;
-      border-radius: 999px;
-      background: var(--panel-soft);
-      border: 1px solid var(--line);
-      font-size: 13px;
-      color: var(--text);
-      font-weight: 500;
-    }
-
-    h1 {
-      margin: 0 0 16px 0;
-      font-size: 36px;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-
-    .lead {
-      margin: 0;
-      font-size: 16px;
-      color: var(--muted);
-      line-height: 1.6;
-      max-width: 800px;
-    }
-
-    .summary-grid {
-      margin-top: 32px;
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 16px;
-    }
-
-    .summary-item {
-      padding: 20px;
+    
+    .app-window {
+      width: 1440px;
+      height: 900px;
+      background: var(--bg-main);
       border-radius: var(--radius-lg);
-      border: 1px solid var(--line);
-      background: var(--panel);
-    }
-
-    .summary-item strong {
-      display: block;
-      margin-bottom: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--accent);
-    }
-
-    .summary-item p {
-      margin: 0;
-      font-size: 14px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    .deck {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 24px;
-    }
-
-    .frame-card {
-      background: var(--bg);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      padding: 20px;
       box-shadow: var(--shadow-md);
       display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .frame-head h2 {
-      margin: 0 0 8px 0;
-      font-size: 20px;
-      font-weight: 600;
-    }
-
-    .frame-head p {
-      margin: 0;
-      font-size: 14px;
-      color: var(--muted);
-    }
-
-    /* Workbench Layout */
-    .stage {
-      flex: 1;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
       overflow: hidden;
-      background: var(--bg);
-      display: flex;
-      height: 700px;
+      border: 1px solid var(--line);
     }
 
-    .sidebar {
+    /* --- Left Sidebar --- */
+    .left-sidebar {
       width: 260px;
       background: var(--bg-sidebar);
       border-right: 1px solid var(--line);
@@ -158,803 +56,671 @@
       flex-direction: column;
     }
 
-    .sidebar.collapsed {
-      width: 68px;
+    .ls-header {
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+    }
+    .ls-header .icon-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--text-dark);
+      border-radius: var(--radius-sm);
+    }
+    .ls-header .icon-btn:hover { background: var(--item-hover); }
+
+    .ls-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
     }
 
-    .sidebar-top {
+    /* Accordion */
+    .accordion {
+      margin-bottom: 8px;
+    }
+    .accordion-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 32px;
+      padding: 0 8px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+    }
+    .accordion-head:hover { background: var(--item-hover); color: var(--text-dark); }
+    .accordion-head .arrow { font-size: 10px; transform: scaleY(0.6); }
+    
+    .accordion-body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* List Item */
+    .list-item {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      position: relative;
+    }
+    .list-item:hover { background: var(--item-hover); }
+    .list-item.active {
+      background: var(--item-active);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .item-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #E5E6EB;
+      margin-right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .list-item.active .item-avatar {
+      background: var(--accent);
+      color: white;
+    }
+    
+    .item-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .item-title {
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .item-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .item-time {
+      font-size: 12px;
+      color: var(--text-light);
+    }
+
+    /* Sub-menus */
+    .text-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 12px 8px 28px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      color: var(--text-dark);
+      cursor: pointer;
+    }
+    .text-item:hover { background: var(--item-hover); }
+    .text-item::before {
+      content: "";
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--text-light);
+      margin-right: 8px;
+    }
+
+    .ls-footer {
       padding: 16px;
+      border-top: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #D9D9D9;
+    }
+    .user-name {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-dark);
+    }
 
-    .logo-area {
+    /* --- Center Main --- */
+    .center-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-main);
+      position: relative;
+    }
+
+    .cm-header {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+    .cm-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    /* Top Right Controls */
+    .top-right-controls {
+      position: absolute;
+      top: 16px;
+      right: 24px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      z-index: 10;
+    }
+    .tr-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      color: var(--text-dark);
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+    }
+    .tr-btn:hover { background: var(--item-hover); }
+    .tr-btn.active {
+      background: var(--item-hover);
+      font-weight: 500;
+    }
+
+    .cm-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+    }
+
+    .status-bar {
+      position: absolute;
+      top: 60px;
+      left: 0;
+      right: 0;
+      background: #F4F5F7;
+      color: var(--text-muted);
+      font-size: 12px;
+      text-align: center;
+      padding: 6px 0;
+    }
+
+    .promo-banner {
+      background: var(--accent-bg);
+      color: var(--text-dark);
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      margin-bottom: 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .promo-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .empty-logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 20px;
+      background: #1D2129;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 28px;
+      font-weight: bold;
+    }
+
+    .empty-title {
+      font-size: 28px;
+      font-weight: 600;
+      margin: 0 0 12px 0;
+    }
+    .empty-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin: 0 0 32px 0;
+    }
+
+    .quick-config {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      width: 400px;
+      box-shadow: var(--shadow-sm);
+    }
+    .qc-icon {
+      font-size: 32px;
+    }
+    .qc-text h4 { margin: 0 0 4px 0; font-size: 15px; }
+    .qc-text p { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+    .cm-footer {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .chat-input {
+      width: 100%;
+      max-width: 760px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      padding: 16px 20px;
+      background: #FAFAFA;
+      display: flex;
+      align-items: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    }
+    .chat-input input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      outline: none;
+      font-size: 15px;
+    }
+    .input-actions {
       display: flex;
       align-items: center;
       gap: 12px;
-      font-weight: 600;
-      font-size: 15px;
     }
-
-    .logo-icon {
+    .model-selector {
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .send-btn {
       width: 32px;
       height: 32px;
-      border-radius: 8px;
+      border-radius: 50%;
+      background: var(--text-light);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+    }
+
+    .footer-note {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-top: 12px;
+    }
+
+    /* --- Right Sidebar --- */
+    .right-sidebar {
+      width: 300px;
+      background: var(--bg-main);
+      border-left: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .rs-header {
+      padding: 24px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid transparent;
+    }
+    .rs-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
       background: var(--accent);
       color: white;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
       font-size: 16px;
+      font-weight: bold;
+      flex-shrink: 0;
     }
+    .rs-title h3 { margin: 0 0 4px 0; font-size: 16px; }
+    .rs-title p { margin: 0; font-size: 13px; color: var(--text-muted); }
 
-    .collapse-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted);
-      cursor: pointer;
-    }
-    .collapse-btn:hover {
-      background: var(--line);
-    }
-
-    .nav-groups {
+    .rs-content {
       flex: 1;
-      padding: 0 12px;
       overflow-y: auto;
+      padding: 0 20px 24px;
       display: flex;
       flex-direction: column;
       gap: 24px;
     }
 
-    .nav-group-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--muted);
-      margin-bottom: 8px;
-      padding: 0 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: var(--radius-md);
-      color: var(--text);
-      font-size: 14px;
-      cursor: pointer;
-      margin-bottom: 2px;
-    }
-
-    .nav-item:hover {
-      background: rgba(0,0,0,0.05);
-    }
-    
-    .nav-item.active {
-      background: var(--panel);
-      box-shadow: var(--shadow-sm);
-      font-weight: 500;
-    }
-
-    .item-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: white;
-      border: 1px solid var(--line);
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .main-area {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg);
-      position: relative;
-    }
-
-    .header {
-      height: 60px;
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid transparent;
-    }
-
-    .header-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 12px;
-    }
-
-    .btn-outline {
-      padding: 6px 16px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: white;
-      color: var(--text);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .btn-outline:hover {
-      background: var(--panel-soft);
-    }
-    
-    .btn-outline.active {
-      background: var(--accent-soft);
-      border-color: var(--accent);
-      color: var(--accent-hover);
-    }
-
-    .content-area {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 24px;
-      overflow-y: auto;
-    }
-
-    .empty-center {
-      margin: auto;
-      text-align: center;
-      max-width: 480px;
-    }
-
-    .empty-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 50%;
-      background: var(--panel-soft);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 24px;
-      font-size: 24px;
-    }
-
-    .empty-center h3 {
-      font-size: 28px;
+    .rs-section h4 {
       margin: 0 0 12px 0;
+      font-size: 14px;
       font-weight: 600;
     }
 
-    .empty-center p {
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.5;
-      margin: 0;
-    }
-
-    .suggestions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 32px;
-    }
-
-    .suggestion-card {
-      padding: 16px;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      text-align: left;
-      font-size: 13px;
-      color: var(--muted);
-      cursor: pointer;
-    }
-    .suggestion-card:hover {
-      background: var(--panel-soft);
-    }
-    .suggestion-card strong {
-      display: block;
-      color: var(--text);
-      font-size: 14px;
-      margin-bottom: 4px;
-    }
-
-    .composer-wrapper {
-      padding: 0 24px 24px;
-    }
-
-    .composer {
-      border: 1px solid var(--line);
-      border-radius: 24px;
-      background: white;
-      padding: 12px 16px;
-      display: flex;
-      align-items: flex-end;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
-
-    .composer input {
-      flex: 1;
-      border: none;
-      outline: none;
-      font-size: 15px;
-      padding: 8px 0;
-      background: transparent;
-    }
-
-    .composer-btn {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: none;
-      cursor: pointer;
-    }
-
-    /* Chat Active State */
-    .message {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 32px;
-      max-width: 800px;
-      margin-left: auto;
-      margin-right: auto;
+    .info-table {
       width: 100%;
-    }
-
-    .avatar {
-      width: 36px;
-      height: 36px;
-      border-radius: 4px;
-      background: var(--accent-soft);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      font-weight: 600;
-      color: var(--accent-hover);
-    }
-
-    .avatar.user {
-      background: var(--line);
-      color: var(--text);
-      border-radius: 50%;
-    }
-
-    .message-content {
-      flex: 1;
-      font-size: 15px;
-      line-height: 1.6;
-      color: var(--text);
-    }
-
-    .message-content p {
-      margin: 0 0 16px 0;
-    }
-    
-    .code-block {
-      background: #1E1E1E;
-      color: #D4D4D4;
-      border-radius: var(--radius-md);
-      padding: 16px;
-      font-family: monospace;
-      font-size: 13px;
-    }
-
-    /* Right Drawer */
-    .right-drawer {
-      width: 320px;
-      background: var(--panel);
-      border-left: 1px solid var(--line);
-      position: absolute;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      box-shadow: var(--shadow-lg);
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .drawer-header {
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-weight: 600;
-    }
-    
-    .drawer-content {
-      padding: 24px;
-      overflow-y: auto;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .drawer-card {
       border: 1px solid var(--line);
       border-radius: var(--radius-md);
-      padding: 16px;
+      overflow: hidden;
+      border-collapse: collapse;
     }
-    .drawer-card h4 {
-      margin: 0 0 8px 0;
-      font-size: 14px;
-    }
-    .drawer-card p {
-      margin: 0;
-      font-size: 13px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    /* Settings Center */
-    .settings-layout {
-      display: flex;
-      flex: 1;
-    }
-
-    .settings-nav {
-      width: 240px;
-      border-right: 1px solid var(--line);
-      background: var(--bg-sidebar);
-      padding: 24px 16px;
-    }
-
-    .settings-main {
-      flex: 1;
-      padding: 48px;
-      overflow-y: auto;
-      background: var(--bg);
-    }
-
-    .settings-main h2 {
-      margin: 0 0 8px 0;
-      font-size: 24px;
-      font-weight: 600;
-    }
-
-    .settings-desc {
-      color: var(--muted);
-      margin-bottom: 32px;
-      font-size: 14px;
-    }
-
-    .settings-card {
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      margin-bottom: 24px;
-    }
-
-    .settings-card h3 {
-      margin: 0 0 16px 0;
-      font-size: 16px;
-      font-weight: 600;
-    }
-    
-    .settings-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 0;
+    .info-table tr {
       border-bottom: 1px solid var(--line);
     }
-    .settings-row:last-child {
-      border-bottom: none;
-      padding-bottom: 0;
-    }
-    
-    /* Kanban / Pipelines styling (ClawPort inspired) */
-    .pipeline-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-    .pipeline-col {
-      background: var(--panel-soft);
-      border-radius: var(--radius-lg);
-      padding: 16px;
-    }
-    .pipeline-col h4 {
-      margin: 0 0 16px 0;
-      font-size: 14px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .task-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-md);
+    .info-table tr:last-child { border-bottom: none; }
+    .info-table td {
       padding: 12px;
-      margin-bottom: 8px;
-      box-shadow: var(--shadow-sm);
+      font-size: 13px;
+      vertical-align: top;
     }
-    .task-card strong {
-      display: block;
-      font-size: 14px;
-      margin-bottom: 8px;
+    .info-table td:first-child {
+      width: 80px;
+      color: var(--text-muted);
     }
-    .task-meta {
-      display: flex;
-      justify-content: space-between;
-      color: var(--muted);
-      font-size: 12px;
-    }
-    
-    .nav-item-iconless {
-      padding-left: 12px;
+    .info-table td:last-child {
+      color: var(--text-dark);
     }
 
+    .rs-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 12px;
+    }
+    .rs-section-header h4 { margin: 0; }
+    .rs-section-header span { font-size: 12px; color: var(--text-light); }
   </style>
 </head>
 <body>
-  <div class="page">
-    <section class="hero">
-      <div class="hero-top">
-        <div class="chip">KaiTianClaw</div>
-        <div class="chip">ChatGPT Style Fusion</div>
-        <div class="chip">Figma UI Review</div>
+  <div class="app-window">
+    
+    <!-- Left Sidebar -->
+    <aside class="left-sidebar">
+      <div class="ls-header">
+        <div class="icon-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+        </div>
+        <div class="icon-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </div>
       </div>
-      <h1>KaiTianClaw 全页面设计评审稿</h1>
-      <p class="lead">
-        根据最新需求，本方案融合了 ClawPort 和 OpenClaw Control Center 的特性，同时将整体美学约束为“ChatGPT 网页版”风格。背景纯白与极简灰底交织，去除厚重的边框与模块感，确保阅读与对话交互处于最核心的位置。工作台保持单页架构，右侧栏改为浮出抽屉，左侧栏支持折叠。
-      </p>
-      
-      <div class="summary-grid">
-        <article class="summary-item">
-          <strong>布局节奏</strong>
-          <p>左侧对象导航 (F9F9F9) + 中央纯白工作区 (FFFFFF)。右侧抽屉化，避免侵占主画布。</p>
-        </article>
-        <article class="summary-item">
-          <strong>配色系统</strong>
-          <p>纯白主调，浅灰辅助区。文字使用深灰到黑色的层次，强调色采用 ChatGPT 标志性薄荷绿 (#10A37F)。</p>
-        </article>
-        <article class="summary-item">
-          <strong>材质 / 卡片层级</strong>
-          <p>彻底去结构化。去除了大色块叠加，仅保留细腻的 1px 边框与微弱的弥散阴影，保证信息纯粹性。</p>
-        </article>
-        <article class="summary-item">
-          <strong>导航与工作台关系</strong>
-          <p>左侧为分身、频道、任务等工作对象集合。深层治理配置放入专属的设置中心二级页面。</p>
-        </article>
+
+      <div class="ls-content">
+        
+        <!-- Accordion: 分身 -->
+        <div class="accordion">
+          <div class="accordion-head">分身 <span class="arrow">▼</span></div>
+          <div class="accordion-body">
+            <div class="list-item active">
+              <div class="item-avatar">✦</div>
+              <div class="item-info">
+                <div class="item-title">KaiTianClaw</div>
+                <div class="item-sub">+ 新分身</div>
+              </div>
+              <div class="item-time">10:37</div>
+            </div>
+            <div class="list-item">
+              <div class="item-avatar" style="background: white; border: 1px solid var(--line); color: var(--text-dark)">🔍</div>
+              <div class="item-info">
+                <div class="item-title">沉思小助手</div>
+                <div class="item-sub">+ 新分身</div>
+              </div>
+              <div class="item-time">10:37</div>
+            </div>
+            <div class="list-item">
+              <div class="item-avatar" style="background: white; border: 1px solid var(--line); color: var(--text-dark)">📊</div>
+              <div class="item-info">
+                <div class="item-title">监控</div>
+                <div class="item-sub">+ 新分身</div>
+              </div>
+              <div class="item-time">10:37</div>
+            </div>
+            <div class="list-item">
+              <div class="item-avatar" style="background: white; border: 1px solid var(--line); color: var(--text-dark)">🌐</div>
+              <div class="item-info">
+                <div class="item-title">Browser Agent</div>
+                <div class="item-sub">+ 新分身</div>
+              </div>
+              <div class="item-time">10:37</div>
+            </div>
+            <!-- More clones... -->
+            <div class="list-item">
+              <div class="item-avatar" style="background: #3B82F6; color: white">新</div>
+              <div class="item-info">
+                <div class="item-title">新分身 3</div>
+                <div class="item-sub">+ 新分身</div>
+              </div>
+              <div class="item-time">14:43</div>
+            </div>
+            <div class="list-item">
+              <div class="item-avatar" style="background: #EF4444; color: white">新</div>
+              <div class="item-info">
+                <div class="item-title">新分身 1</div>
+                <div class="item-sub">+ 新分身</div>
+              </div>
+              <div class="item-time">11:43</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Accordion: Channel 频道 -->
+        <div class="accordion" style="margin-top: 16px;">
+          <div class="accordion-head">Channel 频道 <span class="arrow">▼</span></div>
+          <div class="accordion-body">
+            <!-- Channel List items would go here -->
+          </div>
+        </div>
+
+        <!-- Accordion: 任务 -->
+        <div class="accordion" style="margin-top: 16px;">
+          <div class="accordion-head">任务 <span class="arrow">▼</span></div>
+          <div class="accordion-body">
+            <div class="text-item">任务看板</div>
+            <div class="text-item">任务日程</div>
+          </div>
+        </div>
+
+        <!-- Accordion: 团队管理 -->
+        <div class="accordion" style="margin-top: 16px;">
+          <div class="accordion-head">团队管理 <span class="arrow">▼</span></div>
+          <div class="accordion-body">
+            <div class="text-item">团队总览</div>
+            <div class="text-item">团队看板</div>
+          </div>
+        </div>
+
       </div>
-    </section>
 
-    <div class="deck">
+      <div class="ls-footer">
+        <div class="user-profile">
+          <img class="user-avatar" src="https://ui-avatars.com/api/?name=User&background=D9D9D9" alt="User">
+          <div class="user-name">177****7838</div>
+        </div>
+        <div class="icon-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Center Main -->
+    <main class="center-main">
+      <div class="cm-header">
+        <div class="cm-title">KaiTianClaw</div>
+      </div>
       
-      <!-- Frame 1 -->
-      <article class="frame-card">
-        <div class="frame-head">
-          <h2>01 主工作台 / 默认空态</h2>
-          <p>极简的对话入口模型，类似 ChatGPT 首页，展示了左栏的分身与导航层级。</p>
+      <!-- Top Right Controls (Absolute) -->
+      <div class="top-right-controls">
+        <button class="tr-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          文件
+        </button>
+        <button class="tr-btn active">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+          Agent
+        </button>
+      </div>
+
+      <div class="status-bar">
+        ↻ 正在恢复连接...
+      </div>
+
+      <div class="cm-content">
+        <div class="promo-banner">
+          29 元即享 5000 积分 <a href="#" class="promo-link">去购买</a>
         </div>
-        <div class="stage">
-          <aside class="sidebar">
-            <div class="sidebar-top">
-              <div class="logo-area">
-                <div class="logo-icon">K</div>
-                <span>KaiTianClaw</span>
-              </div>
-              <div class="collapse-btn">◫</div>
-            </div>
-            <div class="nav-groups">
-              <div>
-                <div class="nav-group-title">分身 (Agents)</div>
-                <div class="nav-item active"><div class="item-icon">K</div>KaiTianClaw (主)</div>
-                <div class="nav-item"><div class="item-icon">S</div>数据分析专员</div>
-              </div>
-              <div>
-                <div class="nav-group-title">团队与频道</div>
-                <div class="nav-item"><div class="item-icon">#</div>运营值守组</div>
-                <div class="nav-item"><div class="item-icon">R</div>研发告警 Channel</div>
-              </div>
-              <div>
-                <div class="nav-group-title">任务</div>
-                <div class="nav-item"><div class="item-icon">⏱</div>全量数据同步</div>
-              </div>
-            </div>
-            <div class="sidebar-top" style="border-top: 1px solid var(--line); margin-top: auto;">
-              <div class="nav-item" style="width: 100%; margin: 0;"><div class="item-icon">⚙</div>设置中心</div>
-            </div>
-          </aside>
-          <div class="main-area">
-            <div class="header">
-              <div class="header-title">KaiTianClaw 1.5</div>
-              <div class="header-actions">
-                <div class="btn-outline">文件 (0)</div>
-                <div class="btn-outline">Agent详情</div>
-              </div>
-            </div>
-            <div class="content-area">
-              <div class="empty-center">
-                <div class="empty-icon">✨</div>
-                <h3>我能帮你做些什么？</h3>
-                <p>呼唤分身或直接输入指令，我能协助你完成调度、诊断、内容生成以及自动化流程。</p>
-                <div class="suggestions">
-                  <div class="suggestion-card">
-                    <strong>总结今日监控告警</strong>
-                    提取 "研发告警 Channel" 的核心异常
-                  </div>
-                  <div class="suggestion-card">
-                    <strong>调用运营模板</strong>
-                    生成本周用户访问周报
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="composer-wrapper">
-              <div class="composer">
-                <input type="text" placeholder="给 KaiTianClaw 发送消息..." />
-                <button class="composer-btn">↑</button>
-              </div>
-            </div>
+        
+        <div class="empty-logo">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+        </div>
+        <h1 class="empty-title">KaiTianClaw</h1>
+        <p class="empty-desc">描述你的目标，KaiTianClaw 会分步执行并实时反馈</p>
+
+        <div class="quick-config">
+          <div class="qc-icon">🪪</div>
+          <div class="qc-text">
+            <h4>快速配置</h4>
+            <p>设置名字、角色，让 KaiTianClaw 更了解你</p>
           </div>
         </div>
-      </article>
-
-      <!-- Frame 2 -->
-      <article class="frame-card">
-        <div class="frame-head">
-          <h2>02 主工作台 / 活跃对话与抽屉 (右侧浮出)</h2>
-          <p>产生聊天内容，同时展示点击 "Agent" 按钮后，右侧抽屉式面板划出的层级关系。</p>
+        
+        <div style="margin-top: 40px; color: var(--text-muted); font-size: 13px; display: flex; align-items: center; gap: 6px;">
+          ↻ 正在连接工作区...
         </div>
-        <div class="stage">
-          <aside class="sidebar collapsed">
-            <div class="sidebar-top" style="justify-content: center;">
-              <div class="logo-icon">K</div>
-            </div>
-            <div class="nav-groups" style="padding: 0 12px;">
-              <div class="nav-item active" style="justify-content: center;"><div class="item-icon">K</div></div>
-              <div class="nav-item" style="justify-content: center;"><div class="item-icon">S</div></div>
-              <div class="nav-item" style="justify-content: center;"><div class="item-icon">#</div></div>
-              <div class="nav-item" style="justify-content: center;"><div class="item-icon">R</div></div>
-            </div>
-          </aside>
-          <div class="main-area">
-             <div class="header">
-              <div class="header-title">KaiTianClaw 1.5</div>
-              <div class="header-actions">
-                <div class="btn-outline">文件 (2)</div>
-                <div class="btn-outline active">Agent详情</div>
-              </div>
-            </div>
-            <div class="content-area">
-              <div class="message">
-                <div class="avatar user">U</div>
-                <div class="message-content">
-                  <p>帮我检查一下最近 3 小时的线上订单错误日志，并给出处理建议。</p>
-                </div>
-              </div>
-              <div class="message">
-                <div class="avatar">K</div>
-                <div class="message-content">
-                  <p>好的，我已获取到最近 3 小时的日志流，发现主要异常集中在支付网关的超时调用。以下是关键错误栈：</p>
-                  <div class="code-block">
-Exception: GatewayTimeout at api.payment.submit (payment_service.py:128)
-Retries exhausted: 3/3 failed due to connect timeout (3000ms).
-                  </div>
-                  <p>建议：重启支付网关的从节点以恢复连接池，或者由我为您触发故障转移脚本。</p>
-                </div>
-              </div>
-            </div>
-            <div class="composer-wrapper">
-              <div class="composer">
-                <input type="text" placeholder="给 KaiTianClaw 发送消息..." />
-                <button class="composer-btn">↑</button>
-              </div>
-            </div>
-            
-            <!-- Right Drawer -->
-            <div class="right-drawer">
-              <div class="drawer-header">
-                Agent 详情
-                <span style="color:var(--muted); font-size: 16px; cursor: pointer;">✕</span>
-              </div>
-              <div class="drawer-content">
-                <div class="drawer-card">
-                  <h4>当前分身</h4>
-                  <p>KaiTianClaw (主节点)<br/>状态：在线 / 闲置</p>
-                </div>
-                <div class="drawer-card">
-                  <h4>挂载能力 (Tools)</h4>
-                  <p>• LogAnalyzer (v1.2)<br/>• Python Runtime<br/>• Web Search</p>
-                </div>
-                <div class="drawer-card">
-                  <h4>会话消耗 (Tokens)</h4>
-                  <p>输入：1,204<br/>输出：430<br/>缓存命中：是</p>
-                </div>
-              </div>
-            </div>
+      </div>
+
+      <div class="cm-footer">
+        <div style="text-align: left; width: 100%; max-width: 760px; margin-bottom: 8px; font-size: 12px; color: var(--text-light);">
+          等待 Gateway 连接...
+        </div>
+        <div class="chat-input">
+          <div class="input-actions" style="margin-right: 12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted);"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
           </div>
-        </div>
-      </article>
-
-      <!-- Frame 3 -->
-      <article class="frame-card">
-        <div class="frame-head">
-          <h2>03 团队与调度视图 (ClawPort 看板融合)</h2>
-          <p>融入 ClawPort 的 Pipeline/Kanban 概念，但保持 ChatGPT 的轻盈风格，用于团队和任务调度。</p>
-        </div>
-        <div class="stage">
-          <aside class="sidebar">
-            <div class="sidebar-top">
-              <div class="logo-area">
-                <div class="logo-icon">K</div>
-                <span>KaiTianClaw</span>
-              </div>
-            </div>
-            <div class="nav-groups">
-              <div>
-                <div class="nav-group-title">任务看板</div>
-                <div class="nav-item active"><div class="item-icon">▦</div>运营工作流</div>
-                <div class="nav-item"><div class="item-icon">⏱</div>定时调度计划</div>
-              </div>
-            </div>
-          </aside>
-          <div class="main-area">
-            <div class="header">
-              <div class="header-title">运营工作流 (Kanban & Pipelines)</div>
-              <div class="header-actions">
-                <div class="btn-outline">新建任务</div>
-              </div>
-            </div>
-            <div class="content-area">
-              <div class="pipeline-grid">
-                <div class="pipeline-col">
-                  <h4>队列中 (Pending)</h4>
-                  <div class="task-card">
-                    <strong>生成 Q3 财报初稿</strong>
-                    <div class="task-meta"><span>分配：分析分身</span><span>等待执行</span></div>
-                  </div>
-                  <div class="task-card">
-                    <strong>清洗日志数据</strong>
-                    <div class="task-meta"><span>分配：处理脚本</span><span>延后触发</span></div>
-                  </div>
-                </div>
-                <div class="pipeline-col">
-                  <h4>执行中 (Running)</h4>
-                  <div class="task-card" style="border-left: 3px solid var(--accent)">
-                    <strong>竞品每日动态抓取</strong>
-                    <div class="task-meta"><span>耗时: 12m 30s</span><span style="color:var(--accent)">进行中</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          <div class="model-selector" style="margin-right: 12px;">
+            GLM-5-Turbo <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
+          <input type="text" placeholder="" />
+          <button class="send-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+          </button>
         </div>
-      </article>
+        <div class="footer-note">Agent 在本地运行，内容由AI生成</div>
+      </div>
+    </main>
 
-      <!-- Frame 4 -->
-      <article class="frame-card">
-        <div class="frame-head">
-          <h2>04 设置中心 (基础与工作流)</h2>
-          <p>二级页面架构。融合 OpenClaw Control Center 的配置项分类，采用左侧导航+右侧表单的经典排版。</p>
+    <!-- Right Sidebar -->
+    <aside class="right-sidebar">
+      <div class="rs-header">
+        <div class="rs-avatar">Auto</div>
+        <div class="rs-title">
+          <h3>小钱</h3>
+          <p>AI coworker</p>
         </div>
-        <div class="stage">
-          <div class="settings-layout">
-            <aside class="settings-nav">
-              <div class="nav-group-title" style="margin-top:0">基础配置</div>
-              <div class="nav-item active nav-item-iconless">常规选项</div>
-              <div class="nav-item nav-item-iconless">模型与 API Providers</div>
-              <div class="nav-item nav-item-iconless">网络与代理</div>
-              
-              <div class="nav-group-title" style="margin-top:24px">工作流</div>
-              <div class="nav-item nav-item-iconless">团队与角色策略</div>
-              <div class="nav-item nav-item-iconless">自动化默认设置</div>
-            </aside>
-            <main class="settings-main">
-              <h2>模型与 API Providers</h2>
-              <p class="settings-desc">配置平台使用的底层语言模型与向量检索服务，按需为不同 Agent 绑定专属的 API 密钥。</p>
-              
-              <div class="settings-card">
-                <h3>OpenAI (默认优先)</h3>
-                <div class="settings-row">
-                  <div>
-                    <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px;">API Key</div>
-                    <div style="font-size: 13px; color: var(--muted)">sk-proj-***************************</div>
-                  </div>
-                  <div class="btn-outline">编辑</div>
-                </div>
-                <div class="settings-row">
-                  <div>
-                    <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px;">可用模型范围</div>
-                    <div style="font-size: 13px; color: var(--muted)">gpt-4o, gpt-4o-mini, o1-preview</div>
-                  </div>
-                  <div class="btn-outline">管理</div>
-                </div>
-              </div>
+      </div>
 
-              <div class="settings-card">
-                <h3>Anthropic (辅助流)</h3>
-                <div class="settings-row">
-                  <div>
-                    <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px;">API Key</div>
-                    <div style="font-size: 13px; color: var(--muted)">未配置</div>
-                  </div>
-                  <div class="btn-outline">添加凭证</div>
-                </div>
-              </div>
-            </main>
+      <div class="rs-content">
+        <div class="rs-section">
+          <h4>关于我</h4>
+          <table class="info-table">
+            <tr>
+              <td>生日</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>风格</td>
+              <td>sharp<br/>resourceful<br/>no-nonsense</td>
+            </tr>
+            <tr>
+              <td>emoji</td>
+              <td>🦞</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="rs-section">
+          <div class="rs-section-header">
+            <h4>我眼中的你</h4>
+            <span>我知道得越多，帮得越好</span>
           </div>
+          <table class="info-table">
+            <tr>
+              <td>名字</td>
+              <td>6</td>
+            </tr>
+            <tr>
+              <td>称呼</td>
+              <td>6</td>
+            </tr>
+            <tr>
+              <td>时区</td>
+              <td>Asia/Shanghai</td>
+            </tr>
+            <tr>
+              <td>专注于</td>
+              <td>coding</td>
+            </tr>
+            <tr>
+              <td>备注</td>
+              <td>Name: 6<br/>Timezone: Asia/Shanghai<br/>Language: 中文<br/>首次上线: 2026-03-16</td>
+            </tr>
+          </table>
         </div>
-      </article>
 
-      <!-- Frame 5 -->
-      <article class="frame-card" style="grid-column: 1 / -1;">
-        <div class="frame-head">
-          <h2>05 设置中心 (治理与分析概览)</h2>
-          <p>融合 OpenClaw Control Center 的监控大盘与组织权限 (Governance & Insights)，保持干净的面板风格。</p>
+        <div class="rs-section">
+          <h4>我的笔记</h4>
+          <table class="info-table" style="border: none;">
+            <tr>
+              <td style="padding-left:0; padding-top:4px; padding-bottom:4px;">当前项目</td>
+              <td style="padding-right:0; padding-top:4px; padding-bottom:4px;">Current project not recorded yet</td>
+            </tr>
+            <tr>
+              <td style="padding-left:0; padding-top:4px; padding-bottom:4px;">工作流</td>
+              <td style="padding-right:0; padding-top:4px; padding-bottom:4px;">Capture recurring workflows here</td>
+            </tr>
+            <tr>
+              <td style="padding-left:0; padding-top:4px; padding-bottom:4px;">记忆系统</td>
+              <td style="padding-right:0; padding-top:4px; padding-bottom:4px;">Summarize stable facts and</td>
+            </tr>
+          </table>
         </div>
-        <div class="stage" style="height: 500px;">
-          <div class="settings-layout">
-            <aside class="settings-nav">
-              <div class="nav-group-title" style="margin-top:0">能力与治理</div>
-              <div class="nav-item nav-item-iconless">工具与 MCP</div>
-              <div class="nav-item active nav-item-iconless">用量统计与洞察</div>
-              <div class="nav-item nav-item-iconless">安全审计 (Audit Logs)</div>
-            </aside>
-            <main class="settings-main">
-              <h2>用量统计与洞察 (Insights)</h2>
-              <p class="settings-desc">实时监控团队内各大模型 Token 消耗情况与调用频次，辅助成本优化与计费管理。</p>
-              
-              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px;">
-                <div class="settings-card" style="margin: 0; padding: 20px;">
-                  <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">总调用次数 (7日)</div>
-                  <div style="font-size: 28px; font-weight: 600;">12,485 <span style="font-size: 14px; color: var(--accent); font-weight: normal;">↑ 12%</span></div>
-                </div>
-                <div class="settings-card" style="margin: 0; padding: 20px;">
-                  <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">大语言模型 Token 消耗</div>
-                  <div style="font-size: 28px; font-weight: 600;">4.2M</div>
-                </div>
-                <div class="settings-card" style="margin: 0; padding: 20px;">
-                  <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">预估消耗成本</div>
-                  <div style="font-size: 28px; font-weight: 600;">$132.50</div>
-                </div>
-              </div>
+      </div>
+    </aside>
 
-              <div class="settings-card">
-                <h3>消耗分布 (模型维度)</h3>
-                <div style="height: 60px; display: flex; align-items: flex-end; gap: 4px; margin-top: 24px; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
-                   <!-- Mock Chart -->
-                   <div style="width: 40px; height: 100%; background: var(--accent); opacity: 0.9; border-radius: 4px 4px 0 0;"></div>
-                   <div style="width: 40px; height: 60%; background: var(--accent); opacity: 0.6; border-radius: 4px 4px 0 0;"></div>
-                   <div style="width: 40px; height: 80%; background: var(--accent); opacity: 0.7; border-radius: 4px 4px 0 0;"></div>
-                   <div style="width: 40px; height: 30%; background: var(--accent); opacity: 0.4; border-radius: 4px 4px 0 0;"></div>
-                   <div style="width: 40px; height: 50%; background: var(--accent); opacity: 0.5; border-radius: 4px 4px 0 0;"></div>
-                   <div style="flex: 1;"></div>
-                   <div style="font-size: 12px; color: var(--muted);">横轴为近5天数据，gpt-4o 占比达 78%</div>
-                </div>
-              </div>
-
-            </main>
-          </div>
-        </div>
-      </article>
-
-    </div>
   </div>
 </body>
 </html>
