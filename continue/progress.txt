@@ -617,3 +617,11 @@ What changed:
 - 新增 CSS: staff-card 卡片样式、map-canvas/map-node 地图样式
 
 Next: 等待用户审查设计并给出下一步反馈
+
+## 2026-03-17 Session Update (DESIGN-020)
+- User Feedback: "IM Channel (Frame 4) should have a separate Platform column (e.g., Feishu), and Groups under it should show on the right. Cron schedule (Frame 6) grid looks generic."
+- Frame 4 Layout: Altered to a true 4-pane macOS Finder-like hierarchy: Sidebar Accordions -> Platforms (Feishu, DingTalk) -> Platform Groups (DevOps, Analyst) -> Chat History.
+- Frame 4 Styling: Clean background segmentation matching Apple HIG standard principles.
+- Frames 5 & 6 Global Layout: Migrated to a single uniform grey `f-bg` background containing a unified white `.f-card` for premium separation.
+- Frame 6 Details: Cleaned up duplicate table headers and adapted the cron grid to a Light Theme minimal aesthetic to align better dynamically with ChatGPT-resembling layouts.
+- Current Focus: `DESIGN-020` is completed, codebase updated. Handing off to next session for implementation or further iterations on design.

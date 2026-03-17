@@ -481,6 +481,24 @@
       ],
       "notes": "Delivered complete 9-frame design review: (01) empty state, (02) active chat + Agent drawer, (03) team overview table, (04) IM channel multi-agent chat, (05) Kanban task board, (06) cron/scheduled tasks, (07) settings basic, (08) settings skills/MCP, (09) settings governance/monitoring. All frames use consistent Inter font, ChatGPT-neutral palette, 4-accordion left sidebar, and top-right File/Agent trigger pattern.",
       "subtasks": []
+    },
+    {
+      "id": "DESIGN-020",
+      "title": "Continue User-directed visual iteration for IM Channel and Cron (Frames 4/5/6)",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-019"
+      ],
+      "description": "Refine Frames 4, 5, and 6 based on user feedback. Adapt layout of IM Channel into a 4-pane layout, standardize Kanban/Cron grids with premium styling.",
+      "acceptance_criteria": [
+        "Frame 4 matches 4-pane architecture with separate platform and group lists",
+        "Frames 5/6 share a uniform global inner background wrapper with white cards",
+        "Cron grid adopts light green premium theme from screenshots"
+      ],
+      "notes": "Applied macOS Finder-like 4-column layout for Frame 4. Fixed Frame 6 cron view duplication and aligned UI with glassmorphic premium standards.",
+      "subtasks": []
     }
   ]
 }
