@@ -1,9 +1,9 @@
 {
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
-  "current_phase": "planned",
-  "current_focus": "DESIGN-008",
-  "last_updated": "2026-03-17T15:29:00+08:00",
+  "current_phase": "in_progress",
+  "current_focus": "DESIGN-009",
+  "last_updated": "2026-03-17T15:58:00+08:00",
   "tasks": [
     {
       "id": "PERSIST-001",
@@ -287,6 +287,25 @@
         "continue state and progress log stay aligned with the active design iteration"
       ],
       "notes": "Reserved for the next design direction from the user.",
+      "subtasks": []
+    },
+    {
+      "id": "DESIGN-009",
+      "title": "Figma 全页面设计评审 (ChatGPT 风格)",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-008"
+      ],
+      "description": "基于 openclaw 和 clawport 参考，融合出 ChatGPT 风格的全页面设计稿。",
+      "acceptance_criteria": [
+        "包含主工作台空态和对话态",
+        "包含团队/IM频道/定时任务视图",
+        "包含设置中心",
+        "折叠栏关键状态"
+      ],
+      "notes": "Using HTML board to emulate Figma review.",
       "subtasks": []
     }
   ]

@@ -7,1159 +7,954 @@
   <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
   <style>
     :root {
-      --bg: #f5f1ec;
-      --bg-soft: #ede7df;
-      --panel: #ffffff;
-      --panel-soft: #f8f4ef;
-      --line: #e5ddd3;
-      --line-strong: #d4cabd;
-      --text: #2a241f;
-      --muted: #867b6e;
-      --accent: #f37a3f;
-      --accent-soft: #fff0e6;
-      --shadow: 0 10px 26px rgba(56, 40, 27, 0.08);
-      --radius-xl: 24px;
-      --radius-lg: 16px;
-      --radius-md: 12px;
+      --bg: #FFFFFF;
+      --bg-sidebar: #F9F9F9;
+      --panel: #FFFFFF;
+      --panel-soft: #F3F4F6;
+      --line: #E5E7EB;
+      --line-strong: #D1D5DB;
+      --text: #111827;
+      --muted: #6B7280;
+      --accent: #10A37F;
+      --accent-hover: #0E906F;
+      --accent-soft: #E6F6F2;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      --radius-xl: 16px;
+      --radius-lg: 12px;
+      --radius-md: 8px;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: "Segoe UI", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       color: var(--text);
-      background:
-        radial-gradient(circle at 0 0, rgba(243, 122, 63, 0.08), transparent 36%),
-        linear-gradient(180deg, #faf7f4 0%, var(--bg) 42%, var(--bg-soft) 100%);
+      background: #F3F4F6;
     }
 
     .page {
       max-width: 1920px;
       margin: 0 auto;
-      padding: 28px 30px 42px;
+      padding: 32px;
       display: grid;
-      gap: 20px;
-    }
-
-    .hero,
-    .frame-card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow);
+      gap: 32px;
     }
 
     .hero {
-      padding: 26px 28px 24px;
+      background: var(--panel);
+      border-radius: var(--radius-xl);
+      padding: 32px;
+      box-shadow: var(--shadow-sm);
     }
 
     .hero-top {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
       gap: 12px;
-      margin-bottom: 14px;
+      margin-bottom: 24px;
     }
 
     .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 11px;
-      border: 1px solid var(--line-strong);
-      background: var(--panel-soft);
+      padding: 4px 12px;
       border-radius: 999px;
-      font-size: 12px;
-      color: var(--muted);
-      letter-spacing: 0.04em;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
     }
 
     h1 {
-      margin: 0;
+      margin: 0 0 16px 0;
       font-size: 36px;
-      line-height: 1.2;
+      font-weight: 600;
       letter-spacing: -0.02em;
     }
 
     .lead {
-      margin: 10px 0 0;
+      margin: 0;
+      font-size: 16px;
       color: var(--muted);
-      font-size: 15px;
-      line-height: 1.7;
+      line-height: 1.6;
+      max-width: 800px;
     }
 
     .summary-grid {
-      margin-top: 18px;
+      margin-top: 32px;
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
     }
 
     .summary-item {
-      border: 1px solid var(--line);
+      padding: 20px;
       border-radius: var(--radius-lg);
-      background: var(--panel-soft);
-      padding: 13px 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
     }
 
     .summary-item strong {
       display: block;
-      font-size: 13px;
-      margin-bottom: 7px;
-      color: var(--text);
+      margin-bottom: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--accent);
     }
 
     .summary-item p {
       margin: 0;
-      font-size: 13px;
-      line-height: 1.65;
+      font-size: 14px;
       color: var(--muted);
+      line-height: 1.5;
     }
 
     .deck {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 18px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
     }
 
     .frame-card {
-      padding: 14px;
-      display: grid;
-      gap: 10px;
-    }
-
-    .frame-head {
-      padding: 8px 8px 2px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      box-shadow: var(--shadow-md);
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
+      flex-direction: column;
+      gap: 16px;
     }
 
     .frame-head h2 {
-      margin: 0;
-      font-size: 19px;
-      line-height: 1.35;
+      margin: 0 0 8px 0;
+      font-size: 20px;
+      font-weight: 600;
     }
 
     .frame-head p {
-      margin: 6px 0 0;
-      font-size: 13px;
-      line-height: 1.7;
+      margin: 0;
+      font-size: 14px;
       color: var(--muted);
     }
 
+    /* Workbench Layout */
     .stage {
-      min-height: 610px;
-      border-radius: 18px;
+      flex: 1;
       border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
       overflow: hidden;
-      background: linear-gradient(180deg, #faf7f3 0%, #f2ede7 100%);
+      background: var(--bg);
+      display: flex;
+      height: 700px;
     }
 
-    .shell {
-      display: grid;
-      grid-template-columns: 320px minmax(0, 1fr) 280px;
-      min-height: 610px;
-    }
-
-    .shell.no-right {
-      grid-template-columns: 320px minmax(0, 1fr);
-    }
-
-    .shell.collapsed-left {
-      grid-template-columns: 86px minmax(0, 1fr) 280px;
-    }
-
-    .shell.collapsed-right {
-      grid-template-columns: 320px minmax(0, 1fr) 84px;
-    }
-
-    .left-rail {
-      padding: 12px 10px;
+    .sidebar {
+      width: 260px;
+      background: var(--bg-sidebar);
       border-right: 1px solid var(--line);
-      background: #f4efea;
-      display: grid;
-      align-content: start;
-      gap: 10px;
+      display: flex;
+      flex-direction: column;
     }
 
-    .rail-top {
+    .sidebar.collapsed {
+      width: 68px;
+    }
+
+    .sidebar-top {
+      padding: 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 15px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .collapse-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .collapse-btn:hover {
+      background: var(--line);
+    }
+
+    .nav-groups {
+      flex: 1;
+      padding: 0 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .nav-group-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+      padding: 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-size: 14px;
+      cursor: pointer;
       margin-bottom: 2px;
     }
 
-    .rail-logo {
-      width: 36px;
-      height: 36px;
-      border-radius: 11px;
-      background: var(--accent-soft);
-      border: 1px solid #f0cfba;
-      color: #c4602d;
-      font-weight: 700;
-      font-size: 15px;
-      display: grid;
-      place-items: center;
+    .nav-item:hover {
+      background: rgba(0,0,0,0.05);
     }
-
-    .rail-tool {
-      width: 28px;
-      height: 28px;
-      border-radius: 8px;
-      border: 1px solid var(--line);
+    
+    .nav-item.active {
       background: var(--panel);
-      color: var(--muted);
-      display: grid;
-      place-items: center;
-      font-size: 12px;
-    }
-
-    .object-group {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel);
-      overflow: hidden;
-    }
-
-    .group-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 9px 10px;
-      background: var(--panel-soft);
-      border-bottom: 1px solid var(--line);
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .group-body {
-      padding: 8px;
-      display: grid;
-      gap: 7px;
-    }
-
-    .object-item {
-      border: 1px solid var(--line);
-      border-radius: 11px;
-      padding: 8px 9px;
-      background: #fff;
-      display: grid;
-      grid-template-columns: 28px minmax(0, 1fr) auto;
-      gap: 8px;
-      align-items: start;
-    }
-
-    .object-item.active {
-      border-color: #efd1bf;
-      background: #fff7f1;
-    }
-
-    .dot {
-      width: 28px;
-      height: 28px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, #ff6d62, #ff9c59);
-    }
-
-    .dot.blue {
-      background: linear-gradient(135deg, #76b8ff, #4b88ea);
-    }
-
-    .dot.gray {
-      background: linear-gradient(135deg, #d9d2cb, #c5bab0);
-    }
-
-    .object-item strong {
-      font-size: 13px;
-      line-height: 1.35;
-    }
-
-    .object-item small {
-      display: block;
-      margin-top: 3px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .object-item span {
-      color: var(--muted);
-      font-size: 11px;
-      line-height: 1.45;
-    }
-
-    .main-area {
-      padding: 15px 16px 14px;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      gap: 12px;
-    }
-
-    .main-top {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .main-top h3 {
-      margin: 0;
-      font-size: 22px;
-      letter-spacing: -0.01em;
-    }
-
-    .pills {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .top-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .action-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 40px;
-      padding: 0 14px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.88);
-      color: var(--text);
-      font-size: 14px;
+      box-shadow: var(--shadow-sm);
       font-weight: 500;
     }
 
-    .action-btn.active {
-      border-color: #f1c6ae;
-      background: #fff5ee;
-      color: #a8562a;
-    }
-
-    .action-icon {
-      width: 18px;
-      height: 18px;
-      border: 2px solid currentColor;
-      border-radius: 4px;
-      display: inline-block;
-      position: relative;
-      flex: 0 0 auto;
-    }
-
-    .action-icon.file::after {
-      content: "";
-      position: absolute;
-      right: -2px;
-      top: -2px;
-      width: 7px;
-      height: 7px;
-      border-top: 2px solid currentColor;
-      border-right: 2px solid currentColor;
-      border-radius: 0 4px 0 0;
-      background: #fff;
-    }
-
-    .action-icon.agent {
-      border-radius: 50%;
-    }
-
-    .action-icon.agent::before {
-      content: "";
-      position: absolute;
-      left: 50%;
-      top: 3px;
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: currentColor;
-      transform: translateX(-50%);
-    }
-
-    .action-icon.agent::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      bottom: 2px;
-      width: 10px;
-      height: 6px;
-      border-radius: 8px 8px 4px 4px;
-      border: 2px solid currentColor;
-      border-top: 0;
-      transform: translateX(-50%);
-    }
-
-    .pill {
-      border: 1px solid #ecd7c9;
-      background: #fff5ee;
-      color: #9f572c;
-      border-radius: 999px;
-      padding: 5px 9px;
+    .item-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      border: 1px solid var(--line);
       font-size: 12px;
-    }
-
-    .canvas {
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: var(--panel);
-      padding: 16px;
-      display: grid;
-      gap: 10px;
-      align-content: start;
-    }
-
-    .empty-state {
-      height: 100%;
-      display: grid;
-      place-items: center;
-      text-align: center;
-      gap: 10px;
-      padding: 24px;
-    }
-
-    .halo {
-      width: 74px;
-      height: 74px;
-      border-radius: 50%;
-      border: 4px solid #f4d1be;
-      box-shadow: inset 0 0 0 8px #fff5ee;
-    }
-
-    .empty-state h4 {
-      margin: 0;
-      font-size: 30px;
-      letter-spacing: -0.02em;
-    }
-
-    .empty-state p {
-      margin: 0;
       color: var(--muted);
-      font-size: 14px;
-      line-height: 1.7;
-      max-width: 610px;
     }
 
-    .hint-card {
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      position: relative;
+    }
+
+    .header {
+      height: 60px;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid transparent;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-outline {
+      padding: 6px 16px;
+      border-radius: 999px;
       border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px 11px;
-      background: var(--panel-soft);
-      text-align: left;
+      background: white;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    .hint-card strong {
-      display: block;
+    .btn-outline:hover {
+      background: var(--panel-soft);
+    }
+    
+    .btn-outline.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent-hover);
+    }
+
+    .content-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .empty-center {
+      margin: auto;
+      text-align: center;
+      max-width: 480px;
+    }
+
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--panel-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+      font-size: 24px;
+    }
+
+    .empty-center h3 {
+      font-size: 28px;
+      margin: 0 0 12px 0;
+      font-weight: 600;
+    }
+
+    .empty-center p {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .suggestions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .suggestion-card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      text-align: left;
       font-size: 13px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .suggestion-card:hover {
+      background: var(--panel-soft);
+    }
+    .suggestion-card strong {
+      display: block;
+      color: var(--text);
+      font-size: 14px;
       margin-bottom: 4px;
     }
 
-    .hint-card p {
-      margin: 0;
-      font-size: 12px;
-      line-height: 1.6;
-      color: var(--muted);
-    }
-
-    .chat {
-      display: grid;
-      gap: 10px;
-      align-content: start;
-    }
-
-    .bubble {
-      border: 1px solid var(--line);
-      border-radius: 13px;
-      padding: 11px 12px;
-      font-size: 13px;
-      line-height: 1.65;
-      max-width: 86%;
-      background: #fff;
-    }
-
-    .bubble.user {
-      margin-left: auto;
-      background: #fff3eb;
-      border-color: #f0d6c6;
+    .composer-wrapper {
+      padding: 0 24px 24px;
     }
 
     .composer {
       border: 1px solid var(--line);
-      border-radius: 14px;
-      background: #fff;
-      padding: 10px 11px;
+      border-radius: 24px;
+      background: white;
+      padding: 12px 16px;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      color: var(--muted);
-      font-size: 13px;
+      align-items: flex-end;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
 
-    .send {
+    .composer input {
+      flex: 1;
+      border: none;
+      outline: none;
+      font-size: 15px;
+      padding: 8px 0;
+      background: transparent;
+    }
+
+    .composer-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
       background: var(--accent);
-      border: 1px solid #de6a34;
-      color: #fff;
-      border-radius: 10px;
-      padding: 6px 11px;
-      font-size: 12px;
-    }
-
-    .right-rail {
-      border-left: 1px solid var(--line);
-      background: #fbf8f5;
-      padding: 12px 11px;
-      display: grid;
-      align-content: start;
-      gap: 9px;
-    }
-
-    .right-rail-head {
+      color: white;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 2px 2px 6px;
-      border-bottom: 1px dashed var(--line-strong);
+      justify-content: center;
+      border: none;
+      cursor: pointer;
     }
 
-    .rail-title {
-      font-size: 12px;
-      color: var(--muted);
+    /* Chat Active State */
+    .message {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 32px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+      width: 100%;
     }
 
-    .rail-fold {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--muted);
-      border-radius: 999px;
-      padding: 4px 8px;
-      font-size: 11px;
-      line-height: 1;
-    }
-
-    .rail-collapsed {
-      border-left: 1px solid var(--line);
-      background: #fbf8f5;
-      display: grid;
-      place-items: center;
-      padding: 12px 8px;
-    }
-
-    .drawer-title {
-      font-size: 16px;
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
       font-weight: 600;
+      color: var(--accent-hover);
+    }
+
+    .avatar.user {
+      background: var(--line);
+      color: var(--text);
+      border-radius: 50%;
+    }
+
+    .message-content {
+      flex: 1;
+      font-size: 15px;
+      line-height: 1.6;
       color: var(--text);
     }
 
-    .rail-handle {
-      width: 34px;
-      min-height: 160px;
-      border-radius: 999px;
+    .message-content p {
+      margin: 0 0 16px 0;
+    }
+    
+    .code-block {
+      background: #1E1E1E;
+      color: #D4D4D4;
+      border-radius: var(--radius-md);
+      padding: 16px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+
+    /* Right Drawer */
+    .right-drawer {
+      width: 320px;
+      background: var(--panel);
+      border-left: 1px solid var(--line);
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .drawer-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+    }
+    
+    .drawer-content {
+      padding: 24px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .drawer-card {
       border: 1px solid var(--line);
-      background: #fff;
-      color: var(--muted);
-      display: grid;
-      place-items: center;
-      font-size: 11px;
-      writing-mode: vertical-rl;
-      text-orientation: mixed;
+      border-radius: var(--radius-md);
+      padding: 16px;
     }
-
-    .info-card {
-      border: 1px solid var(--line);
-      border-radius: 11px;
-      background: #fff;
-      padding: 9px 10px;
-      display: grid;
-      gap: 4px;
+    .drawer-card h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
     }
-
-    .info-card strong {
-      font-size: 12px;
-    }
-
-    .info-card p {
+    .drawer-card p {
       margin: 0;
-      font-size: 12px;
-      line-height: 1.55;
+      font-size: 13px;
       color: var(--muted);
+      line-height: 1.5;
     }
 
-    .settings-shell {
-      display: grid;
-      grid-template-columns: 250px minmax(0, 1fr);
-      min-height: 610px;
+    /* Settings Center */
+    .settings-layout {
+      display: flex;
+      flex: 1;
     }
 
     .settings-nav {
+      width: 240px;
       border-right: 1px solid var(--line);
-      background: #f6f0eb;
-      padding: 13px 10px;
-      display: grid;
-      align-content: start;
-      gap: 10px;
-    }
-
-    .settings-group {
-      border: 1px solid var(--line);
-      border-radius: 13px;
-      background: #fff;
-      padding: 9px;
-      display: grid;
-      gap: 6px;
-    }
-
-    .settings-group strong {
-      font-size: 12px;
-      color: var(--muted);
-      padding: 0 2px;
-    }
-
-    .settings-item {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 8px 9px;
-      font-size: 12px;
-      color: var(--muted);
-      background: #fff;
-    }
-
-    .settings-item.active {
-      color: #8f4f29;
-      background: #fff4ec;
-      border-color: #efd4c2;
-      font-weight: 600;
+      background: var(--bg-sidebar);
+      padding: 24px 16px;
     }
 
     .settings-main {
-      padding: 15px 16px 14px;
-      display: grid;
-      gap: 12px;
-      align-content: start;
+      flex: 1;
+      padding: 48px;
+      overflow-y: auto;
+      background: var(--bg);
     }
 
-    .settings-main h3 {
-      margin: 0;
+    .settings-main h2 {
+      margin: 0 0 8px 0;
       font-size: 24px;
+      font-weight: 600;
     }
 
-    .settings-main p {
-      margin: 0;
-      font-size: 13px;
-      line-height: 1.7;
+    .settings-desc {
       color: var(--muted);
-      max-width: 760px;
+      margin-bottom: 32px;
+      font-size: 14px;
     }
 
-    .panel-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-
-    .panel {
+    .settings-card {
       border: 1px solid var(--line);
-      border-radius: 13px;
-      background: #fff;
-      padding: 10px 11px;
-      min-height: 122px;
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
     }
 
-    .panel strong {
+    .settings-card h3 {
+      margin: 0 0 16px 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .settings-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    
+    /* Kanban / Pipelines styling (ClawPort inspired) */
+    .pipeline-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .pipeline-col {
+      background: var(--panel-soft);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+    }
+    .pipeline-col h4 {
+      margin: 0 0 16px 0;
+      font-size: 14px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .task-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      margin-bottom: 8px;
+      box-shadow: var(--shadow-sm);
+    }
+    .task-card strong {
       display: block;
-      margin-bottom: 5px;
-      font-size: 13px;
+      font-size: 14px;
+      margin-bottom: 8px;
     }
-
-    .panel p {
+    .task-meta {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
       font-size: 12px;
-      line-height: 1.65;
+    }
+    
+    .nav-item-iconless {
+      padding-left: 12px;
     }
 
-    .collapsed-left .left-rail {
-      padding: 12px 7px;
-    }
-
-    .collapsed-left .rail-top {
-      justify-content: center;
-      margin-bottom: 6px;
-    }
-
-    .collapsed-left .rail-tool,
-    .collapsed-left .group-head span,
-    .collapsed-left .object-item > :not(.dot),
-    .collapsed-left .group-head small {
-      display: none;
-    }
-
-    .collapsed-left .group-body {
-      padding: 7px;
-      gap: 6px;
-    }
-
-    .collapsed-left .object-item {
-      grid-template-columns: 1fr;
-      place-items: center;
-      padding: 7px 0;
-      border-radius: 9px;
-    }
-
-    .collapsed-left .dot {
-      width: 24px;
-      height: 24px;
-    }
-
-    @media (max-width: 1440px) {
-      .deck {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 1080px) {
-      .summary-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .shell,
-      .shell.collapsed-left,
-      .shell.collapsed-right {
-        grid-template-columns: 1fr;
-      }
-
-      .left-rail,
-      .right-rail,
-      .rail-collapsed {
-        border: none;
-      }
-
-      .settings-shell {
-        grid-template-columns: 1fr;
-      }
-
-      .settings-nav {
-        border-right: none;
-        border-bottom: 1px solid var(--line);
-      }
-    }
   </style>
 </head>
 <body>
   <div class="page">
     <section class="hero">
       <div class="hero-top">
-        <div class="chip">KaiTianClaw / Design Review Deck</div>
-        <div class="chip">Chinese-first + Workbench IA</div>
+        <div class="chip">KaiTianClaw</div>
+        <div class="chip">ChatGPT Style Fusion</div>
+        <div class="chip">Figma UI Review</div>
       </div>
-      <h1>KaiTianClaw 本地设计评审板（全页版）</h1>
+      <h1>KaiTianClaw 全页面设计评审稿</h1>
       <p class="lead">
-        该版本按「主工作台优先」重建评审结构：借鉴 ClawPort 的布局节奏与操作台氛围，融合 OpenClaw Control Center 的轻治理信息卡，并将首页主色调收敛到你给的 AutoClaw 参考图那种浅暖灰白背景、奶白卡片与橙橘强调。
+        根据最新需求，本方案融合了 ClawPort 和 OpenClaw Control Center 的特性，同时将整体美学约束为“ChatGPT 网页版”风格。背景纯白与极简灰底交织，去除厚重的边框与模块感，确保阅读与对话交互处于最核心的位置。工作台保持单页架构，右侧栏改为浮出抽屉，左侧栏支持折叠。
       </p>
+      
       <div class="summary-grid">
         <article class="summary-item">
           <strong>布局节奏</strong>
-          <p>三段式（左工作对象栏 / 中央主任务区 / 右轻上下文）为主，设置中心改为二级页面体系，避免主工作台被设置流打断。</p>
+          <p>左侧对象导航 (F9F9F9) + 中央纯白工作区 (FFFFFF)。右侧抽屉化，避免侵占主画布。</p>
         </article>
         <article class="summary-item">
           <strong>配色系统</strong>
-          <p>改成 AutoClaw 式浅暖灰白底 + 奶白卡片 + 橙橘色强调；整体更轻、更平，靠局部暖色与圆角卡片建立识别度。</p>
+          <p>纯白主调，浅灰辅助区。文字使用深灰到黑色的层次，强调色采用 ChatGPT 标志性薄荷绿 (#10A37F)。</p>
         </article>
         <article class="summary-item">
           <strong>材质 / 卡片层级</strong>
-          <p>统一薄描边（1px）与轻阴影，层级分为：页面底板 / 功能卡片 / 操作焦点卡片，保持治理信息可见但不喧宾夺主。</p>
+          <p>彻底去结构化。去除了大色块叠加，仅保留细腻的 1px 边框与微弱的弥散阴影，保证信息纯粹性。</p>
         </article>
         <article class="summary-item">
           <strong>导航与工作台关系</strong>
-          <p>左侧不是普通路由导航，而是工作对象集合；本轮统一成分身、Channel 频道、任务、团队管理四组折叠栏。首页即主工作台，Settings Center 为次级域。</p>
+          <p>左侧为分身、频道、任务等工作对象集合。深层治理配置放入专属的设置中心二级页面。</p>
         </article>
       </div>
     </section>
 
-    <section class="deck">
+    <div class="deck">
+      
+      <!-- Frame 1 -->
       <article class="frame-card">
         <div class="frame-head">
-          <div>
-            <h2>01 主工作台 / 空态（Default）</h2>
-            <p>首页默认不显示右侧栏，只在右上角提供 `文件` 和 `Agent` 两个按钮；点击后才从右侧弹出对应侧栏。</p>
-          </div>
-          <span class="chip">Workbench Empty</span>
+          <h2>01 主工作台 / 默认空态</h2>
+          <p>极简的对话入口模型，类似 ChatGPT 首页，展示了左栏的分身与导航层级。</p>
         </div>
         <div class="stage">
-          <div class="shell no-right">
-            <aside class="left-rail">
-              <div class="rail-top">
-                <div class="rail-logo">KC</div>
-                <div class="rail-tool">⌂</div>
-                <div class="rail-tool">⋯</div>
+          <aside class="sidebar">
+            <div class="sidebar-top">
+              <div class="logo-area">
+                <div class="logo-icon">K</div>
+                <span>KaiTianClaw</span>
               </div>
-              <section class="object-group">
-                <div class="group-head"><span>分身</span><small>工作会话</small></div>
-                <div class="group-body">
-                  <article class="object-item active"><div class="dot"></div><div><strong>KaiTianClaw 主分身</strong><small>默认执行入口</small></div><span>14:25</span></article>
-                  <article class="object-item"><div class="dot blue"></div><div><strong>Browser Agent</strong><small>搜索与页面操作</small></div><span>10:37</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>总结助理</strong><small>复盘与沉淀</small></div><span>09:12</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>Channel 频道</span><small>触发与通知</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot blue"></div><div><strong>飞书项目群</strong><small>触发与通知</small></div><span>On</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>Telegram Ops</strong><small>告警推送</small></div><span>Warn</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>任务</span><small>工作推进</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>任务看板</strong><small>当前事项与状态流转</small></div><span>12</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>任务日程</strong><small>Cron / 时间安排</small></div><span>Next</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>团队管理</span><small>协作结构</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>团队总览</strong><small>团队容量与角色分工</small></div><span>3</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>团队看板</strong><small>团队视角任务推进</small></div><span>Live</span></article>
-                </div>
-              </section>
-            </aside>
-            <main class="main-area">
-              <div class="main-top">
-                <h3>主工作台</h3>
-                <div class="top-actions">
-                  <span class="action-btn"><span class="action-icon file"></span>文件</span>
-                  <span class="action-btn"><span class="action-icon agent"></span>Agent</span>
-                </div>
+              <div class="collapse-btn">◫</div>
+            </div>
+            <div class="nav-groups">
+              <div>
+                <div class="nav-group-title">分身 (Agents)</div>
+                <div class="nav-item active"><div class="item-icon">K</div>KaiTianClaw (主)</div>
+                <div class="nav-item"><div class="item-icon">S</div>数据分析专员</div>
               </div>
-              <div class="canvas empty-state">
-                <div class="halo"></div>
-                <h4>开始描述你的目标</h4>
-                <p>主工作台保持单一心智入口。先选择左侧工作对象，再在中央发起任务；右上角按钮负责按需调出 `文件` 或 `Agent` 侧栏，不点击时完全隐藏。</p>
-                <div class="hint-card">
-                  <strong>默认态说明</strong>
-                  <p>当前是“无右栏”状态，画布最宽。需要文件或 Agent 信息时，再点击右上角按钮弹出对应侧栏。</p>
+              <div>
+                <div class="nav-group-title">团队与频道</div>
+                <div class="nav-item"><div class="item-icon">#</div>运营值守组</div>
+                <div class="nav-item"><div class="item-icon">R</div>研发告警 Channel</div>
+              </div>
+              <div>
+                <div class="nav-group-title">任务</div>
+                <div class="nav-item"><div class="item-icon">⏱</div>全量数据同步</div>
+              </div>
+            </div>
+            <div class="sidebar-top" style="border-top: 1px solid var(--line); margin-top: auto;">
+              <div class="nav-item" style="width: 100%; margin: 0;"><div class="item-icon">⚙</div>设置中心</div>
+            </div>
+          </aside>
+          <div class="main-area">
+            <div class="header">
+              <div class="header-title">KaiTianClaw 1.5</div>
+              <div class="header-actions">
+                <div class="btn-outline">文件 (0)</div>
+                <div class="btn-outline">Agent详情</div>
+              </div>
+            </div>
+            <div class="content-area">
+              <div class="empty-center">
+                <div class="empty-icon">✨</div>
+                <h3>我能帮你做些什么？</h3>
+                <p>呼唤分身或直接输入指令，我能协助你完成调度、诊断、内容生成以及自动化流程。</p>
+                <div class="suggestions">
+                  <div class="suggestion-card">
+                    <strong>总结今日监控告警</strong>
+                    提取 "研发告警 Channel" 的核心异常
+                  </div>
+                  <div class="suggestion-card">
+                    <strong>调用运营模板</strong>
+                    生成本周用户访问周报
+                  </div>
                 </div>
               </div>
+            </div>
+            <div class="composer-wrapper">
               <div class="composer">
-                <span>发送给 KaiTianClaw（支持 @Agent / 文件 / 计划任务）</span>
-                <button class="send">发送</button>
+                <input type="text" placeholder="给 KaiTianClaw 发送消息..." />
+                <button class="composer-btn">↑</button>
               </div>
-            </main>
+            </div>
           </div>
         </div>
       </article>
 
+      <!-- Frame 2 -->
       <article class="frame-card">
         <div class="frame-head">
-          <div>
-            <h2>02 主工作台 / 活跃会话（Active）</h2>
-            <p>活跃会话态示范 `Agent` 按钮被点击后的状态：右侧弹出 Agent 人设/信息栏，而不是默认常驻。</p>
-          </div>
-          <span class="chip">Active Conversation</span>
+          <h2>02 主工作台 / 活跃对话与抽屉 (右侧浮出)</h2>
+          <p>产生聊天内容，同时展示点击 "Agent" 按钮后，右侧抽屉式面板划出的层级关系。</p>
         </div>
         <div class="stage">
-          <div class="shell">
-            <aside class="left-rail">
-              <div class="rail-top">
-                <div class="rail-logo">KC</div>
-                <div class="rail-tool">⌂</div>
-                <div class="rail-tool">⋯</div>
+          <aside class="sidebar collapsed">
+            <div class="sidebar-top" style="justify-content: center;">
+              <div class="logo-icon">K</div>
+            </div>
+            <div class="nav-groups" style="padding: 0 12px;">
+              <div class="nav-item active" style="justify-content: center;"><div class="item-icon">K</div></div>
+              <div class="nav-item" style="justify-content: center;"><div class="item-icon">S</div></div>
+              <div class="nav-item" style="justify-content: center;"><div class="item-icon">#</div></div>
+              <div class="nav-item" style="justify-content: center;"><div class="item-icon">R</div></div>
+            </div>
+          </aside>
+          <div class="main-area">
+             <div class="header">
+              <div class="header-title">KaiTianClaw 1.5</div>
+              <div class="header-actions">
+                <div class="btn-outline">文件 (2)</div>
+                <div class="btn-outline active">Agent详情</div>
               </div>
-              <section class="object-group">
-                <div class="group-head"><span>分身</span><small>会话中</small></div>
-                <div class="group-body">
-                  <article class="object-item active"><div class="dot"></div><div><strong>KaiTianClaw 主分身</strong><small>正在生成评审稿</small></div><span>Now</span></article>
-                  <article class="object-item"><div class="dot blue"></div><div><strong>Browser Agent</strong><small>抓取参考页面</small></div><span>Idle</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>Channel 频道</span><small>回推与通知</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>飞书评审群</strong><small>评审链接回推</small></div><span>On</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>Telegram Ops</strong><small>错误提醒</small></div><span>Warn</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>任务</span><small>执行视角</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>任务看板</strong><small>设计评审流转中</small></div><span>4</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>任务日程</strong><small>16:00 下次审阅提醒</small></div><span>Next</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>团队管理</span><small>组织视角</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot gray"></div><div><strong>团队总览</strong><small>设计评审 Team</small></div><span>2/3</span></article>
-                  <article class="object-item"><div class="dot blue"></div><div><strong>团队看板</strong><small>文案 + 可视化</small></div><span>Live</span></article>
-                </div>
-              </section>
-            </aside>
-            <main class="main-area">
-              <div class="main-top">
-                <h3>KaiTianClaw · 对话执行中</h3>
-                <div class="top-actions">
-                  <span class="action-btn"><span class="action-icon file"></span>文件</span>
-                  <span class="action-btn active"><span class="action-icon agent"></span>Agent</span>
+            </div>
+            <div class="content-area">
+              <div class="message">
+                <div class="avatar user">U</div>
+                <div class="message-content">
+                  <p>帮我检查一下最近 3 小时的线上订单错误日志，并给出处理建议。</p>
                 </div>
               </div>
-              <div class="canvas chat">
-                <div class="bubble user">请基于 ClawPort 节奏，重做 KaiTianClaw 设计评审板，保留 object-centric 左栏。</div>
-                <div class="bubble">收到。首页继续是主工作台，但左栏统一成四组：分身、Channel 频道、任务、团队管理。</div>
-                <div class="bubble">配色改成你给的 AutoClaw 图那种浅暖灰白底，右栏只保留文件和 Agent 两个 inspector。</div>
-                <div class="bubble user">右边侧边栏可以折叠，任务要拆成任务看板和任务日程，团队管理要拆成团队总览和团队看板。</div>
+              <div class="message">
+                <div class="avatar">K</div>
+                <div class="message-content">
+                  <p>好的，我已获取到最近 3 小时的日志流，发现主要异常集中在支付网关的超时调用。以下是关键错误栈：</p>
+                  <div class="code-block">
+Exception: GatewayTimeout at api.payment.submit (payment_service.py:128)
+Retries exhausted: 3/3 failed due to connect timeout (3000ms).
+                  </div>
+                  <p>建议：重启支付网关的从节点以恢复连接池，或者由我为您触发故障转移脚本。</p>
+                </div>
               </div>
+            </div>
+            <div class="composer-wrapper">
               <div class="composer">
-                <span>继续输入下一条指令…</span>
-                <button class="send">发送</button>
+                <input type="text" placeholder="给 KaiTianClaw 发送消息..." />
+                <button class="composer-btn">↑</button>
               </div>
-            </main>
-            <aside class="right-rail">
-              <div class="right-rail-head">
-                <div class="drawer-title">Agent</div>
-                <div class="rail-fold">关闭</div>
+            </div>
+            
+            <!-- Right Drawer -->
+            <div class="right-drawer">
+              <div class="drawer-header">
+                Agent 详情
+                <span style="color:var(--muted); font-size: 16px; cursor: pointer;">✕</span>
               </div>
-              <article class="info-card"><strong>当前 Agent</strong><p>主 Agent：KaiTianClaw，定位为主工作台总控与分派入口。</p></article>
-              <article class="info-card"><strong>角色标签</strong><p>AI coworker / sharp / resourceful / no-nonsense，表现方式贴近你给的 AutoClaw 右侧人物卡。</p></article>
-              <article class="info-card"><strong>辅助成员</strong><p>Browser Agent 已绑定，可随时加入当前会话执行搜索与页面操作。</p></article>
-            </aside>
+              <div class="drawer-content">
+                <div class="drawer-card">
+                  <h4>当前分身</h4>
+                  <p>KaiTianClaw (主节点)<br/>状态：在线 / 闲置</p>
+                </div>
+                <div class="drawer-card">
+                  <h4>挂载能力 (Tools)</h4>
+                  <p>• LogAnalyzer (v1.2)<br/>• Python Runtime<br/>• Web Search</p>
+                </div>
+                <div class="drawer-card">
+                  <h4>会话消耗 (Tokens)</h4>
+                  <p>输入：1,204<br/>输出：430<br/>缓存命中：是</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </article>
 
+      <!-- Frame 3 -->
       <article class="frame-card">
         <div class="frame-head">
-          <div>
-            <h2>03 Team / IM Channel / Scheduled Task 运营视图</h2>
-            <p>强化“团队、通道、计划任务都是工作对象”的 IA，不作为传统路由菜单；在主区聚合运营状态与执行证据。</p>
-          </div>
-          <span class="chip">Operations View</span>
+          <h2>03 团队与调度视图 (ClawPort 看板融合)</h2>
+          <p>融入 ClawPort 的 Pipeline/Kanban 概念，但保持 ChatGPT 的轻盈风格，用于团队和任务调度。</p>
         </div>
         <div class="stage">
-          <div class="shell no-right">
-            <aside class="left-rail">
-              <div class="rail-top">
-                <div class="rail-logo">KC</div>
-                <div class="rail-tool">↺</div>
-                <div class="rail-tool">⋯</div>
+          <aside class="sidebar">
+            <div class="sidebar-top">
+              <div class="logo-area">
+                <div class="logo-icon">K</div>
+                <span>KaiTianClaw</span>
               </div>
-              <section class="object-group">
-                <div class="group-head"><span>分身</span><small>对象入口</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>KaiTianClaw 主分身</strong><small>总控入口</small></div><span>Live</span></article>
-                  <article class="object-item"><div class="dot blue"></div><div><strong>Browser Agent</strong><small>搜索与抓取</small></div><span>Idle</span></article>
+            </div>
+            <div class="nav-groups">
+              <div>
+                <div class="nav-group-title">任务看板</div>
+                <div class="nav-item active"><div class="item-icon">▦</div>运营工作流</div>
+                <div class="nav-item"><div class="item-icon">⏱</div>定时调度计划</div>
+              </div>
+            </div>
+          </aside>
+          <div class="main-area">
+            <div class="header">
+              <div class="header-title">运营工作流 (Kanban & Pipelines)</div>
+              <div class="header-actions">
+                <div class="btn-outline">新建任务</div>
+              </div>
+            </div>
+            <div class="content-area">
+              <div class="pipeline-grid">
+                <div class="pipeline-col">
+                  <h4>队列中 (Pending)</h4>
+                  <div class="task-card">
+                    <strong>生成 Q3 财报初稿</strong>
+                    <div class="task-meta"><span>分配：分析分身</span><span>等待执行</span></div>
+                  </div>
+                  <div class="task-card">
+                    <strong>清洗日志数据</strong>
+                    <div class="task-meta"><span>分配：处理脚本</span><span>延后触发</span></div>
+                  </div>
                 </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>Channel 频道</span><small>连接状态</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot blue"></div><div><strong>飞书项目群</strong><small>双向同步</small></div><span>On</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>Telegram Ops</strong><small>仅告警推送</small></div><span>Warn</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>任务</span><small>计划执行</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>任务看板</strong><small>当前事项、状态流转、责任人</small></div><span>12</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>任务日程</strong><small>09:00 日报 / 16:00 审阅提醒</small></div><span>Next</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>团队管理</span><small>团队视角</small></div>
-                <div class="group-body">
-                  <article class="object-item active"><div class="dot"></div><div><strong>团队总览</strong><small>设计评审 Team 当前 3 个角色在线</small></div><span>Live</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>团队看板</strong><small>按团队查看任务推进与阻塞</small></div><span>Board</span></article>
-                </div>
-              </section>
-            </aside>
-            <main class="main-area">
-              <div class="main-top">
-                <h3>运营协同面板</h3>
-                <div class="pills">
-                  <span class="pill">Team Capacity</span>
-                  <span class="pill">Channel Health</span>
-                  <span class="pill">Task Timeline</span>
+                <div class="pipeline-col">
+                  <h4>执行中 (Running)</h4>
+                  <div class="task-card" style="border-left: 3px solid var(--accent)">
+                    <strong>竞品每日动态抓取</strong>
+                    <div class="task-meta"><span>耗时: 12m 30s</span><span style="color:var(--accent)">进行中</span></div>
+                  </div>
                 </div>
               </div>
-              <div class="canvas">
-                <div class="panel-grid">
-                  <article class="panel"><strong>Team 负载</strong><p>设计评审 Team 当前 3/4 负载，建议将抓取任务委派至 Browser Agent。</p></article>
-                  <article class="panel"><strong>IM 通道健康度</strong><p>飞书延迟 180ms；Telegram token 即将过期，建议 24h 内轮换。</p></article>
-                  <article class="panel"><strong>计划任务执行窗</strong><p>日报任务准点率 97%，最近一次执行耗时 1m42s。</p></article>
-                  <article class="panel"><strong>执行证据 / Logs</strong><p>保留最近 30 次运行摘要，支持从卡片直达详情。</p></article>
-                </div>
-              </div>
-              <div class="composer">
-                <span>将运营对象发送到主会话继续处理（如：@设计评审 Team）</span>
-                <button class="send">注入</button>
-              </div>
-            </main>
+            </div>
           </div>
         </div>
       </article>
 
+      <!-- Frame 4 -->
       <article class="frame-card">
         <div class="frame-head">
-          <div>
-            <h2>04 Settings Center / Basic + Workflow</h2>
-            <p>设置中心作为 secondary pages：基础偏好与工作流策略分层，避免首页变成配置后台。</p>
-          </div>
-          <span class="chip">Settings A</span>
+          <h2>04 设置中心 (基础与工作流)</h2>
+          <p>二级页面架构。融合 OpenClaw Control Center 的配置项分类，采用左侧导航+右侧表单的经典排版。</p>
         </div>
         <div class="stage">
-          <div class="settings-shell">
+          <div class="settings-layout">
             <aside class="settings-nav">
-              <section class="settings-group">
-                <strong>Basic</strong>
-                <div class="settings-item active">常规（主题 / 语言 / 启动）</div>
-                <div class="settings-item">模型与 Provider</div>
-                <div class="settings-item">网络与代理</div>
-              </section>
-              <section class="settings-group">
-                <strong>Workflow</strong>
-                <div class="settings-item">分身模板与角色策略</div>
-                <div class="settings-item">Team 默认协作流</div>
-                <div class="settings-item">Channel 绑定与回推规则</div>
-                <div class="settings-item">自动化 Cron 策略</div>
-              </section>
+              <div class="nav-group-title" style="margin-top:0">基础配置</div>
+              <div class="nav-item active nav-item-iconless">常规选项</div>
+              <div class="nav-item nav-item-iconless">模型与 API Providers</div>
+              <div class="nav-item nav-item-iconless">网络与代理</div>
+              
+              <div class="nav-group-title" style="margin-top:24px">工作流</div>
+              <div class="nav-item nav-item-iconless">团队与角色策略</div>
+              <div class="nav-item nav-item-iconless">自动化默认设置</div>
             </aside>
             <main class="settings-main">
-              <h3>基础设置（Basic）</h3>
-              <p>常用配置保持轻表单和卡片节奏，中文优先呈现，保留必要术语（Provider、Workflow、Cron）。</p>
-              <div class="panel-grid">
-                <article class="panel"><strong>主题与外观</strong><p>Light Neutral 为默认；浅暖灰白背景、奶白卡片、细描边与橙橘强调保持一致。</p></article>
-                <article class="panel"><strong>语言策略</strong><p>主界面中文优先，技术关键字与模型名保留英文。</p></article>
-                <article class="panel"><strong>Provider 连接</strong><p>集中管理 API Key、模型默认值、Fallback 优先级。</p></article>
-                <article class="panel"><strong>Workflow Presets</strong><p>预置“评审流”“值守流”“发布流”，支持按 Team 一键应用。</p></article>
+              <h2>模型与 API Providers</h2>
+              <p class="settings-desc">配置平台使用的底层语言模型与向量检索服务，按需为不同 Agent 绑定专属的 API 密钥。</p>
+              
+              <div class="settings-card">
+                <h3>OpenAI (默认优先)</h3>
+                <div class="settings-row">
+                  <div>
+                    <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px;">API Key</div>
+                    <div style="font-size: 13px; color: var(--muted)">sk-proj-***************************</div>
+                  </div>
+                  <div class="btn-outline">编辑</div>
+                </div>
+                <div class="settings-row">
+                  <div>
+                    <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px;">可用模型范围</div>
+                    <div style="font-size: 13px; color: var(--muted)">gpt-4o, gpt-4o-mini, o1-preview</div>
+                  </div>
+                  <div class="btn-outline">管理</div>
+                </div>
+              </div>
+
+              <div class="settings-card">
+                <h3>Anthropic (辅助流)</h3>
+                <div class="settings-row">
+                  <div>
+                    <div style="font-weight: 500; font-size: 14px; margin-bottom: 4px;">API Key</div>
+                    <div style="font-size: 13px; color: var(--muted)">未配置</div>
+                  </div>
+                  <div class="btn-outline">添加凭证</div>
+                </div>
               </div>
             </main>
           </div>
         </div>
       </article>
 
-      <article class="frame-card">
+      <!-- Frame 5 -->
+      <article class="frame-card" style="grid-column: 1 / -1;">
         <div class="frame-head">
-          <div>
-            <h2>05 Settings Center / Capability + Governance</h2>
-            <p>能力层与治理层分开：Memory / Skills / MCP / 权限策略集中管理，治理信息透明但控制负担可控。</p>
-          </div>
-          <span class="chip">Settings B</span>
+          <h2>05 设置中心 (治理与分析概览)</h2>
+          <p>融合 OpenClaw Control Center 的监控大盘与组织权限 (Governance & Insights)，保持干净的面板风格。</p>
         </div>
-        <div class="stage">
-          <div class="settings-shell">
+        <div class="stage" style="height: 500px;">
+          <div class="settings-layout">
             <aside class="settings-nav">
-              <section class="settings-group">
-                <strong>Capability</strong>
-                <div class="settings-item active">Memory 与知识策略</div>
-                <div class="settings-item">Skills / MCP 接入</div>
-                <div class="settings-item">工具权限模式</div>
-              </section>
-              <section class="settings-group">
-                <strong>Governance</strong>
-                <div class="settings-item">监控与告警口径</div>
-                <div class="settings-item">统计与成本阈值</div>
-                <div class="settings-item">审计 / 迁移 / 备份</div>
-                <div class="settings-item">Doctor 与开发者工具</div>
-              </section>
+              <div class="nav-group-title" style="margin-top:0">能力与治理</div>
+              <div class="nav-item nav-item-iconless">工具与 MCP</div>
+              <div class="nav-item active nav-item-iconless">用量统计与洞察</div>
+              <div class="nav-item nav-item-iconless">安全审计 (Audit Logs)</div>
             </aside>
             <main class="settings-main">
-              <h3>能力与治理（Capability / Governance）</h3>
-              <p>沿用 OpenClaw Control Center 的轻治理风格：状态卡化、口径一致、操作安全等级明确（Conservative / Standard / Full / Custom）。</p>
-              <div class="panel-grid">
-                <article class="panel"><strong>Memory 策略</strong><p>定义可写入范围、共享域与保留周期，支持 Team 级继承。</p></article>
-                <article class="panel"><strong>Skills / MCP</strong><p>统一查看来源、连接状态与权限约束，避免能力散落在多个入口。</p></article>
-                <article class="panel"><strong>权限控制</strong><p>默认 Standard；高风险命令需二次确认与审计落点。</p></article>
-                <article class="panel"><strong>治理看板</strong><p>成本趋势、错误率、重试与通道健康度作为治理卡常驻展示。</p></article>
+              <h2>用量统计与洞察 (Insights)</h2>
+              <p class="settings-desc">实时监控团队内各大模型 Token 消耗情况与调用频次，辅助成本优化与计费管理。</p>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+                <div class="settings-card" style="margin: 0; padding: 20px;">
+                  <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">总调用次数 (7日)</div>
+                  <div style="font-size: 28px; font-weight: 600;">12,485 <span style="font-size: 14px; color: var(--accent); font-weight: normal;">↑ 12%</span></div>
+                </div>
+                <div class="settings-card" style="margin: 0; padding: 20px;">
+                  <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">大语言模型 Token 消耗</div>
+                  <div style="font-size: 28px; font-weight: 600;">4.2M</div>
+                </div>
+                <div class="settings-card" style="margin: 0; padding: 20px;">
+                  <div style="font-size: 13px; color: var(--muted); margin-bottom: 8px;">预估消耗成本</div>
+                  <div style="font-size: 28px; font-weight: 600;">$132.50</div>
+                </div>
               </div>
+
+              <div class="settings-card">
+                <h3>消耗分布 (模型维度)</h3>
+                <div style="height: 60px; display: flex; align-items: flex-end; gap: 4px; margin-top: 24px; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
+                   <!-- Mock Chart -->
+                   <div style="width: 40px; height: 100%; background: var(--accent); opacity: 0.9; border-radius: 4px 4px 0 0;"></div>
+                   <div style="width: 40px; height: 60%; background: var(--accent); opacity: 0.6; border-radius: 4px 4px 0 0;"></div>
+                   <div style="width: 40px; height: 80%; background: var(--accent); opacity: 0.7; border-radius: 4px 4px 0 0;"></div>
+                   <div style="width: 40px; height: 30%; background: var(--accent); opacity: 0.4; border-radius: 4px 4px 0 0;"></div>
+                   <div style="width: 40px; height: 50%; background: var(--accent); opacity: 0.5; border-radius: 4px 4px 0 0;"></div>
+                   <div style="flex: 1;"></div>
+                   <div style="font-size: 12px; color: var(--muted);">横轴为近5天数据，gpt-4o 占比达 78%</div>
+                </div>
+              </div>
+
             </main>
           </div>
         </div>
       </article>
 
-      <article class="frame-card">
-        <div class="frame-head">
-          <div>
-            <h2>06 关键交互态 / 文件侧栏弹出</h2>
-            <p>示范点击右上角 `文件` 按钮后的状态。默认无右栏，点击后从右侧弹出文件侧栏；Agent 与文件共享同一交互模式。</p>
-          </div>
-          <span class="chip">Collapsed State</span>
-        </div>
-        <div class="stage">
-          <div class="shell">
-            <aside class="left-rail">
-              <div class="rail-top">
-                <div class="rail-logo">KC</div>
-                <div class="rail-tool">⌂</div>
-                <div class="rail-tool">⋯</div>
-              </div>
-              <section class="object-group">
-                <div class="group-head"><span>分身</span><small>工作会话</small></div>
-                <div class="group-body">
-                  <article class="object-item active"><div class="dot"></div><div><strong>KaiTianClaw 主分身</strong><small>Focus mode 中</small></div><span>Now</span></article>
-                  <article class="object-item"><div class="dot blue"></div><div><strong>Browser Agent</strong><small>抓取参考页</small></div><span>Idle</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>Channel 频道</span><small>触发与通知</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>飞书项目群</strong><small>评审回推</small></div><span>On</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>Telegram Ops</strong><small>告警推送</small></div><span>Warn</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>任务</span><small>执行入口</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>任务看板</strong><small>当前任务推进</small></div><span>12</span></article>
-                  <article class="object-item"><div class="dot gray"></div><div><strong>任务日程</strong><small>下一次提醒 16:00</small></div><span>Next</span></article>
-                </div>
-              </section>
-              <section class="object-group">
-                <div class="group-head"><span>团队管理</span><small>组织视角</small></div>
-                <div class="group-body">
-                  <article class="object-item"><div class="dot"></div><div><strong>团队总览</strong><small>角色与容量</small></div><span>Live</span></article>
-                  <article class="object-item"><div class="dot blue"></div><div><strong>团队看板</strong><small>团队视角流转</small></div><span>Board</span></article>
-                </div>
-              </section>
-            </aside>
-            <main class="main-area">
-              <div class="main-top">
-                <h3>主工作台（文件侧栏打开）</h3>
-                <div class="top-actions">
-                  <span class="action-btn active"><span class="action-icon file"></span>文件</span>
-                  <span class="action-btn"><span class="action-icon agent"></span>Agent</span>
-                </div>
-              </div>
-              <div class="canvas chat">
-                <div class="bubble user">我点一下右上角文件按钮，看看文件侧栏弹出来是什么感觉。</div>
-                <div class="bubble">已打开文件侧栏。它只在需要时出现，关闭后恢复为无右栏的大画布工作态。</div>
-                <div class="bubble">左侧四组对象栏保持完整，不影响在分身、频道、任务和团队管理之间切换。</div>
-              </div>
-              <div class="composer">
-                <span>Focus Mode 下继续输入…</span>
-                <button class="send">发送</button>
-              </div>
-            </main>
-            <aside class="right-rail">
-              <div class="right-rail-head">
-                <div class="drawer-title">文件</div>
-                <div class="rail-fold">关闭</div>
-              </div>
-              <article class="info-card"><strong>当前文件</strong><p>`产品文档`、`设计板 HTML`、`AutoClaw 参考图` 已挂到当前会话。</p></article>
-              <article class="info-card"><strong>最近引用</strong><p>继续保留“当前项目 / 工作流 / 记忆系统”这类摘要，但以文件抽屉方式出现，不常驻占位。</p></article>
-              <article class="info-card"><strong>使用方式</strong><p>点击右上角按钮展开，点关闭或切换到 `Agent` 按钮即可收回或替换。</p></article>
-            </aside>
-          </div>
-        </div>
-      </article>
-    </section>
+    </div>
   </div>
 </body>
 </html>
