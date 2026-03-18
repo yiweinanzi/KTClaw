@@ -625,3 +625,10 @@ Next: µÈ´ıÓÃ»§Éó²éÉè¼Æ²¢¸ø³öÏÂÒ»²½·´À¡
 - Frames 5 & 6 Global Layout: Migrated to a single uniform grey `f-bg` background containing a unified white `.f-card` for premium separation.
 - Frame 6 Details: Cleaned up duplicate table headers and adapted the cron grid to a Light Theme minimal aesthetic to align better dynamically with ChatGPT-resembling layouts.
 - Current Focus: `DESIGN-020` is completed, codebase updated. Handing off to next session for implementation or further iterations on design.
+
+[2026-03-18T10:12:12.855399] DESIGN-021
+- Updated docs/figma-review/kaitianclaw-design-board.html
+- Added clear Agent assignment labels to Cron Board.
+- Polished Cron job visual with gradients and floating effects.
+- Corrected Settings Center to include è¿ç§»ä¸å¤‡ä»½ per PRD.
+- Ready for Figma MCP synchronization or review.

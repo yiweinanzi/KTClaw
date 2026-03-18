@@ -2,7 +2,7 @@
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "in_progress",
-  "current_focus": "DESIGN-020",
+  "current_focus": "DESIGN-021",
   "last_updated": "2026-03-17T22:40:00+08:00",
   "tasks": [
     {
@@ -498,6 +498,24 @@
         "Cron grid adopts light green premium theme from screenshots"
       ],
       "notes": "Applied macOS Finder-like 4-column layout for Frame 4. Fixed Frame 6 cron view duplication and aligned UI with glassmorphic premium standards.",
+      "subtasks": []
+    },
+    {
+      "id": "DESIGN-021",
+      "title": "Figma 全页面设计评审 (UI/UX Pro Max 视觉升维)",
+      "type": "design",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-020"
+      ],
+      "description": "基于 openclaw 和 clawport 参考，提炼：布局节奏、配色系统、材质/卡片层级、导航与工作台关系，提升全局视觉质感。",
+      "acceptance_criteria": [
+        "提炼并总结布局、配色、材质、导航",
+        "更新 kaitianclaw-design-board.html",
+        "完成评审前准备"
+      ],
+      "notes": "Applied UI/UX visual enhancements to Cron Job board (Frame 6) by injecting glassmorphic styling, background gradients, and explicit Agent name assignments. Audited Settings Center frames (7, 8, 9) against PRD, added missing \"迁移与备份\" entry under 治理 section.",
       "subtasks": []
     }
   ]
