@@ -515,7 +515,7 @@
         "更新 kaitianclaw-design-board.html",
         "完成评审前准备"
       ],
-      "notes": "Applied UI/UX visual enhancements to Cron Job board (Frame 6) by injecting glassmorphic styling, background gradients, and explicit Agent name assignments. Audited Settings Center frames (7, 8, 9) against PRD, added missing \"迁移与备份\" entry under 治理 section.",
+      "notes": "Applied UI/UX visual enhancements to Cron Job board (Frame 6) by injecting glassmorphic styling, background gradients, and explicit Agent name assignments. Audited Settings Center frames (7, 8, 9) against PRD, added missing \"迁移与备份\" entry under 治理 section. | Further optimized Cron Job cards (Frame 6) to full card layout with vertical hierarchy, integrated hover actions, soft light grid lines, and precise time labels (e.g. 05:00) per user feedback.",
       "subtasks": []
     }
   ]

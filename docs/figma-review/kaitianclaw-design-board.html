@@ -1746,7 +1746,7 @@
       color: #34a853
     }
 
-    /* Cron Schedule Grid (Frame 6) */
+        /* Cron Schedule Grid (Frame 6) */
     .cron-main {
       display: flex;
       flex-direction: column;
@@ -1794,7 +1794,6 @@
       border-color: #10b981;
     }
 
-    /* Green theme from screenshot */
     .cron-grid-wrap {
       flex: 1;
       overflow: auto;
@@ -1807,7 +1806,7 @@
       width: 100%;
       border-collapse: separate;
       border-spacing: 0;
-      border: 1px solid #e2e8f0;
+      border: 1px solid #f1f5f9;
       border-radius: 8px;
     }
 
@@ -1817,8 +1816,8 @@
       padding: 16px;
       color: #64748b;
       font-weight: 500;
-      border-bottom: 1px solid #e2e8f0;
-      border-right: 1px solid #e2e8f0;
+      border-bottom: 1px solid #f1f5f9;
+      border-right: 1px solid #f1f5f9;
       font-size: 14px
     }
 
@@ -1827,8 +1826,8 @@
     }
 
     .cron-table td {
-      border-bottom: 1px solid #e2e8f0;
-      border-right: 1px solid #e2e8f0;
+      border-bottom: 1px solid #f1f5f9;
+      border-right: 1px solid #f1f5f9;
       vertical-align: top;
       padding: 12px;
       height: 140px;
@@ -1849,57 +1848,144 @@
       padding: 16px 16px 16px 0 !important;
       color: #94a3b8 !important;
       font-size: 13px !important;
-      border-right: 1px solid #e2e8f0 !important;
+      border-right: 1px solid #f1f5f9 !important;
       background: #fff !important;
       font-weight: 500;
+      vertical-align: top;
     }
 
+    /* Redesigned Cron Job Card */
     .cron-job {
       border-radius: 6px;
-      padding: 6px 12px;
-      font-size: 12px;
-      margin-bottom: 8px;
-      color: #fff;
+      margin-bottom: 12px;
       display: flex;
+      flex-direction: column;
       gap: 6px;
       cursor: pointer;
-      transition: .15s;
-      font-weight: 500;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      align-items: center;
+      transition: all .2s ease;
+      position: relative;
+      overflow: hidden;
+      border-left: 3px solid transparent;
+      border-top: 1px solid transparent;
+      border-right: 1px solid transparent;
+      border-bottom: 1px solid transparent;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+      padding: 10px 12px;
     }
 
     .cron-job:hover {
-      opacity: .9;
-      transform: translateX(2px)
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+    
+    .cron-job:hover .cj-actions {
+      opacity: 1;
+    }
+
+    /* Agent Top Row */
+    .cj-agent-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .cj-agent-info {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .cj-actions {
+      opacity: 0;
+      display: flex;
+      gap: 6px;
+      transition: opacity 0.2s;
+      color: #94a3b8;
+    }
+    
+    .cj-actions span:hover {
+      color: #0f172a;
+    }
+
+    /* Task Info Bottom Row */
+    .cj-task-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .cj-task-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .cj-time {
-      opacity: .9;
+      font-size: 11px;
+      color: #64748b;
+      font-weight: 500;
       font-variant-numeric: tabular-nums;
-      font-weight: 400;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
+    /* Color Themes (Low saturation bg + High saturation border/text) */
+    
+    /* Monkey: Light orange */
     .bg-spark {
-      background: #f59e0b
+      background: #fff7ed;
+      border-left-color: #f97316;
+      border-top-color: #ffedd5;
+      border-right-color: #ffedd5;
+      border-bottom-color: #ffedd5;
     }
+    .bg-spark .cj-agent-info { color: #c2410c; }
 
-    /* Monkey - Orange */
+    /* KTClaw: Light grey-blue */
     .bg-vault {
-      background: #64748b
+      background: #f8fafc;
+      border-left-color: #475569;
+      border-top-color: #f1f5f9;
+      border-right-color: #f1f5f9;
+      border-bottom-color: #f1f5f9;
     }
+    .bg-vault .cj-agent-info { color: #334155; }
 
-    /* Auth/Vault - Slate */
+    /* 沉思小助手: Light green */
     .bg-leads {
-      background: #10b981
+      background: #f0fdf4;
+      border-left-color: #22c55e;
+      border-top-color: #dcfce7;
+      border-right-color: #dcfce7;
+      border-bottom-color: #dcfce7;
     }
-
-    /* Leads - Green */
-    .bg-pulse {
-      background: #6366f1
+    .bg-leads .cj-agent-info { color: #15803d; }
+    
+    /* 安全审核: Light cyan/teal */
+    .bg-shield {
+      background: #fdf4ff;
+      border-left-color: #c026d3;
+      border-top-color: #fae8ff;
+      border-right-color: #fae8ff;
+      border-bottom-color: #fae8ff;
     }
+    .bg-shield .cj-agent-info { color: #a21caf; }
 
     /* Pulse - Indigo */
+    .bg-pulse {
+      background: #eef2ff;
+      border-left-color: #6366f1;
+      border-top-color: #e0e7ff;
+      border-right-color: #e0e7ff;
+      border-bottom-color: #e0e7ff;
+    }
+    .bg-pulse .cj-agent-info { color: #4338ca; }
 
     /* 3 Pane Layout */
     .im-ch-list {
@@ -2708,7 +2794,7 @@
     </div>
   </div>
 
-  <!-- ===== Frame 6: 定时任务 ===== -->
+    <!-- ===== Frame 6: 定时任务 ===== -->
   <div class="fw">
     <h1 class="ft">06 定时任务 / Cron 总览 <span>自动化执行调度</span></h1>
     <div class="aw">
@@ -2752,7 +2838,7 @@
                 <table class="cron-table">
                   <thead>
                     <tr>
-                      <th style="border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; width: 60px;"></th>
+                      <th style="border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; width: 60px;"></th>
                       <th>Mon</th>
                       <th>Tue</th>
                       <th>Wed</th>
@@ -2762,94 +2848,302 @@
                   </thead>
                   <tbody>
                     <tr>
-                      <td class="cron-hour">5a</td>
+                      <td class="cron-hour">05:00</td>
                       <td>
-                        <div class="cron-job bg-spark"><span class="cj-time">:00</span> monkey-discovery</div>
-<div class="cj-right">Monkey</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:30</span> auth-watchman</div>
-<div class="cj-right">安全审核</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:50</span> vault-snapshot</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-spark">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>��</span> <span>Monkey</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="monkey-discovery">monkey-discovery</div>
+                            <div class="cj-time">05:00</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-shield">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>⚠️</span> <span>安全审核</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="auth-watchman">auth-watchman</div>
+                            <div class="cj-time">05:30</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="vault-snapshot">vault-snapshot</div>
+                            <div class="cj-time">05:50</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-spark"><span class="cj-time">:00</span> monkey-discovery</div>
-<div class="cj-right">Monkey</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:30</span> auth-watchman</div>
-<div class="cj-right">安全审核</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:50</span> vault-snapshot</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-spark">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🤖</span> <span>Monkey</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="monkey-discovery">monkey-discovery</div>
+                            <div class="cj-time">05:00</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-shield">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>⚠️</span> <span>安全审核</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="auth-watchman">auth-watchman</div>
+                            <div class="cj-time">05:30</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="vault-snapshot">vault-snapshot</div>
+                            <div class="cj-time">05:50</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-spark"><span class="cj-time">:00</span> monkey-discovery</div>
-<div class="cj-right">Monkey</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:30</span> auth-watchman</div>
-<div class="cj-right">安全审核</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:50</span> vault-snapshot</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-spark">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🤖</span> <span>Monkey</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="monkey-discovery">monkey-discovery</div>
+                            <div class="cj-time">05:00</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-shield">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>⚠️</span> <span>安全审核</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="auth-watchman">auth-watchman</div>
+                            <div class="cj-time">05:30</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="vault-snapshot">vault-snapshot</div>
+                            <div class="cj-time">05:50</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-spark"><span class="cj-time">:00</span> monkey-discovery</div>
-<div class="cj-right">Monkey</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:30</span> auth-watchman</div>
-<div class="cj-right">安全审核</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:50</span> vault-snapshot</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-spark">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🤖</span> <span>Monkey</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="monkey-discovery">monkey-discovery</div>
+                            <div class="cj-time">05:00</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-shield">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>⚠️</span> <span>安全审核</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="auth-watchman">auth-watchman</div>
+                            <div class="cj-time">05:30</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="vault-snapshot">vault-snapshot</div>
+                            <div class="cj-time">05:50</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-spark"><span class="cj-time">:00</span> monkey-discovery</div>
-<div class="cj-right">Monkey</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:30</span> auth-watchman</div>
-<div class="cj-right">安全审核</div>
-                        <div class="cron-job bg-vault"><span class="cj-time">:50</span> vault-snapshot</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-spark">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🤖</span> <span>Monkey</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="monkey-discovery">monkey-discovery</div>
+                            <div class="cj-time">05:00</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-shield">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>⚠️</span> <span>安全审核</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="auth-watchman">auth-watchman</div>
+                            <div class="cj-time">05:30</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="vault-snapshot">vault-snapshot</div>
+                            <div class="cj-time">05:50</div>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                     <tr>
-                      <td class="cron-hour">6a</td>
+                      <td class="cron-hour">06:00</td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> builder-briefing</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="builder-briefing">builder-briefing</div>
+                            <div class="cj-time">06:00</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> builder-briefing</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="builder-briefing">builder-briefing</div>
+                            <div class="cj-time">06:00</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> builder-briefing</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="builder-briefing">builder-briefing</div>
+                            <div class="cj-time">06:00</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> builder-briefing</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="builder-briefing">builder-briefing</div>
+                            <div class="cj-time">06:00</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> builder-briefing</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="builder-briefing">builder-briefing</div>
+                            <div class="cj-time">06:00</div>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                     <tr>
-                      <td class="cron-hour">7a</td>
+                      <td class="cron-hour">07:00</td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> outpost-mirror</div>
-<div class="cj-right">沉思小助手</div>
+                        <div class="cron-job bg-leads">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🔍</span> <span>沉思小助手</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="outpost-mirror">outpost-mirror</div>
+                            <div class="cj-time">07:00</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> outpost-mirror</div>
-<div class="cj-right">沉思小助手</div>
-                        <div class="cron-job bg-leads"><span class="cj-time">:30</span> robin-weekly-brief</div>
-<div class="cj-right">KTClaw主脑</div>
+                        <div class="cron-job bg-leads">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🔍</span> <span>沉思小助手</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="outpost-mirror">outpost-mirror</div>
+                            <div class="cj-time">07:00</div>
+                          </div>
+                        </div>
+                        <div class="cron-job bg-vault">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>✦</span> <span>KTClaw主脑</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="robin-weekly-brief">robin-weekly-brief</div>
+                            <div class="cj-time">07:30</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> outpost-mirror</div>
-<div class="cj-right">沉思小助手</div>
+                        <div class="cron-job bg-leads">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🔍</span> <span>沉思小助手</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="outpost-mirror">outpost-mirror</div>
+                            <div class="cj-time">07:00</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> outpost-mirror</div>
-<div class="cj-right">沉思小助手</div>
+                        <div class="cron-job bg-leads">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🔍</span> <span>沉思小助手</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="outpost-mirror">outpost-mirror</div>
+                            <div class="cj-time">07:00</div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div class="cron-job bg-vault"><span class="cj-time">:00</span> outpost-mirror</div>
-<div class="cj-right">沉思小助手</div>
+                        <div class="cron-job bg-leads">
+                          <div class="cj-agent-row">
+                            <div class="cj-agent-info"><span>🔍</span> <span>沉思小助手</span></div>
+                            <div class="cj-actions"><span title="手动执行">▶</span><span title="编辑">⚙</span></div>
+                          </div>
+                          <div class="cj-task-row">
+                            <div class="cj-task-name" title="outpost-mirror">outpost-mirror</div>
+                            <div class="cj-time">07:00</div>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   </tbody>

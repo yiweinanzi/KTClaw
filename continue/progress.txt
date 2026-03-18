@@ -632,3 +632,11 @@ Next: µÈ´ıÓÃ»§Éó²éÉè¼Æ²¢¸ø³öÏÂÒ»²½·´À¡
 - Polished Cron job visual with gradients and floating effects.
 - Corrected Settings Center to include è¿ç§»ä¸å¤‡ä»½ per PRD.
 - Ready for Figma MCP synchronization or review.
+
+[2026-03-18T10:19:59.934315] DESIGN-021 (Review Iteration)
+- Redesigned Frame 6 Cron Cards into proper vertical cards.
+- Utilized Scheme B: Agent badge on top, task/time on bottom.
+- Updated color palette: low saturation backgrounds with high saturation accent borders.
+- Adjusted typography: bold task names, clear time codes.
+- Thinned out background grid lines for a cleaner look.
+- Added hover state actions (Play/Settings).
