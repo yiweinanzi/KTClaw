@@ -2,8 +2,8 @@
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "in_progress",
-  "current_focus": "BUILD-005",
-  "last_updated": "2026-03-18T17:22:40+08:00",
+  "current_focus": "FRONTEND-006",
+  "last_updated": "2026-03-18T18:08:00+08:00",
   "tasks": [
     {
       "id": "DESIGN-019",
@@ -625,6 +625,25 @@
         "Targeted chat/workbench tests, npm run typecheck, and npm run lint remain green"
       ],
       "notes": "Completed on 2026-03-18. Refined Frame 2 active-chat presentation by upgrading ChatMessage bubbles/tool cards and ChatInput composer shell while preserving current send/stop/attachment/agent-target behavior. Verified with tests/unit/chat-input.test.tsx, tests/unit/chat-message.test.tsx, tests/unit/workbench-shell.test.tsx, tests/unit/workbench-empty-state.test.tsx, tests/unit/workbench-context-rail.test.tsx, npm run typecheck, and npm run lint (existing providers.ts warning remains).",
+      "subtasks": []
+    },
+    {
+      "id": "FRONTEND-006",
+      "title": "Sidebar and top shell high-fidelity React alignment",
+      "type": "build",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "FRONTEND-004",
+        "FRONTEND-005"
+      ],
+      "description": "Bring the left workbench sidebar and top shell closer to the approved Frame 1/2 review board, focusing on density, width, navigation rhythm, and top-bar polish.",
+      "acceptance_criteria": [
+        "Sidebar width, group density, and active-row styling align more closely with the approved board instead of the earlier oversized card treatment",
+        "Top shell in the Chat page matches the approved lightweight file/agent action rhythm and workbench title treatment",
+        "Targeted sidebar/workbench tests, npm run typecheck, and npm run lint remain green"
+      ],
+      "notes": "Completed on 2026-03-18. Reduced sidebar width from 390px to 240px, flattened session/team/channel/task items from large rounded cards to minimal list items with left-border active state, simplified header buttons from bordered cards to plain hover buttons, and removed unused helper functions. Verified with tests/unit/workbench-sidebar-density.test.tsx, tests/unit/workbench-sidebar.test.tsx, tests/unit/chat-input.test.tsx, tests/unit/chat-message.test.tsx, tests/unit/workbench-shell.test.tsx, tests/unit/workbench-empty-state.test.tsx, tests/unit/workbench-context-rail.test.tsx, npm run typecheck, and npm run lint (existing providers.ts warning remains).",
       "subtasks": []
     }
   ]

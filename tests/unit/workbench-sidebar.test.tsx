@@ -101,6 +101,6 @@ describe('workbench sidebar', () => {
 
     const aside = container.querySelector('aside');
     expect(aside).toBeInTheDocument();
-    expect(aside).toHaveClass('w-20');
+    expect(aside).toHaveClass('w-16');
   });
 });

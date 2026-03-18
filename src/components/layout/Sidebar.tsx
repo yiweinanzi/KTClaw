@@ -16,7 +16,6 @@ import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
-import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTranslation } from 'react-i18next';
 import { AccordionGroup } from '@/components/workbench/accordion-group';
@@ -26,22 +25,6 @@ function getAgentIdFromSessionKey(sessionKey: string): string {
   if (!sessionKey.startsWith('agent:')) return 'main';
   const [, agentId] = sessionKey.split(':');
   return agentId || 'main';
-}
-
-function getAgentDescription(agentName: string): string {
-  if (agentName === 'KaiTianClaw' || agentName === 'KTClaw' || agentName === 'main') {
-    return '默认主分身，负责通用对话与调度。';
-  }
-  if (agentName.includes('沉思')) {
-    return '长文本分析 / 总结 / 复盘';
-  }
-  if (agentName.includes('监控')) {
-    return '异常提醒、心跳检测、失败重试建议';
-  }
-  if (agentName.includes('Browser')) {
-    return '浏览、搜索、页面操作';
-  }
-  return '当前活跃工作会话';
 }
 
 function getAvatarTone(agentName: string): string {
@@ -139,7 +122,7 @@ export function Sidebar() {
     <aside
       className={cn(
         'flex shrink-0 flex-col border-r border-black/5 bg-[linear-gradient(180deg,#f7f5f1_0%,#f0eeea_100%)] transition-all duration-300 dark:border-white/10 dark:bg-background',
-        sidebarCollapsed ? 'w-20 px-2 py-3' : 'w-[390px] px-3 py-3',
+        sidebarCollapsed ? 'w-16 px-2 py-3' : 'w-[240px] px-3 py-3',
       )}
     >
       <div className={cn('flex h-12 items-center', sidebarCollapsed ? 'justify-center' : 'justify-between px-1')}>
@@ -151,25 +134,25 @@ export function Sidebar() {
           </div>
         )}
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-10 w-10 shrink-0 rounded-2xl border border-black/5 bg-white/65 text-muted-foreground shadow-sm hover:bg-white hover:text-foreground dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Toggle sidebar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           >
             {sidebarCollapsed ? <PanelLeft className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
-          </Button>
+          </button>
 
           {!sidebarCollapsed && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 shrink-0 rounded-2xl border border-black/5 bg-white/65 text-muted-foreground shadow-sm hover:bg-white hover:text-foreground dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            <button
+              type="button"
+              aria-label="New session"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
               onClick={() => navigate('/')}
             >
               <Plus className="h-[18px] w-[18px]" />
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -192,24 +175,24 @@ export function Sidebar() {
               const activityTimestamp = sessionLastActivity[session.key];
 
               return (
-                <div key={session.key} className="group relative flex items-center">
+                <div key={session.key} className="group relative">
                   <button
                     onClick={() => {
                       switchSession(session.key);
                       navigate('/');
                     }}
                     className={cn(
-                      'w-full rounded-[24px] border border-black/5 bg-white/75 px-4 py-4 pr-10 text-left shadow-sm transition-all',
-                      'hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]',
-                      isActive && 'bg-black/[0.05] dark:bg-white/[0.09]',
+                      'w-full rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2.5 text-left transition-all',
+                      'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]',
+                      isActive && 'border-l-emerald-500 bg-black/[0.02] dark:bg-white/[0.05]',
                     )}
                   >
-                    <div className="flex min-w-0 items-start gap-3">
-                      <div className={cn('mt-0.5 h-11 w-11 shrink-0 rounded-full bg-gradient-to-br', getAvatarTone(agentName))} />
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className={cn('h-8 w-8 shrink-0 rounded-full bg-gradient-to-br', getAvatarTone(agentName))} />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate text-[17px] font-semibold text-foreground">{sessionTitle}</span>
-                          <span className="shrink-0 text-[13px] text-muted-foreground">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[14px] font-medium text-foreground">{sessionTitle}</span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
                             {typeof activityTimestamp === 'number'
                               ? new Date(activityTimestamp).toLocaleTimeString('zh-CN', {
                                   hour: '2-digit',
@@ -219,9 +202,6 @@ export function Sidebar() {
                               : '--:--'}
                           </span>
                         </div>
-                        <p className="mt-2 line-clamp-2 text-[13px] leading-6 text-muted-foreground">
-                          {getAgentDescription(agentName)}
-                        </p>
                       </div>
                     </div>
                   </button>
@@ -236,17 +216,17 @@ export function Sidebar() {
                       });
                     }}
                     className={cn(
-                      'absolute right-3 top-3 flex items-center justify-center rounded-full p-1 transition-opacity',
+                      'absolute right-2 top-2 flex items-center justify-center rounded p-1 transition-opacity',
                       'opacity-0 group-hover:opacity-100 text-muted-foreground hover:bg-destructive/10 hover:text-destructive',
                     )}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
               );
             })
           ) : (
-            <div className="rounded-[22px] border border-dashed border-black/10 bg-white/60 px-4 py-4 text-[12px] text-muted-foreground dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="rounded-lg border border-dashed border-black/10 bg-transparent px-3 py-2.5 text-[12px] text-muted-foreground dark:border-white/10">
               暂无会话
             </div>
           )}
@@ -260,13 +240,13 @@ export function Sidebar() {
           defaultOpen={false}
         >
           {staticTeams.map((team) => (
-            <div key={team.name} className="rounded-[22px] border border-black/5 bg-white/75 px-4 py-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[14px] font-semibold text-foreground">{team.name}</p>
-                  <p className="mt-1 text-[12px] leading-5 text-muted-foreground">{team.summary}</p>
+            <div key={team.name} className="rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium text-foreground">{team.name}</p>
+                  {team.summary && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{team.summary}</p>}
                 </div>
-                <span className="text-[11px] text-muted-foreground">{team.meta}</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">{team.meta}</span>
               </div>
             </div>
           ))}
@@ -280,10 +260,10 @@ export function Sidebar() {
           defaultOpen={false}
         >
           {staticChannels.map((channel) => (
-            <div key={channel.name} className="rounded-[20px] border border-black/5 bg-white/75 px-4 py-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-medium text-foreground">{channel.name}</span>
-                <span className="text-[12px] text-muted-foreground">{channel.meta}</span>
+            <div key={channel.name} className="rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[13px] font-medium text-foreground">{channel.name}</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">{channel.meta}</span>
               </div>
             </div>
           ))}
@@ -297,10 +277,10 @@ export function Sidebar() {
           defaultOpen={false}
         >
           {staticCronTasks.map((task) => (
-            <div key={task.name} className="rounded-[20px] border border-black/5 bg-white/75 px-4 py-3 shadow-sm dark:border-white/10 dark:bg-white/[0.04]">
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-medium text-foreground">{task.name}</span>
-                <span className="text-[12px] text-muted-foreground">{task.meta}</span>
+            <div key={task.name} className="rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-[13px] font-medium text-foreground">{task.name}</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">{task.meta}</span>
               </div>
             </div>
           ))}
@@ -312,9 +292,9 @@ export function Sidebar() {
           to="/settings"
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-3 rounded-[24px] border border-black/5 bg-white/70 px-4 py-3 text-[14px] font-medium shadow-sm transition-colors',
-              'text-foreground/80 hover:bg-white dark:border-white/10 dark:bg-white/[0.04] dark:hover:bg-white/[0.07]',
-              isActive && 'bg-white text-foreground',
+              'flex items-center gap-2.5 rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2.5 text-[13px] font-medium transition-colors',
+              'text-foreground/80 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]',
+              isActive && 'border-l-emerald-500 bg-black/[0.02] text-foreground dark:bg-white/[0.05]',
               sidebarCollapsed && 'justify-center px-0',
             )
           }

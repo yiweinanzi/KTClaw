@@ -724,3 +724,7 @@ Next: 等待用户审查设计并给出下一步反馈
 - Added tests/unit/chat-message.test.tsx and expanded tests/unit/chat-input.test.tsx, then verified the updated components through tests/unit/workbench-shell.test.tsx plus existing workbench empty/inspector tests.
 - Verification: npm test -- tests/unit/chat-input.test.tsx tests/unit/chat-message.test.tsx tests/unit/workbench-shell.test.tsx tests/unit/workbench-empty-state.test.tsx tests/unit/workbench-context-rail.test.tsx passed; npm run typecheck passed; npm run lint passed with the existing warning in electron/api/routes/providers.ts:198 (any).
 - BUILD-005 remains in progress overall. Next recommended slice is the left sidebar / top shell alignment, or the deeper active-chat polish around message list density and streaming state details if we stay on Frame 2.
+2026-03-18T17:55:00+08:00 - Local static preview launched for user review.
+- Built the current frontend with npm.cmd run build:vite and started a stable vite preview server on http://127.0.0.1:4175/ for visual review.
+- Design-board comparison page remains available at http://127.0.0.1:4174/kaitianclaw-design-board.html.
+- If the browser still fails to open the preview, the likely cause is local proxy/client interception rather than app build failure; shell-side HTTP checks returned 200 for both preview endpoints.
