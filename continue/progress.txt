@@ -684,3 +684,5 @@ Next: 等待用户审查设计并给出下一步反馈
 
 2026-03-18T11:45:00+08:00 - Refactored Frame 10.1 Monitoring into a 3-tab view (Dashboard, Usage, Alerts).
 
+2026-03-18T11:48:00+08:00 - Fixed missing integer parts in currency fields (caused by PowerShell evaluating $) in Frame 10.1.
+
