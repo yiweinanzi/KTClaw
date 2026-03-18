@@ -14,20 +14,18 @@ export function SettingsSectionCard({
   children,
   className,
 }: SettingsSectionCardProps) {
+  void description;
   return (
     <section
       className={cn(
-        'rounded-[18px] border border-black/[0.06] bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]',
+        'rounded-xl border border-[#c6c6c8] bg-white p-5',
         className,
       )}
     >
-      <header className="space-y-1.5">
-        <h2 className="text-[15px] font-semibold text-[#111827]">{title}</h2>
-        {description ? (
-          <p className="text-[13px] leading-6 text-[#667085]">{description}</p>
-        ) : null}
+      <header className="mb-[14px]">
+        <h3 className="text-[15px] font-semibold text-[#000000]">{title}</h3>
       </header>
-      <div className="mt-5 space-y-4">{children}</div>
+      <div className="space-y-5">{children}</div>
     </section>
   );
 }

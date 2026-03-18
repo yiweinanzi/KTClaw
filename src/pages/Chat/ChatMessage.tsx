@@ -72,7 +72,7 @@ export const ChatMessage = memo(function ChatMessage({
     >
       {/* Avatar */}
       {!isUser && (
-        <div className="mt-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/90 text-white shadow-[0_2px_8px_rgba(16,185,129,0.28)]">
+        <div className="mt-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#007aff] text-white shadow-[0_2px_8px_rgba(0,122,255,0.3)]">
           <Sparkles className="h-3.5 w-3.5" />
         </div>
       )}
@@ -337,17 +337,17 @@ function MessageBubble({
     <div
       data-testid={isUser ? 'chat-bubble-user' : 'chat-bubble-assistant'}
       className={cn(
-        'relative rounded-2xl px-4 py-3.5',
+        'relative rounded-2xl px-[14px] py-[10px]',
         !isUser && 'w-full',
         isUser
-          ? 'rounded-tr-md bg-[#0a84ff] text-white shadow-[0_1px_2px_rgba(0,0,0,0.18)] ring-1 ring-black/10 dark:ring-white/15'
-          : 'rounded-tl-md bg-white/95 dark:bg-white/[0.04] border border-black/5 dark:border-white/10 text-foreground shadow-sm',
+          ? 'rounded-tr-[4px] bg-[#007aff] text-white shadow-[0_1px_2px_rgba(0,0,0,0.08)]'
+          : 'rounded-tl-[4px] bg-white text-black shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_0.5px_rgba(0,0,0,0.04)] dark:bg-white/[0.04] dark:text-white',
       )}
     >
       {isUser ? (
-        <p className="whitespace-pre-wrap break-words break-all text-sm">{text}</p>
+        <p className="whitespace-pre-wrap break-words break-all text-[14px] leading-[1.65]">{text}</p>
       ) : (
-        <div className="prose prose-sm dark:prose-invert max-w-none break-words break-all text-[14px] leading-6 prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-pre:my-3">
+        <div className="prose prose-sm dark:prose-invert max-w-none break-words break-all text-[14px] leading-[1.65] prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-pre:my-3">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{

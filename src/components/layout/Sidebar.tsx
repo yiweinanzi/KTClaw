@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Bot,
   Clock,
   Network,
-  PanelLeft,
-  PanelLeftClose,
-  Plus,
-  Settings as SettingsIcon,
   Trash2,
   Users,
 } from 'lucide-react';
@@ -19,20 +15,6 @@ import { useAgentsStore } from '@/stores/agents';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTranslation } from 'react-i18next';
 import { AccordionGroup } from '@/components/workbench/accordion-group';
-import logoSvg from '@/assets/logo.svg';
-
-function getAgentIdFromSessionKey(sessionKey: string): string {
-  if (!sessionKey.startsWith('agent:')) return 'main';
-  const [, agentId] = sessionKey.split(':');
-  return agentId || 'main';
-}
-
-function getAvatarTone(agentName: string): string {
-  if (agentName.includes('Browser')) return 'from-sky-400 to-indigo-500';
-  if (agentName.includes('监控')) return 'from-emerald-400 to-teal-500';
-  if (agentName.includes('沉思')) return 'from-neutral-100 to-neutral-200';
-  return 'from-rose-400 via-orange-400 to-amber-300';
-}
 
 type SidebarMetaItem = {
   name: string;
@@ -70,7 +52,6 @@ export function Sidebar() {
     };
   }, [isGatewayRunning, loadHistory, loadSessions]);
 
-  const agents = useAgentsStore((s) => s.agents);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
 
   useEffect(() => {
@@ -84,19 +65,14 @@ export function Sidebar() {
 
   const groupLabels = {
     clones: '分身',
-    teams: '团队',
-    channels: 'IM 频道',
-    tasks: '定时任务',
+    teams: '团队管理',
+    channels: 'CHANNEL 频道',
+    tasks: '任务',
     settings: t('common:sidebar.settings'),
   };
 
   const getSessionLabel = (key: string, displayName?: string, label?: string) =>
     sessionLabels[key] ?? label ?? displayName ?? key;
-
-  const agentNameById = useMemo(
-    () => Object.fromEntries(agents.map((agent) => [agent.id, agent.name])),
-    [agents],
-  );
 
   const orderedSessions = useMemo(
     () => [...sessions].sort((a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0)),
@@ -104,75 +80,71 @@ export function Sidebar() {
   );
 
   const staticTeams: SidebarMetaItem[] = [
-    { name: '研究团队', summary: 'Browser Agent + 沉思小助手 + 汇总分身', meta: '3 成员' },
-    { name: '值守团队', summary: '监控分身 + 定时巡检 + 告警路由', meta: '静默' },
+    { name: '团队总览', summary: '', meta: '' },
+    { name: '团队看板', summary: '', meta: '' },
   ];
   const staticChannels: SidebarMetaItem[] = [
-    { name: '飞书项目群', meta: '已连接' },
-    { name: 'Telegram 通知', meta: '待验证' },
-    { name: 'QQ Bot', meta: '未启用' },
+    { name: '飞书', summary: '', meta: '' },
+    { name: '钉钉', summary: '', meta: '' },
+    { name: '企业微信', summary: '', meta: '' },
   ];
   const staticCronTasks: SidebarMetaItem[] = [
-    { name: '早报总结', meta: '09:00' },
-    { name: '监控巡检', meta: '每 30 分钟' },
-    { name: '周报汇总', meta: '周一 10:00' },
+    { name: '任务看板', summary: '', meta: '' },
+    { name: '任务日程', summary: '', meta: '' },
   ];
 
   return (
     <aside
       className={cn(
-        'flex shrink-0 flex-col border-r border-black/5 bg-[linear-gradient(180deg,#f7f5f1_0%,#f0eeea_100%)] transition-all duration-300 dark:border-white/10 dark:bg-background',
-        sidebarCollapsed ? 'w-16 px-2 py-3' : 'w-[240px] px-3 py-3',
+        'flex shrink-0 flex-col border-r border-black/[0.06] bg-[#f2f2f7] transition-all duration-300 dark:border-white/10 dark:bg-background',
+        sidebarCollapsed ? 'w-16 px-2 py-2' : 'w-[260px] px-2 py-2',
       )}
     >
-      <div className={cn('flex h-12 items-center', sidebarCollapsed ? 'justify-center' : 'justify-between px-1')}>
+      <div className={cn('flex h-[52px] items-center justify-between px-4', sidebarCollapsed && 'justify-center px-0')}>
         {!sidebarCollapsed && (
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-black/10 bg-white/70 shadow-sm dark:border-white/10 dark:bg-white/5">
-              <img src={logoSvg} alt="KaiTianClaw" className="h-5 w-auto shrink-0" />
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center gap-1">
           <button
             type="button"
             aria-label="Toggle sidebar"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#3c3c43] transition-[background-color] duration-150 hover:bg-[#e5e5ea] hover:text-[#000000]"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           >
-            {sidebarCollapsed ? <PanelLeft className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
+            ☰
           </button>
+        )}
 
-          {!sidebarCollapsed && (
-            <button
-              type="button"
-              aria-label="New session"
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
-              onClick={() => navigate('/')}
-            >
-              <Plus className="h-[18px] w-[18px]" />
-            </button>
-          )}
-        </div>
+        {sidebarCollapsed && (
+          <button
+            type="button"
+            aria-label="Toggle sidebar"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#3c3c43] transition-[background-color] duration-150 hover:bg-[#e5e5ea] hover:text-[#000000]"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          >
+            ☰
+          </button>
+        )}
+
+        {!sidebarCollapsed && (
+          <button
+            type="button"
+            aria-label="New session"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#3c3c43] transition-[background-color] duration-150 hover:bg-[#e5e5ea] hover:text-[#000000]"
+            onClick={() => navigate('/')}
+          >
+            ＋
+          </button>
+        )}
       </div>
 
       <div className={cn('flex flex-1 flex-col', sidebarCollapsed ? 'gap-2 pt-3' : 'gap-4 pt-4')}>
         <AccordionGroup
           title={groupLabels.clones}
-          meta="会话列表"
           icon={<Bot className="h-[18px] w-[18px]" strokeWidth={2} />}
           collapsed={sidebarCollapsed}
-          defaultOpen
         >
           {orderedSessions.length > 0 ? (
             orderedSessions.map((session) => {
-              const agentId = getAgentIdFromSessionKey(session.key);
-              const agentName = agentNameById[agentId] || agentId;
               const sessionTitle = getSessionLabel(session.key, session.displayName, session.label);
               const isActive = isOnChat && currentSessionKey === session.key;
-
-              const activityTimestamp = sessionLastActivity[session.key];
 
               return (
                 <div key={session.key} className="group relative">
@@ -182,28 +154,13 @@ export function Sidebar() {
                       navigate('/');
                     }}
                     className={cn(
-                      'w-full rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2.5 text-left transition-all',
-                      'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]',
-                      isActive && 'border-l-emerald-500 bg-black/[0.02] dark:bg-white/[0.05]',
+                      'flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-left text-[14px] transition-[background-color] duration-150',
+                      'text-[#000000] hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]',
+                      isActive && 'bg-white font-medium shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_0.5px_rgba(0,0,0,0.04)]',
                     )}
                   >
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div className={cn('h-8 w-8 shrink-0 rounded-full bg-gradient-to-br', getAvatarTone(agentName))} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[14px] font-medium text-foreground">{sessionTitle}</span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">
-                            {typeof activityTimestamp === 'number'
-                              ? new Date(activityTimestamp).toLocaleTimeString('zh-CN', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: false,
-                                })
-                              : '--:--'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    <span className="w-5 shrink-0 text-center text-[14px]">✦</span>
+                    <span className="min-w-0 flex-1 truncate">{sessionTitle}</span>
                   </button>
 
                   <button
@@ -226,7 +183,7 @@ export function Sidebar() {
               );
             })
           ) : (
-            <div className="rounded-lg border border-dashed border-black/10 bg-transparent px-3 py-2.5 text-[12px] text-muted-foreground dark:border-white/10">
+            <div className="rounded-lg border border-dashed border-[#c6c6c8] bg-transparent px-[10px] py-2 text-[12px] text-[#8e8e93] dark:border-white/10">
               暂无会话
             </div>
           )}
@@ -234,80 +191,67 @@ export function Sidebar() {
 
         <AccordionGroup
           title={groupLabels.teams}
-          meta="组织框架"
           icon={<Users className="h-[18px] w-[18px]" strokeWidth={2} />}
           collapsed={sidebarCollapsed}
-          defaultOpen={false}
         >
           {staticTeams.map((team) => (
-            <div key={team.name} className="rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium text-foreground">{team.name}</p>
-                  {team.summary && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{team.summary}</p>}
-                </div>
-                <span className="shrink-0 text-[11px] text-muted-foreground">{team.meta}</span>
-              </div>
+            <div key={team.name} className="flex items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]">
+              <span className="w-5 shrink-0 text-center text-[14px]">{team.name === '团队总览' ? '👥' : '🗺'}</span>
+              <span className="min-w-0 flex-1 truncate">{team.name}</span>
             </div>
           ))}
         </AccordionGroup>
 
         <AccordionGroup
           title={groupLabels.channels}
-          meta="外部入口"
           icon={<Network className="h-[18px] w-[18px]" strokeWidth={2} />}
           collapsed={sidebarCollapsed}
-          defaultOpen={false}
         >
           {staticChannels.map((channel) => (
-            <div key={channel.name} className="rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[13px] font-medium text-foreground">{channel.name}</span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">{channel.meta}</span>
-              </div>
+            <div key={channel.name} className="flex items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]">
+              <span className="w-5 shrink-0 text-center text-[14px]">
+                {channel.name === '飞书' ? '🪶' : channel.name === '钉钉' ? '💙' : '🍀'}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{channel.name}</span>
             </div>
           ))}
         </AccordionGroup>
 
         <AccordionGroup
           title={groupLabels.tasks}
-          meta="计划执行"
           icon={<Clock className="h-[18px] w-[18px]" strokeWidth={2} />}
           collapsed={sidebarCollapsed}
-          defaultOpen={false}
         >
           {staticCronTasks.map((task) => (
-            <div key={task.name} className="rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-[13px] font-medium text-foreground">{task.name}</span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">{task.meta}</span>
-              </div>
+            <div key={task.name} className="flex items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]">
+              <span className="w-5 shrink-0 text-center text-[14px]">
+                {task.name === '任务看板' ? '📋' : '📅'}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{task.name}</span>
             </div>
           ))}
         </AccordionGroup>
       </div>
 
-      <div className="mt-auto pt-3">
-        <NavLink
-          to="/settings"
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-2.5 rounded-lg border-l-[3px] border-transparent bg-transparent px-3 py-2.5 text-[13px] font-medium transition-colors',
-              'text-foreground/80 hover:bg-black/[0.03] dark:hover:bg-white/[0.04]',
-              isActive && 'border-l-emerald-500 bg-black/[0.02] text-foreground dark:bg-white/[0.05]',
-              sidebarCollapsed && 'justify-center px-0',
-            )
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <div className={cn('flex shrink-0 items-center justify-center', isActive ? 'text-foreground' : 'text-muted-foreground')}>
-                <SettingsIcon className="h-[18px] w-[18px]" strokeWidth={2} />
-              </div>
-              {!sidebarCollapsed && <span className="flex-1 truncate whitespace-nowrap">{groupLabels.settings}</span>}
-            </>
-          )}
-        </NavLink>
+      <div className="mt-auto flex h-[52px] shrink-0 items-center gap-[10px] border-t border-[#c6c6c8] px-4 transition-colors hover:bg-[#e5e5ea] dark:border-white/10 dark:hover:bg-white/[0.04]">
+        {!sidebarCollapsed && (
+          <>
+            <div className="h-7 w-7 shrink-0 rounded-full bg-[#d9d9d9]"></div>
+            <span className="flex-1 truncate text-[13px] font-medium">Administrator</span>
+            <button
+              type="button"
+              aria-label="Settings"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[16px] transition-colors hover:bg-[#e5e5ea]"
+              onClick={() => navigate('/settings')}
+              title="设置"
+            >
+              ⚙
+            </button>
+          </>
+        )}
+        {sidebarCollapsed && (
+          <div className="h-7 w-7 shrink-0 rounded-full bg-[#d9d9d9]"></div>
+        )}
       </div>
 
       <ConfirmDialog

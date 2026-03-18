@@ -86,42 +86,37 @@ export function Chat() {
   };
 
   return (
-    <div className={cn('relative -m-6 flex h-[calc(100vh-2.5rem)] min-h-0 bg-[linear-gradient(180deg,#f8f7f5_0%,#f3f1ed_100%)] transition-colors duration-500 dark:bg-background')}>
+    <div className={cn('relative -m-6 flex h-[calc(100vh-2.5rem)] min-h-0 bg-white transition-colors duration-500 dark:bg-background')}>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center justify-between gap-4 bg-white/55 px-8 pb-4 pt-6 backdrop-blur-sm dark:border-white/5">
-          <div className="min-w-0">
-            <h1 className="truncate text-[30px] font-semibold tracking-tight text-foreground">
+        <div className="flex h-[52px] shrink-0 items-center justify-between gap-4 bg-white px-5 dark:bg-background">
+          <div className="flex min-w-0 items-center gap-[6px]">
+            <h1 className="truncate text-[15px] font-semibold text-foreground">
               {currentAgentName}
             </h1>
+            <span className="text-[12px] text-[#8e8e93]">▾</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="rounded-full px-4 py-2 text-[13px] font-medium text-foreground/75 transition-colors hover:bg-black/5 hover:text-foreground"
+              className="rounded-lg border border-black/10 bg-white px-3 py-[5px] text-[13px] font-medium text-black shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-[1px] hover:bg-[#f9f9f9] hover:shadow-[0_2px_4px_rgba(0,0,0,0.06)] hover:border-black/15 active:scale-[0.98] active:shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
             >
-              {t('common:workbench.files')}
+              📄 {t('common:workbench.files')}
             </button>
             <button
               type="button"
-              className="rounded-full px-4 py-2 text-[13px] font-medium text-foreground/75 transition-colors hover:bg-black/5 hover:text-foreground"
+              className="rounded-lg border border-black/10 bg-white px-3 py-[5px] text-[13px] font-medium text-black shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-[1px] hover:bg-[#f9f9f9] hover:shadow-[0_2px_4px_rgba(0,0,0,0.06)] hover:border-black/15 active:scale-[0.98] active:shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
             >
-              {t('common:workbench.agent')}
-            </button>
-            <button
-              type="button"
-              className="rounded-full px-4 py-2 text-[13px] font-medium text-foreground/75 transition-colors hover:bg-black/5 hover:text-foreground"
-            >
-              {t('chat:workbench.quickConfig')}
+              🤖 {t('common:workbench.agent')}
             </button>
           </div>
         </div>
 
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
-              <div ref={contentRef} className="mx-auto flex min-h-full max-w-5xl flex-col space-y-4">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto bg-[#fafafc] px-8 py-5 dark:bg-background">
+              <div ref={contentRef} className="mx-auto flex min-h-full max-w-[1000px] flex-col space-y-6">
                 {isEmpty ? (
-                  <WorkbenchEmptyState agentName={currentAgentName} />
+                  <WorkbenchEmptyState />
                 ) : (
                   <>
                     {messages.map((msg, idx) => (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Monitor, Moon, RefreshCw, Sun } from 'lucide-react';
+import { Monitor, Moon, Sun, ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ProvidersSettings } from '@/components/settings/ProvidersSettings';
 import { SettingsMemoryKnowledgePanel } from '@/components/settings-center/settings-memory-knowledge-panel';
@@ -17,7 +18,6 @@ import {
   type SettingsSectionId,
 } from '@/components/settings-center/settings-shell-data';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { SUPPORTED_LANGUAGES } from '@/i18n';
@@ -29,6 +29,7 @@ import { useUpdateStore } from '@/stores/update';
 
 export function Settings() {
   const { t } = useTranslation(['settings', 'common']);
+  const navigate = useNavigate();
   const {
     theme,
     setTheme,
@@ -171,16 +172,20 @@ export function Settings() {
           onChange={setActiveSection}
         />
 
-        <main className="min-w-0 flex-1 overflow-y-auto bg-[#f7f8fa] px-8 py-8 dark:bg-background">
-          <div className="mx-auto max-w-[980px]">
+        <main className="min-w-0 flex-1 overflow-y-auto bg-white px-[60px] py-8 dark:bg-background">
+          <div className="mx-auto max-w-[640px]">
             <header className="mb-8">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8e8e93]">
-                {activeMeta.kicker}
-              </div>
-              <h1 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[#111827] dark:text-foreground">
-                {activeMeta.title}
+              <button
+                onClick={() => navigate('/')}
+                className="mb-4 flex items-center gap-2 text-[13px] text-[#8e8e93] transition-colors hover:text-[#000000]"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                返回工作台
+              </button>
+              <h1 className="text-[24px] font-semibold text-[#000000] dark:text-foreground">
+                {activeMeta.title} <span className="text-[#3c3c43]">{activeMeta.kicker}</span>
               </h1>
-              <p className="mt-2 max-w-3xl text-[14px] leading-7 text-[#667085] dark:text-muted-foreground">
+              <p className="mt-2 text-[13px] text-[#3c3c43] dark:text-muted-foreground">
                 {activeMeta.subtitle}
               </p>
             </header>
@@ -343,60 +348,6 @@ function renderActiveSection(args: RenderSectionArgs) {
         </SettingsSectionCard>
       );
 
-    case 'network-proxy':
-      return (
-        <>
-          <SettingsSectionCard title="Gateway 运行状态" description="展示本地网关状态，并保留手动重启入口。">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-[#f8fafc] px-4 py-3">
-              <div>
-                <div className="text-[13px] text-[#667085]">
-                  当前状态: <span className="font-semibold text-[#111827]">{args.gatewayStatus.state}</span>
-                </div>
-                <div className="mt-1 text-[12px] text-[#8e8e93]">端口: {args.gatewayStatus.port ?? 'n/a'}</div>
-              </div>
-              <Button variant="outline" className="rounded-full" onClick={args.restartGateway}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                {args.t('common:actions.restart')}
-              </Button>
-            </div>
-            <div className="flex items-center justify-between gap-6">
-              <div>
-                <Label className="text-[15px] font-medium text-[#111827]">启动时自动拉起网关</Label>
-                <p className="mt-1 text-[13px] text-[#667085]">保持桌面应用打开后自动连通本地 Gateway。</p>
-              </div>
-              <Switch checked={args.gatewayAutoStart} onCheckedChange={args.setGatewayAutoStart} />
-            </div>
-          </SettingsSectionCard>
-
-          <SettingsSectionCard title="代理出口" description="保留真实可用的代理编辑表单，用于后续网络故障排查。">
-            <div className="flex items-center justify-between gap-6">
-              <div>
-                <Label className="text-[15px] font-medium text-[#111827]">启用代理</Label>
-                <p className="mt-1 text-[13px] text-[#667085]">分别配置 HTTP / HTTPS / ALL_PROXY 出口。</p>
-              </div>
-              <Switch checked={args.proxyEnabledDraft} onCheckedChange={args.setProxyEnabledDraft} />
-            </div>
-
-            {args.proxyEnabledDraft ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                <Input value={args.proxyServerDraft} onChange={(event) => args.setProxyServerDraft(event.target.value)} placeholder="proxyServer" />
-                <Input value={args.proxyHttpServerDraft} onChange={(event) => args.setProxyHttpServerDraft(event.target.value)} placeholder="proxyHttpServer" />
-                <Input value={args.proxyHttpsServerDraft} onChange={(event) => args.setProxyHttpsServerDraft(event.target.value)} placeholder="proxyHttpsServer" />
-                <Input value={args.proxyAllServerDraft} onChange={(event) => args.setProxyAllServerDraft(event.target.value)} placeholder="proxyAllServer" />
-                <Input value={args.proxyBypassRulesDraft} onChange={(event) => args.setProxyBypassRulesDraft(event.target.value)} placeholder="proxyBypassRules" className="md:col-span-2" />
-                <Button variant="outline" onClick={() => void args.saveProxySettings()} disabled={args.savingProxy} className="md:col-span-2 rounded-full">
-                  {args.savingProxy ? args.t('common:status.saving') : args.t('common:actions.save')}
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-black/[0.08] bg-white/70 px-4 py-4 text-[13px] text-[#667085]">
-                当前未启用代理。后续接入真实网络环境时，可在这里配置固定出口。
-              </div>
-            )}
-          </SettingsSectionCard>
-        </>
-      );
-
     case 'team-role-strategy':
       return (
         <PlaceholderSection
@@ -482,22 +433,6 @@ function renderActiveSection(args: RenderSectionArgs) {
 
     case 'monitoring':
       return <SettingsMonitoringPanel />;
-
-    case 'security-audit':
-      return (
-        <PlaceholderSection
-          cards={[
-            {
-              title: '审计日志保留',
-              description: '统一管理运行日志、工具执行记录和归档时长。',
-            },
-            {
-              title: '审批与例外',
-              description: '静态展示审批流、例外授权和高风险行为的升级路径。',
-            },
-          ]}
-        />
-      );
 
     case 'migration-backup':
       return <SettingsMigrationPanel onLaunchWizard={args.openMigrationWizard} />;

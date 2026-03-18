@@ -2314,7 +2314,9 @@
           <div class="si"><span class="ic">🗺</span><span class="itx">团队看板</span></div>
         </div>
         <div class="sbf">
-          <div class="uav"></div><span class="un" style="font-size:13px;font-weight:500">Administrator</span>
+          <div class="uav"></div><span class="un"
+            style="font-size:13px;font-weight:500;flex:1">Administrator</span><span class="ib"
+            style="font-size:16px;width:28px;height:28px" title="设置">⚙</span>
         </div>
       </aside>
       <main class="ma">
@@ -2351,7 +2353,10 @@
         <div class="cc">
           <div class="cw">
             <div class="cb"><button class="cb-btn cb-at">📎</button><textarea class="ci" placeholder="给 KTClaw 发送消息..."
-                rows="1"></textarea><button class="cb-btn cb-s" style="background:#10b981; color:#fff; cursor:pointer;">➤</button></div>
+                rows="1"></textarea><span
+                style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:10px;background:var(--bg3);font-size:11px;color:var(--tx2);cursor:pointer;white-space:nowrap;flex-shrink:0"
+                title="切换模型"><span style="width:6px;height:6px;border-radius:50%;background:#10b981;display:inline-block;"></span>GLM-5 ▾</span><button class="cb-btn cb-s" style="background:#10b981; color:#fff; cursor:pointer;">➤</button></div>
+            <div class="cf">Agent 在本地安全运行 · 由 AI 模型生成内容</div>
           </div>
         </div>
       </main>
@@ -3301,7 +3306,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni on">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -3315,7 +3319,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -3407,7 +3410,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni on">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -3421,7 +3423,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -3548,76 +3549,6 @@
     </div>
   </div>
 
-  <!-- ===== Frame 07.3: 基础 / 网络与代理 ===== -->
-  <div class="fw">
-    <h1 class="ft">07.3 设置中心 / 基础 <span>网络与代理</span></h1>
-    <div class="aw">
-      <div class="sl">
-<nav class="sn">
-<div class="sng"><div class="snt">基础</div>
-<div class="sni">常规设置</div>
-<div class="sni">模型与 Provider</div>
-<div class="sni on">网络与代理</div>
-</div>
-<div class="sng"><div class="snt">工作流</div>
-<div class="sni">团队与角色策略</div>
-<div class="sni">通道高级配置</div>
-<div class="sni">自动化默认策略</div>
-</div>
-<div class="sng"><div class="snt">能力</div>
-<div class="sni">记忆与知识</div>
-<div class="sni">Skills 与 MCP</div>
-<div class="sni">工具权限</div>
-</div>
-<div class="sng"><div class="snt">治理</div>
-<div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
-<div class="sni">迁移与备份</div>
-<div class="sni">反馈与开发者</div>
-</div>
-</nav>
-        <main class="scn">
-          <div class="sch">
-            <h1>网络与代理 <span>通信加速与局域网策略</span></h1>
-            <p>所有通过 KTClaw 发起的网络请求的代理路由规则。</p>
-          </div>
-          <div class="ss">
-
-          <div class="skc">
-            <h3>代理设置 (Proxy)</h3>
-            <div class="fg"><label class="fl">代理模式</label><select class="fi">
-                <option>跟随系统代理 (跟随 Windows 网络设置)</option>
-                <option>直连 (Direct)</option>
-                <option>自定义 HTTP 代理</option>
-                <option>自定义 SOCKS5 代理</option>
-              </select>
-            </div>
-            <div class="fg"><label class="fl">代理服务器地址</label><input type="text" class="fi" value="127.0.0.1"></div>
-            <div class="fg"><label class="fl">代理服务端口</label><input type="text" class="fi" value="7890"></div>
-          </div>
-          <div class="skc">
-            <h3>证书与安全</h3>
-            <div class="tr">
-              <div class="tri"><b>忽略 SSL 证书错误</b><span>(非安全环境调试时开启，比如使用了抓包软件拦截)</span></div>
-              <div class="ts off"></div>
-            </div>
-            <div class="tr">
-              <div class="tri"><b>系统根证书</b><span>信任操作系统预装和手动导入的根 CA</span></div>
-              <div class="ts"></div>
-            </div>
-          </div>
-          <div class="skc">
-            <h3>超时策略</h3>
-            <div class="fg"><label class="fl">请求超时 (秒)</label><input type="text" class="fi" value="60"></div>
-            <div class="fg"><label class="fl">长轮询心跳间隔 (秒)</label><input type="text" class="fi" value="25"></div>
-          </div>
-        
-          </div>
-        </main>
-      </div>
-    </div>
-  </div>
-
   <!-- ===== Frame 08.1: 工作流 / 团队与角色策略 ===== -->
   <div class="fw">
     <h1 class="ft">08.1 设置中心 / 工作流 <span>团队与角色策略</span></h1>
@@ -3627,7 +3558,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni on">团队与角色策略</div>
@@ -3641,7 +3571,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -3697,7 +3626,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -3711,7 +3639,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -3769,7 +3696,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -3783,7 +3709,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -3842,14 +3767,25 @@
     <div class="aw">
       <div class="sl">
 <nav class="sn">
-<div class="sng"><div class="snt">基础</div></div>
-<div class="sng"><div class="snt">工作流</div></div>
+<div class="sng"><div class="snt">基础</div>
+<div class="sni">常规设置</div>
+<div class="sni">模型与 Provider</div>
+</div>
+<div class="sng"><div class="snt">工作流</div>
+<div class="sni">团队与角色策略</div>
+<div class="sni">通道高级配置</div>
+<div class="sni">自动化默认策略</div>
+</div>
 <div class="sng"><div class="snt">能力</div>
 <div class="sni on">记忆与知识</div>
 <div class="sni">Skills 与 MCP</div>
 <div class="sni">工具权限</div>
 </div>
-<div class="sng"><div class="snt">治理</div></div>
+<div class="sng"><div class="snt">治理</div>
+<div class="sni">监控与统计</div>
+<div class="sni">迁移与备份</div>
+<div class="sni">反馈与开发者</div>
+</div>
 </nav>
         <main class="scn" style="background: #F7F8FA; display:flex; flex-direction:column;">
           <div class="sch" style="padding-bottom: 0; margin-bottom: 0;">
@@ -4001,14 +3937,25 @@
     <div class="aw">
       <div class="sl">
 <nav class="sn">
-<div class="sng"><div class="snt">基础</div></div>
-<div class="sng"><div class="snt">工作流</div></div>
+<div class="sng"><div class="snt">基础</div>
+<div class="sni">常规设置</div>
+<div class="sni">模型与 Provider</div>
+</div>
+<div class="sng"><div class="snt">工作流</div>
+<div class="sni">团队与角色策略</div>
+<div class="sni">通道高级配置</div>
+<div class="sni">自动化默认策略</div>
+</div>
 <div class="sng"><div class="snt">能力</div>
 <div class="sni on">记忆与知识</div>
 <div class="sni">Skills 与 MCP</div>
 <div class="sni">工具权限</div>
 </div>
-<div class="sng"><div class="snt">治理</div></div>
+<div class="sng"><div class="snt">治理</div>
+<div class="sni">监控与统计</div>
+<div class="sni">迁移与备份</div>
+<div class="sni">反馈与开发者</div>
+</div>
 </nav>
         <main class="scn" style="background: #F7F8FA;">
           <div class="sch" style="padding-bottom: 0; margin-bottom: 24px;">
@@ -4074,7 +4021,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -4088,7 +4034,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -4223,7 +4168,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -4237,7 +4181,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -4375,7 +4318,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -4389,7 +4331,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni on">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -4586,12 +4527,24 @@
     <div class="aw">
       <div class="sl">
 <nav class="sn">
-<div class="sng"><div class="snt">基础</div></div>
-<div class="sng"><div class="snt">工作流</div></div>
-<div class="sng"><div class="snt">能力</div></div>
+<div class="sng"><div class="snt">基础</div>
+<div class="sni">常规设置</div>
+<div class="sni">模型与 Provider</div>
+</div>
+<div class="sng"><div class="snt">工作流</div>
+<div class="sni">团队与角色策略</div>
+<div class="sni">通道高级配置</div>
+<div class="sni">自动化默认策略</div>
+</div>
+<div class="sng"><div class="snt">能力</div>
+<div class="sni">记忆与知识</div>
+<div class="sni">Skills 与 MCP</div>
+<div class="sni">工具权限</div>
+</div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni on">监控与统计</div>
-<div class="sni">安全与审批</div>
+<div class="sni">迁移与备份</div>
+<div class="sni">反馈与开发者</div>
 </div>
 </nav>
         <main class="scn" style="background: #F7F8FA;">
@@ -4710,12 +4663,24 @@
     <div class="aw">
       <div class="sl">
 <nav class="sn">
-<div class="sng"><div class="snt">基础</div></div>
-<div class="sng"><div class="snt">工作流</div></div>
-<div class="sng"><div class="snt">能力</div></div>
+<div class="sng"><div class="snt">基础</div>
+<div class="sni">常规设置</div>
+<div class="sni">模型与 Provider</div>
+</div>
+<div class="sng"><div class="snt">工作流</div>
+<div class="sni">团队与角色策略</div>
+<div class="sni">通道高级配置</div>
+<div class="sni">自动化默认策略</div>
+</div>
+<div class="sng"><div class="snt">能力</div>
+<div class="sni">记忆与知识</div>
+<div class="sni">Skills 与 MCP</div>
+<div class="sni">工具权限</div>
+</div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni on">监控与统计</div>
-<div class="sni">安全与审批</div>
+<div class="sni">迁移与备份</div>
+<div class="sni">反馈与开发者</div>
 </div>
 </nav>
         <main class="scn" style="background: #F7F8FA;">
@@ -4761,75 +4726,7 @@
     </div>
   </div>
 
-<!-- ===== Frame 10.2: 治理 / 安全与审批 ===== -->
-  <div class="fw">
-    <h1 class="ft">10.2 设置中心 / 治理 <span>安全与审批</span></h1>
-    <div class="aw">
-      <div class="sl">
-<nav class="sn">
-<div class="sng"><div class="snt">基础</div>
-<div class="sni">常规设置</div>
-<div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
-</div>
-<div class="sng"><div class="snt">工作流</div>
-<div class="sni">团队与角色策略</div>
-<div class="sni">通道高级配置</div>
-<div class="sni">自动化默认策略</div>
-</div>
-<div class="sng"><div class="snt">能力</div>
-<div class="sni">记忆与知识</div>
-<div class="sni">Skills 与 MCP</div>
-<div class="sni">工具权限</div>
-</div>
-<div class="sng"><div class="snt">治理</div>
-<div class="sni">监控与统计</div>
-<div class="sni on">安全与审批</div>
-<div class="sni">迁移与备份</div>
-<div class="sni">反馈与开发者</div>
-</div>
-</nav>
-        <main class="scn">
-          <div class="sch">
-            <h1>安全与审批 <span>人机互信边界与拦截链</span></h1>
-            <p>管理什么时候必须将系统挂起并呼叫 Owner 进行人工审查。</p>
-          </div>
-          <div class="ss">
-
-          <div class="skc">
-            <h3>二次确认机制 (Human in the loop)</h3>
-            <div class="tr">
-              <div class="tri"><b>全局广播或 @所有人 发言</b><span>在企业微信/飞书发布正式全员消息前必须弹窗索要 Token 许可。</span></div>
-              <div class="ts"></div>
-            </div>
-            <div class="tr">
-              <div class="tri"><b>批量覆盖 / 删除源代码</b><span>对工作目录中 >5 个文件执行 git clean 或强制覆盖前要求人工干预。</span></div>
-              <div class="ts"></div>
-            </div>
-            <div class="tr">
-              <div class="tri"><b>操作云资源</b><span>涉及 MCP 工具中含 AWS/GCP 终止 EC2、注销 IAM 等词频动作。</span></div>
-              <div class="ts"></div>
-            </div>
-          </div>
-          <div class="skc">
-            <h3>内容审计与合规</h3>
-            <div class="tr">
-              <div class="tri"><b>开启出向信息审查 (Outbound DLP)</b><span>在向公网 IM 输出字符前阻断含有秘密 API Key/密钥格式的内容外流。</span></div>
-              <div class="ts"></div>
-            </div>
-            <div class="tr">
-              <div class="tri"><b>保持完整的无损审计流水账</b><span>把调用链参数记录到 udit_log.db 以作取证使用 (哪怕执行失败也会存底)。</span></div>
-              <div class="ts"></div>
-            </div>
-          </div>
-        
-          </div>
-        </main>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===== Frame 10.3: 治理 / 迁移与备份 ===== -->
+<!-- ===== Frame 10.3: 治理 / 迁移与备份 ===== -->
   <div class="fw">
     <h1 class="ft">10.3 设置中心 / 治理 <span>迁移与备份</span></h1>
     <div class="aw">
@@ -4838,7 +4735,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -4852,7 +4748,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni on">迁移与备份</div>
 <div class="sni">反馈与开发者</div>
 </div>
@@ -5148,7 +5043,6 @@
 <div class="sng"><div class="snt">基础</div>
 <div class="sni">常规设置</div>
 <div class="sni">模型与 Provider</div>
-<div class="sni">网络与代理</div>
 </div>
 <div class="sng"><div class="snt">工作流</div>
 <div class="sni">团队与角色策略</div>
@@ -5162,7 +5056,6 @@
 </div>
 <div class="sng"><div class="snt">治理</div>
 <div class="sni">监控与统计</div>
-<div class="sni">安全与审批</div>
 <div class="sni">迁移与备份</div>
 <div class="sni on">反馈与开发者</div>
 </div>

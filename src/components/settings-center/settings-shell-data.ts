@@ -3,7 +3,6 @@ export type SettingsGroupId = 'basic' | 'workflow' | 'capability' | 'governance'
 export type SettingsSectionId =
   | 'general'
   | 'model-provider'
-  | 'network-proxy'
   | 'team-role-strategy'
   | 'channel-advanced'
   | 'automation-defaults'
@@ -11,7 +10,6 @@ export type SettingsSectionId =
   | 'skills-mcp'
   | 'tool-permissions'
   | 'monitoring'
-  | 'security-audit'
   | 'migration-backup'
   | 'feedback-developer';
 
@@ -32,42 +30,40 @@ export const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     id: 'basic',
     label: '基础',
     items: [
-      { id: 'general', label: '常规设置', summary: '主题、语言与启动偏好' },
-      { id: 'model-provider', label: '模型与 Provider', summary: '默认模型路由与云端配置' },
-      { id: 'network-proxy', label: '网络与代理', summary: '网关代理、连通性与出口策略' },
+      { id: 'general', label: '常规设置', summary: '' },
+      { id: 'model-provider', label: '模型与 Provider', summary: '' },
     ],
   },
   {
     id: 'workflow',
     label: '工作流',
     items: [
-      { id: 'team-role-strategy', label: '团队与角色策略', summary: '团队模板、职责分层与协同约束' },
-      { id: 'channel-advanced', label: '通道高级配置', summary: '渠道路由与通知编排' },
-      { id: 'automation-defaults', label: '自动化默认策略', summary: 'Cron 默认模板与运行节奏' },
+      { id: 'team-role-strategy', label: '团队与角色策略', summary: '' },
+      { id: 'channel-advanced', label: '通道高级配置', summary: '' },
+      { id: 'automation-defaults', label: '自动化默认策略', summary: '' },
     ],
   },
   {
     id: 'capability',
     label: '能力',
     items: [
-      { id: 'memory-knowledge', label: '记忆与知识', summary: '知识策略、索引与数据浏览' },
-      { id: 'skills-mcp', label: 'Skills 与 MCP', summary: '能力包、工具接入与目录治理' },
-      { id: 'tool-permissions', label: '工具权限', summary: '执行白名单与风险边界' },
+      { id: 'memory-knowledge', label: '记忆与知识', summary: '' },
+      { id: 'skills-mcp', label: 'Skills 与 MCP', summary: '' },
+      { id: 'tool-permissions', label: '工具权限', summary: '' },
     ],
   },
   {
     id: 'governance',
     label: '治理',
     items: [
-      { id: 'monitoring', label: '监控与统计', summary: '成本、用量、异常与运行态势' },
-      { id: 'security-audit', label: '安全与审计', summary: '审计策略、留存与审批基线' },
-      { id: 'migration-backup', label: '迁移与备份', summary: '快照迁移、恢复与导出' },
-      { id: 'feedback-developer', label: '反馈与开发者', summary: '更新、诊断与开发者工具' },
+      { id: 'monitoring', label: '监控与统计', summary: '' },
+      { id: 'migration-backup', label: '迁移与备份', summary: '' },
+      { id: 'feedback-developer', label: '反馈与开发者', summary: '' },
     ],
   },
 ];
 
-export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = 'monitoring';
+export const DEFAULT_SETTINGS_SECTION: SettingsSectionId = 'general';
 
 export const SETTINGS_SECTION_META: Record<
   SettingsSectionId,
@@ -75,18 +71,13 @@ export const SETTINGS_SECTION_META: Record<
 > = {
   general: {
     title: '常规设置',
-    subtitle: '管理应用的视觉风格、语言偏好与本地启动行为。',
-    kicker: '基础',
+    subtitle: '管理全局外观、语言以及应用启动行为。',
+    kicker: '外观与体验、应用行为',
   },
   'model-provider': {
-    title: '模型与 Provider',
-    subtitle: '保留现有 Provider 管理能力，并以新的卡片层级承载它。',
-    kicker: '基础',
-  },
-  'network-proxy': {
-    title: '网络与代理',
-    subtitle: '集中管理 Gateway 代理、协议出口与网络排障信息。',
-    kicker: '基础',
+    title: '模型与服务商',
+    subtitle: '配置核心推理引擎，绑定第三方 API Key，并指定全局兜底模型。',
+    kicker: 'API Key 配置、大语言模型选择',
   },
   'team-role-strategy': {
     title: '团队与角色策略',
@@ -121,11 +112,6 @@ export const SETTINGS_SECTION_META: Record<
   monitoring: {
     title: '监控与统计',
     subtitle: '从 transcript usage 与 Cron 成本视角审视系统运行状态。',
-    kicker: '治理',
-  },
-  'security-audit': {
-    title: '安全与审计',
-    subtitle: '聚合审计日志保留、审批流和隔离策略的静态面板。',
     kicker: '治理',
   },
   'migration-backup': {

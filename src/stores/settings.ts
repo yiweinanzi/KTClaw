@@ -85,7 +85,7 @@ const defaultSettings = {
   autoCheckUpdate: true,
   autoDownloadUpdate: false,
   sidebarCollapsed: false,
-  contextRailCollapsed: false,
+  contextRailCollapsed: true,
   devModeUnlocked: false,
   setupComplete: false,
 };

@@ -9,14 +9,14 @@ type SettingsNavProps = {
 
 export function SettingsNav({ groups, activeItemId, onChange }: SettingsNavProps) {
   return (
-    <nav className="w-full max-w-[220px] shrink-0 border-r border-black/[0.06] bg-[#fcfcfc] px-3 py-7">
+    <nav className="w-full max-w-[220px] shrink-0 border-r border-[#c6c6c8] bg-[#fcfcfc] px-3 py-7">
       <div className="flex flex-col gap-5">
         {groups.map((group) => (
           <section key={group.id} className="flex flex-col">
-            <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8e8e93]">
+            <div className="px-[10px] pb-[6px] text-[10px] font-semibold uppercase tracking-[0.05em] text-[#8e8e93]">
               {group.label}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-0">
               {group.items.map((item) => {
                 const active = item.id === activeItemId;
 
@@ -27,16 +27,13 @@ export function SettingsNav({ groups, activeItemId, onChange }: SettingsNavProps
                     onClick={() => onChange(item.id)}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'w-full rounded-xl px-3 py-2 text-left text-[13px] transition-all',
+                      'w-full rounded-lg px-[10px] py-[7px] text-left text-[13px] transition-all',
                       active
-                        ? 'bg-[#e5e5ea] font-medium text-[#111827]'
-                        : 'text-[#111827] hover:bg-[#eef0f3]',
+                        ? 'bg-[#e5e5ea] font-medium text-[#000000]'
+                        : 'text-[#000000] hover:bg-[#e5e5ea]',
                     )}
                   >
-                    <div>{item.label}</div>
-                    <div className="mt-1 text-[11px] font-normal leading-5 text-[#8e8e93]">
-                      {item.summary}
-                    </div>
+                    {item.label}
                   </button>
                 );
               })}

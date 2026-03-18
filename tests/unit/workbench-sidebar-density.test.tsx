@@ -8,7 +8,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar';
 
 describe('Workbench Sidebar Density', () => {
-  it('renders sidebar with approved narrower width when expanded', () => {
+  it('renders sidebar with approved width when expanded', () => {
     render(
       <BrowserRouter>
         <Sidebar />
@@ -16,8 +16,8 @@ describe('Workbench Sidebar Density', () => {
     );
 
     const sidebar = screen.getByRole('complementary');
-    // Design board uses ~240px, not 390px
-    expect(sidebar).toHaveClass('w-[240px]');
+    // Design board uses 260px
+    expect(sidebar).toHaveClass('w-[260px]');
   });
 
   it('renders header buttons without heavy borders', () => {

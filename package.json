@@ -62,6 +62,7 @@
     "devDependencies": {
         "@eslint/js": "^10.0.1",
         "@larksuite/openclaw-lark": "2026.3.12",
+        "@playwright/test": "^1.58.2",
         "@radix-ui/react-dialog": "^1.1.15",
         "@radix-ui/react-dropdown-menu": "^2.1.16",
         "@radix-ui/react-label": "^2.1.8",
@@ -100,6 +101,7 @@
         "jsdom": "^28.1.0",
         "lucide-react": "^0.563.0",
         "openclaw": "2026.3.13",
+        "playwright": "^1.58.2",
         "png2icons": "^2.0.1",
         "postcss": "^8.5.6",
         "react": "^19.2.4",

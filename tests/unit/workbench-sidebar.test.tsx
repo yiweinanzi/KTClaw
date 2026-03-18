@@ -83,10 +83,10 @@ describe('workbench sidebar', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('button', { name: /分身.*会话列表/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /团队.*组织框架/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /IM 频道.*外部入口/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /定时任务.*计划执行/ })).toBeInTheDocument();
+    expect(screen.getByText('分身')).toBeInTheDocument();
+    expect(screen.getByText('团队')).toBeInTheDocument();
+    expect(screen.getByText('IM 频道')).toBeInTheDocument();
+    expect(screen.getByText('定时任务')).toBeInTheDocument();
     expect(screen.getByText('Alpha Session')).toBeInTheDocument();
     expect(screen.getByText('设置')).toBeInTheDocument();
   });

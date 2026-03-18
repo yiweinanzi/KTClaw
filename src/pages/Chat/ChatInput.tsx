@@ -13,7 +13,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { hostApiFetch } from '@/lib/host-api';
 import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
-import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
 import type { AgentSummary } from '@/types/agent';
@@ -84,7 +83,7 @@ function readFileAsBase64(file: globalThis.File): Promise<string> {
 
 // ── Component ────────────────────────────────────────────────────
 
-export function ChatInput({ onSend, onStop, disabled = false, sending = false, isEmpty = false }: ChatInputProps) {
+export function ChatInput({ onSend, onStop, disabled = false, sending = false, isEmpty: _isEmpty = false }: ChatInputProps) {
   const { t } = useTranslation('chat');
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
@@ -93,15 +92,10 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const isComposingRef = useRef(false);
-  const gatewayStatus = useGatewayStore((s) => s.status);
   const agents = useAgentsStore((s) => s.agents);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
   const currentAgentName = useMemo(
     () => agents.find((agent) => agent.id === currentAgentId)?.name ?? currentAgentId,
-    [agents, currentAgentId],
-  );
-  const currentAgentModel = useMemo(
-    () => agents.find((agent) => agent.id === currentAgentId)?.modelDisplay ?? 'Model',
     [agents, currentAgentId],
   );
   const mentionableAgents = useMemo(
@@ -112,7 +106,6 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
     () => agents.find((agent) => agent.id === targetAgentId) ?? null,
     [agents, targetAgentId],
   );
-  const composerModelLabel = selectedTarget?.modelDisplay ?? currentAgentModel;
   const showAgentPicker = mentionableAgents.length > 0;
 
   // Auto-resize textarea
@@ -289,7 +282,6 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   }, []);
 
   const allReady = attachments.length === 0 || attachments.every(a => a.status === 'ready');
-  const hasFailedAttachments = attachments.some((a) => a.status === 'error');
   const canSend = (input.trim() || attachments.length > 0) && allReady && !disabled && !sending;
   const canStop = sending && !disabled && !!onStop;
 
@@ -391,17 +383,12 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   return (
     <div
       data-testid="chat-input-frame"
-      className={cn(
-        'chat-input-frame w-full mx-auto px-4 pb-6 pt-3 transition-all duration-300',
-        isEmpty
-          ? 'chat-input-layout-empty max-w-[52rem]'
-          : 'chat-input-layout-active max-w-[64rem]',
-      )}
+      className="chat-input-frame flex w-full justify-center px-8 pb-8"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="w-full">
+      <div className="w-full max-w-full">
         {/* Attachment Previews */}
         {attachments.length > 0 && (
           <div className="flex gap-2 mb-3 flex-wrap">
@@ -419,19 +406,14 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
         <div
           data-testid="chat-composer-shell"
           className={cn(
-            'chat-composer-shell relative overflow-hidden rounded-[32px] border p-2.5 transition-all duration-300 backdrop-blur-sm dark:bg-card/95',
-            isEmpty
-              ? 'bg-white/96 shadow-[0_20px_55px_rgba(15,23,42,0.08)]'
-              : 'bg-white/94 shadow-[0_14px_42px_rgba(15,23,42,0.06)]',
+            'chat-composer-shell relative overflow-hidden rounded-[24px] border transition-all duration-200',
+            'bg-[#f2f2f7] dark:bg-card/95',
             dragOver
               ? 'border-primary/60 ring-2 ring-primary/25'
-              : 'border-black/10 dark:border-white/10',
+              : 'border-transparent',
+            'focus-within:border-[#d1d1d1] focus-within:bg-white focus-within:shadow-[0_2px_8px_rgba(0,0,0,0.04)]',
           )}
         >
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-8 top-0 h-12 rounded-b-[999px] bg-white/70 blur-xl dark:bg-white/5"
-          />
           {selectedTarget && (
             <div className="relative px-2.5 pt-2 pb-1">
               <button
@@ -446,12 +428,12 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
             </div>
           )}
 
-          <div data-testid="chat-composer-toolbar" className="chat-composer-toolbar relative flex items-end gap-1">
+          <div data-testid="chat-composer-toolbar" className="chat-composer-toolbar relative flex items-end gap-2.5 py-2.5 pl-[18px] pr-[14px]">
             {/* Attach Button */}
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 shrink-0 rounded-full text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+              className="h-[30px] w-[30px] shrink-0 rounded-full bg-transparent text-[#3c3c43] transition-colors hover:bg-[#e5e5ea] hover:text-black"
               onClick={pickFiles}
               disabled={disabled || sending}
               title={t('composer.attachFiles')}
@@ -465,7 +447,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    'h-9 w-9 rounded-full text-muted-foreground transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10',
+                    'h-[30px] w-[30px] rounded-full bg-transparent text-[#3c3c43] transition-colors hover:bg-[#e5e5ea] hover:text-black',
                     (pickerOpen || selectedTarget) && 'bg-primary/10 text-primary hover:bg-primary/20'
                   )}
                   onClick={() => setPickerOpen((open) => !open)}
@@ -514,7 +496,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
                 onPaste={handlePaste}
                 placeholder={disabled ? t('composer.gatewayDisconnectedPlaceholder') : ''}
                 disabled={disabled}
-                className="min-h-[38px] max-h-[200px] resize-none border-0 bg-transparent px-2 py-2 text-[14px] leading-6 placeholder:text-muted-foreground/60 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-[22px] max-h-[200px] resize-none border-0 bg-transparent px-0 py-0 text-[14px] leading-[22px] text-black placeholder:text-[#8e8e93] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:text-white"
                 rows={1}
               />
             </div>
@@ -524,9 +506,9 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
               onClick={sending ? handleStop : handleSend}
               disabled={sending ? !canStop : !canSend}
               size="icon"
-              className={`h-9 w-9 shrink-0 rounded-full transition-colors ${
+              className={`h-[30px] w-[30px] shrink-0 rounded-full transition-opacity ${
                 (sending || canSend)
-                  ? 'bg-black/6 text-foreground hover:bg-black/10 dark:bg-white/10 dark:hover:bg-white/20'
+                  ? 'bg-black text-white hover:opacity-85 dark:bg-white dark:text-black'
                   : 'text-muted-foreground/50 hover:bg-transparent bg-transparent'
               }`}
               variant="ghost"
@@ -535,50 +517,16 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
               {sending ? (
                 <Square className="h-4 w-4" fill="currentColor" />
               ) : (
-                <SendHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
+                <SendHorizontal className="h-[16px] w-[16px]" strokeWidth={2} />
               )}
             </Button>
           </div>
 
           <div
             data-testid="chat-composer-footer"
-            className="chat-composer-footer relative mt-2 flex items-center justify-between gap-2 rounded-2xl border border-black/5 bg-black/[0.02] px-3 py-1.5 text-[11px] text-muted-foreground/70 dark:border-white/10 dark:bg-white/[0.03]"
+            className="chat-composer-footer mt-[6px] text-center text-[11px] text-[#8e8e93]"
           >
-            <div className="min-w-0 flex items-center gap-1.5">
-              <div className={cn("h-1.5 w-1.5 rounded-full", gatewayStatus.state === 'running' ? "bg-green-500/80" : "bg-red-500/80")} />
-              <span className="truncate">
-                {t('composer.gatewayStatus', {
-                  state: gatewayStatus.state === 'running'
-                    ? t('composer.gatewayConnected')
-                    : gatewayStatus.state,
-                  port: gatewayStatus.port,
-                  pid: gatewayStatus.pid ? `| pid: ${gatewayStatus.pid}` : '',
-                })}
-              </span>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <span
-                data-testid="chat-composer-model-pill"
-                className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-2.5 py-1 text-[11px] font-medium text-foreground dark:border-white/15 dark:bg-card"
-              >
-                <span className={cn("h-1.5 w-1.5 rounded-full", gatewayStatus.state === 'running' ? 'bg-emerald-500' : 'bg-amber-500')} />
-                <span className="max-w-[140px] truncate">{composerModelLabel}</span>
-              </span>
-              {hasFailedAttachments && (
-                <Button
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0 text-[11px]"
-                  onClick={() => {
-                    setAttachments((prev) => prev.filter((att) => att.status !== 'error'));
-                    void pickFiles();
-                  }}
-                >
-                  {t('composer.retryFailedAttachments')}
-                </Button>
-              )}
-            </div>
+            <span>Agent 在本地安全运行 · 由 AI 模型生成内容</span>
           </div>
         </div>
       </div>
