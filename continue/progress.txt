@@ -652,3 +652,10 @@ Next: 等待用户审查设计并给出下一步反馈
 - Increased Chat Composer max-width globally to 920px for a more expansive typing area.
 - Synced Sidebar and Header button styles (borderless design) to Frame 2.
 - Synced Send Button activated green color to Frame 2.
+
+[2026-03-18T10:42:51.674118] Redesigned Frame 4 IM Channel
+- Avatar & Identity: Humans use circular avatars + subtle role badges; Agents use squircle avatars + colored Bot badges.
+- Tool Execution UX: Overhauled raw tool execution text into foldable, monospace mini-cards for better tech/geek feel.
+- Session Density: Replaced raw text member strings with overlapping Agent Mini-Avatars and added Feishu platform logo.
+- Chat Highlighting: Added style for Mentions (@KTClaw), made bug numbers clickable links, and introduced monospace markdown code block formatting for JSON logs.
+- Composer Enhancements: Added smart placeholders ( / for tools, @ for mentions ) in the input area.
