@@ -647,3 +647,8 @@ Next: 等待用户审查设计并给出下一步反馈
 - Added subtle floating shadows to Composer (.cw) and activated Agent colors.
 - Cleared Sidebar header button styles to plain text + hover backgrounds.
 - Sidebar selection (.si.on) now features a bold 3px left solid border.
+
+[2026-03-18T10:29:03.544289] Sync Design to Frame 2
+- Increased Chat Composer max-width globally to 920px for a more expansive typing area.
+- Synced Sidebar and Header button styles (borderless design) to Frame 2.
+- Synced Send Button activated green color to Frame 2.
