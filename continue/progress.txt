@@ -659,3 +659,16 @@ Next: 等待用户审查设计并给出下一步反馈
 - Session Density: Replaced raw text member strings with overlapping Agent Mini-Avatars and added Feishu platform logo.
 - Chat Highlighting: Added style for Mentions (@KTClaw), made bug numbers clickable links, and introduced monospace markdown code block formatting for JSON logs.
 - Composer Enhancements: Added smart placeholders ( / for tools, @ for mentions ) in the input area.
+2026-03-18T11:20:00+08:00 - Started DESIGN-022: Figma 全页面设计评审 (UI/UX Pro Max - Apple HIG). Applying ClawPort HIG css tokens to local design board.
+2026-03-18T11:25:00+08:00 - Upgraded kaitianclaw-design-board.html to UI/UX Pro Max (Apple HIG) tokens: system font stack, high-end shadows, pure blue accent, soft borders.
+
+2026-03-18T11:27:00+08:00 - Upgraded interaction states (cards, buttons) to use Apple HIG spring animations, frosted glass, and refined hover shadow depth.
+
+2026-03-18T11:28:00+08:00 - Upgraded map-node cards with HIG tokens and fixed structural css lints (line-clamp).
+
+2026-03-18T11:30:00+08:00 - Upgraded Chat UI based on feedback: light background for chat area, distinct white bubble for Agent, blue HIG bubble for user, and revised Tool card to use HIG grey and monospace tags.
+
+2026-03-18T11:32:00+08:00 - Redesigned Agent Inspector side-drawer in Frame 2. Implemented Avatar header and 4-module HIG Accordions (About, Capabilities, Context, Memory) according to user instruction.
+
+2026-03-18T11:35:00+08:00 - Applied user feedback to Frame 2, redesigning Chat UI and creating 4-module HIG Accordions for Agent Inspector. Fixed CSS syntax lints. Design iteration completed.
+

@@ -2,8 +2,8 @@
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "in_progress",
-  "current_focus": "DESIGN-021",
-  "last_updated": "2026-03-17T22:40:00+08:00",
+  "current_focus": "DESIGN-022",
+  "last_updated": "2026-03-18T11:20:00+08:00",
   "tasks": [
     {
       "id": "DESIGN-019",
@@ -516,6 +516,23 @@
         "完成评审前准备"
       ],
       "notes": "Applied UI/UX visual enhancements to Cron Job board (Frame 6) by injecting glassmorphic styling, background gradients, and explicit Agent name assignments. Audited Settings Center frames (7, 8, 9) against PRD, added missing \"迁移与备份\" entry under 治理 section. | Further optimized Cron Job cards (Frame 6) to full card layout with vertical hierarchy, integrated hover actions, soft light grid lines, and precise time labels (e.g. 05:00) per user feedback. | Further redesigned Frame 1 Home Empty State: customized welcome area with gradient, updated suggestion cards to be larger with soft hover interactions, lightened input area shadow, synced header buttons to be borderless. | Synced Frame 1 UI redesigns (Header buttons, Send button, Chat Composer width) over to Frame 2 (Active Chat State). | Frame 4 IM Channel: Distinguished AI (Squircle + Bot Badge) vs Human (Circle + 人类 Badge). Transformed Tool execution into code-like foldable cards. Upgraded Session list with Agent Mini-avatars and Feishu watermark. Highlighted Mentions and reformatted JSON logs as markdown.",
+      "subtasks": []
+    },
+    {
+      "id": "DESIGN-022",
+      "title": "Figma 全页面设计评审 (UI/UX Pro Max - Apple HIG)",
+      "type": "design",
+      "status": "in_progress",
+      "priority": "P0",
+      "depends_on": [
+        "DESIGN-021"
+      ],
+      "description": "基于 ClawPort 参考，将设计评审稿的视觉语言升级至类 Apple HIG 的高阶质感：高阶排版节奏、精致玻璃拟物化、微动效与阴影层级打磨。",
+      "acceptance_criteria": [
+        "更新 kaitianclaw-design-board.html 运用 Apple HIG 质感",
+        "替换生硬的边框与纯色为柔和阴影与通透材质"
+      ],
+      "notes": "In progress...",
       "subtasks": []
     }
   ]
