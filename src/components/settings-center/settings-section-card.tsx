@@ -1,21 +1,33 @@
 import type { ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 type SettingsSectionCardProps = {
   title: string;
   description?: string;
   children: ReactNode;
+  className?: string;
 };
 
-export function SettingsSectionCard({ title, description, children }: SettingsSectionCardProps) {
+export function SettingsSectionCard({
+  title,
+  description,
+  children,
+  className,
+}: SettingsSectionCardProps) {
   return (
-    <section className="rounded-3xl border border-black/10 dark:border-white/10 bg-card p-6 md:p-7 space-y-5">
-      <header className="space-y-1">
-        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+    <section
+      className={cn(
+        'rounded-[18px] border border-black/[0.06] bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.06)]',
+        className,
+      )}
+    >
+      <header className="space-y-1.5">
+        <h2 className="text-[15px] font-semibold text-[#111827]">{title}</h2>
         {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-[13px] leading-6 text-[#667085]">{description}</p>
         ) : null}
       </header>
-      <div className="space-y-4">{children}</div>
+      <div className="mt-5 space-y-4">{children}</div>
     </section>
   );
 }

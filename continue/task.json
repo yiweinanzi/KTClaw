@@ -2,8 +2,8 @@
   "project": "KaiTianClaw Control Plane",
   "objective": "Adapt the existing ClawX demo into the approved KaiTianClaw workbench UI and preserve project progress across sessions.",
   "current_phase": "in_progress",
-  "current_focus": "DESIGN-022",
-  "last_updated": "2026-03-18T11:20:00+08:00",
+  "current_focus": "BUILD-005",
+  "last_updated": "2026-03-18T15:47:26+08:00",
   "tasks": [
     {
       "id": "DESIGN-019",
@@ -239,7 +239,7 @@
       "id": "BUILD-005",
       "title": "Apply approved KaiTianClaw review deck to current source",
       "type": "build",
-      "status": "planned",
+      "status": "in_progress",
       "priority": "P0",
       "depends_on": [
         "DESIGN-005"
@@ -250,7 +250,7 @@
         "Settings center reflects the approved grouped page structure and card hierarchy",
         "Implementation stays on the current source mainline and preserves the renderer/main API boundary"
       ],
-      "notes": "Start from the approved Figma deck and local HTML review board instead of inventing a new layout direction during implementation.",
+      "notes": "Start from the approved Figma deck and local HTML review board instead of inventing a new layout direction during implementation. Execution resumed on 2026-03-18 with concrete FRONTEND-* slices.",
       "subtasks": []
     },
     {
@@ -522,7 +522,7 @@
       "id": "DESIGN-022",
       "title": "Figma 全页面设计评审 (UI/UX Pro Max - Apple HIG)",
       "type": "design",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P0",
       "depends_on": [
         "DESIGN-021"
@@ -532,7 +532,26 @@
         "更新 kaitianclaw-design-board.html 运用 Apple HIG 质感",
         "替换生硬的边框与纯色为柔和阴影与通透材质"
       ],
-      "notes": "In progress...",
+      "notes": "Completed on 2026-03-18 after the approved Apple HIG pass. The local board now defines the implementation baseline: #F7F8FA settings canvas, white low-contrast cards, restrained borders, SF/Inter typography, and the finalized Frame 09/10 layouts including monitoring tabs, migration wizard, and memory data browser.",
+      "subtasks": []
+    },
+    {
+      "id": "FRONTEND-001",
+      "title": "Settings Center shell + Monitoring module high-fidelity React migration",
+      "type": "build",
+      "status": "done",
+      "priority": "P0",
+      "depends_on": [
+        "BUILD-005",
+        "DESIGN-022"
+      ],
+      "description": "Rebuild the Settings Center as the approved grouped secondary-navigation shell and land a high-fidelity React version of Frame 10.1 Monitoring & Statistics with static data.",
+      "acceptance_criteria": [
+        "Settings page exposes grouped secondary navigation aligned with the approved review board",
+        "治理 / 监控与统计 renders Dashboard, Usage Breakdown, and Alerts tabs with static charts/cards matching the board rhythm",
+        "Existing functional settings modules remain reachable through the new shell without breaking the renderer/main API boundary"
+      ],
+      "notes": "Completed on 2026-03-18. Landed a grouped secondary-nav Settings shell, high-fidelity React Monitoring & Statistics tabs with static charts/cards, and preserved live Provider / update / developer controls inside the new layout. Verified with tests/unit/settings-center.test.tsx, tests/unit/browser-preview.test.ts, npm run typecheck, and npm run lint (existing warning remains in electron/api/routes/providers.ts).",
       "subtasks": []
     }
   ]

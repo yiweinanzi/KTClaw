@@ -1,11 +1,11 @@
 type ElectronShim = {
   ipcRenderer: {
     invoke: (...args: unknown[]) => Promise<unknown>;
-    on: (...args: unknown[]) => () => void;
-    once: (...args: unknown[]) => () => void;
+    on: (...args: unknown[]) => (() => void) | void;
+    once: (...args: unknown[]) => void;
     off: (...args: unknown[]) => void;
   };
-  openExternal: (url: string) => void;
+  openExternal: (url: string) => Promise<void>;
   platform: string;
   isDev: boolean;
   __clawxBrowserPreviewShim?: boolean;
@@ -16,10 +16,10 @@ function createElectronShim(): ElectronShim {
     ipcRenderer: {
       invoke: async () => undefined,
       on: () => () => undefined,
-      once: () => () => undefined,
+      once: () => undefined,
       off: () => undefined,
     },
-    openExternal: (url: string) => {
+    openExternal: async (url: string) => {
       if (typeof window !== 'undefined' && typeof window.open === 'function') {
         window.open(url, '_blank', 'noopener,noreferrer');
       }

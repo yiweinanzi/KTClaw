@@ -4,8 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { ProvidersSettings } from '@/components/settings/ProvidersSettings';
 import { UpdateSettings } from '@/components/settings/UpdateSettings';
-import { SettingsNav, type SettingsGroupId } from '@/components/settings-center/settings-nav';
+import { SettingsMonitoringPanel } from '@/components/settings-center/settings-monitoring-panel';
+import { SettingsNav } from '@/components/settings-center/settings-nav';
 import { SettingsSectionCard } from '@/components/settings-center/settings-section-card';
+import {
+  DEFAULT_SETTINGS_SECTION,
+  SETTINGS_NAV_GROUPS,
+  SETTINGS_SECTION_META,
+  type SettingsSectionId,
+} from '@/components/settings-center/settings-shell-data';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,15 +24,8 @@ import { useGatewayStore } from '@/stores/gateway';
 import { useSettingsStore } from '@/stores/settings';
 import { useUpdateStore } from '@/stores/update';
 
-const GROUP_ITEMS: Array<{ id: SettingsGroupId; label: string; description: string }> = [
-  { id: 'basic', label: '基础', description: '外观与通用偏好' },
-  { id: 'workflow', label: '工作流', description: '网关与运行流程' },
-  { id: 'capability', label: '能力', description: '模型与工具能力' },
-  { id: 'governance', label: '治理', description: '更新与治理策略' },
-];
-
 export function Settings() {
-  const { t } = useTranslation('settings');
+  const { t } = useTranslation(['settings', 'common']);
   const {
     theme,
     setTheme,
@@ -61,7 +61,7 @@ export function Settings() {
   const currentVersion = useUpdateStore((state) => state.currentVersion);
   const updateSetAutoDownload = useUpdateStore((state) => state.setAutoDownload);
 
-  const [activeGroup, setActiveGroup] = useState<SettingsGroupId>('basic');
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>(DEFAULT_SETTINGS_SECTION);
   const [proxyEnabledDraft, setProxyEnabledDraft] = useState(proxyEnabled);
   const [proxyServerDraft, setProxyServerDraft] = useState(proxyServer);
   const [proxyHttpServerDraft, setProxyHttpServerDraft] = useState(proxyHttpServer);
@@ -79,6 +79,8 @@ export function Settings() {
   useEffect(() => setProxyAllServerDraft(proxyAllServer), [proxyAllServer]);
   useEffect(() => setProxyBypassRulesDraft(proxyBypassRules), [proxyBypassRules]);
 
+  const activeMeta = SETTINGS_SECTION_META[activeSection];
+
   const saveProxySettings = async () => {
     setSavingProxy(true);
     try {
@@ -87,6 +89,7 @@ export function Settings() {
       const normalizedHttpsServer = proxyHttpsServerDraft.trim();
       const normalizedAllServer = proxyAllServerDraft.trim();
       const normalizedBypassRules = proxyBypassRulesDraft.trim();
+
       await invokeIpc('settings:setMany', {
         proxyEnabled: proxyEnabledDraft,
         proxyServer: normalizedProxyServer,
@@ -95,15 +98,16 @@ export function Settings() {
         proxyAllServer: normalizedAllServer,
         proxyBypassRules: normalizedBypassRules,
       });
+
       setProxyEnabled(proxyEnabledDraft);
       setProxyServer(normalizedProxyServer);
       setProxyHttpServer(normalizedHttpServer);
       setProxyHttpsServer(normalizedHttpsServer);
       setProxyAllServer(normalizedAllServer);
       setProxyBypassRules(normalizedBypassRules);
-      toast.success(t('gateway.proxySaved'));
+      toast.success(t('settings:gateway.proxySaved'));
     } catch (error) {
-      toast.error(`${t('gateway.proxySaveFailed')}: ${toUserMessage(error)}`);
+      toast.error(`${t('settings:gateway.proxySaveFailed')}: ${toUserMessage(error)}`);
     } finally {
       setSavingProxy(false);
     }
@@ -112,7 +116,12 @@ export function Settings() {
   const runDoctor = async (mode: 'diagnose' | 'fix') => {
     setDoctorRunning(mode);
     try {
-      const result = await invokeIpc<{ success: boolean; exitCode?: number; stderr?: string; stdout?: string }>('hostapi:fetch', {
+      const result = await invokeIpc<{
+        success: boolean;
+        exitCode?: number;
+        stderr?: string;
+        stdout?: string;
+      }>('hostapi:fetch', {
         route: '/api/app/openclaw-doctor',
         init: {
           method: 'POST',
@@ -124,9 +133,17 @@ export function Settings() {
         : `${mode}: failed (exit=${result?.exitCode ?? 'n/a'}) ${result?.stderr ?? ''}`;
       setDoctorSummary(summary);
       if (result?.success) {
-        toast.success(mode === 'fix' ? t('developer.doctorFixSucceeded') : t('developer.doctorSucceeded'));
+        toast.success(
+          mode === 'fix'
+            ? t('settings:developer.doctorFixSucceeded')
+            : t('settings:developer.doctorSucceeded'),
+        );
       } else {
-        toast.error(mode === 'fix' ? t('developer.doctorFixFailed') : t('developer.doctorFailed'));
+        toast.error(
+          mode === 'fix'
+            ? t('settings:developer.doctorFixFailed')
+            : t('settings:developer.doctorFailed'),
+        );
       }
     } catch (error) {
       setDoctorSummary(`${mode}: ${toUserMessage(error)}`);
@@ -137,166 +154,460 @@ export function Settings() {
   };
 
   return (
-    <div className="flex flex-col -m-6 dark:bg-background h-[calc(100vh-2.5rem)] overflow-hidden">
-      <div className="w-full max-w-6xl mx-auto flex flex-col h-full p-8 pt-12">
-        <div className="mb-8 shrink-0">
-          <h1 className="text-4xl md:text-5xl font-serif text-foreground mb-2 font-normal tracking-tight" style={{ fontFamily: 'Georgia, Cambria, "Times New Roman", Times, serif' }}>
-            {t('title')}
-          </h1>
-          <p className="text-[16px] text-foreground/70">{t('subtitle')}</p>
-        </div>
+    <div className="-m-6 h-[calc(100vh-2.5rem)] bg-[linear-gradient(180deg,#f3f4f6_0%,#eceff3_100%)] p-6 dark:bg-background">
+      <div className="mx-auto flex h-full max-w-[1360px] overflow-hidden rounded-[32px] border border-black/[0.05] bg-white shadow-[0_24px_64px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-background">
+        <SettingsNav
+          groups={SETTINGS_NAV_GROUPS}
+          activeItemId={activeSection}
+          onChange={setActiveSection}
+        />
 
-        <div className="flex flex-col md:flex-row gap-6 min-h-0 flex-1">
-          <SettingsNav items={GROUP_ITEMS} activeId={activeGroup} onChange={setActiveGroup} />
+        <main className="min-w-0 flex-1 overflow-y-auto bg-[#f7f8fa] px-8 py-8 dark:bg-background">
+          <div className="mx-auto max-w-[980px]">
+            <header className="mb-8">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8e8e93]">
+                {activeMeta.kicker}
+              </div>
+              <h1 className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[#111827] dark:text-foreground">
+                {activeMeta.title}
+              </h1>
+              <p className="mt-2 max-w-3xl text-[14px] leading-7 text-[#667085] dark:text-muted-foreground">
+                {activeMeta.subtitle}
+              </p>
+            </header>
 
-          <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2 pb-8 space-y-5">
-            {activeGroup === 'basic' && (
-              <>
-                <SettingsSectionCard title="基础设置" description="界面外观与客户端偏好。">
-                  <div className="space-y-3">
-                    <Label className="text-[15px] font-medium text-foreground/80">{t('appearance.theme')}</Label>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant={theme === 'light' ? 'secondary' : 'outline'} className={cn('rounded-full px-5 h-10 border-black/10 dark:border-white/10', theme === 'light' ? 'bg-black/5 dark:bg-white/10 text-foreground' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5')} onClick={() => setTheme('light')}>
-                        <Sun className="h-4 w-4 mr-2" />
-                        {t('appearance.light')}
-                      </Button>
-                      <Button variant={theme === 'dark' ? 'secondary' : 'outline'} className={cn('rounded-full px-5 h-10 border-black/10 dark:border-white/10', theme === 'dark' ? 'bg-black/5 dark:bg-white/10 text-foreground' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5')} onClick={() => setTheme('dark')}>
-                        <Moon className="h-4 w-4 mr-2" />
-                        {t('appearance.dark')}
-                      </Button>
-                      <Button variant={theme === 'system' ? 'secondary' : 'outline'} className={cn('rounded-full px-5 h-10 border-black/10 dark:border-white/10', theme === 'system' ? 'bg-black/5 dark:bg-white/10 text-foreground' : 'bg-transparent text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5')} onClick={() => setTheme('system')}>
-                        <Monitor className="h-4 w-4 mr-2" />
-                        {t('appearance.system')}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <Label className="text-[15px] font-medium text-foreground/80">{t('appearance.language')}</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {SUPPORTED_LANGUAGES.map((lang) => (
-                        <Button key={lang.code} variant={language === lang.code ? 'secondary' : 'outline'} onClick={() => setLanguage(lang.code)}>
-                          {lang.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-[15px] font-medium text-foreground/80">{t('appearance.launchAtStartup')}</Label>
-                      <p className="text-[13px] text-muted-foreground mt-1">{t('appearance.launchAtStartupDesc')}</p>
-                    </div>
-                    <Switch checked={launchAtStartup} onCheckedChange={setLaunchAtStartup} />
-                  </div>
-                </SettingsSectionCard>
-                <SettingsSectionCard title="关于 ClawX">
-                  <p className="text-[14px] text-muted-foreground">{t('about.version', { version: currentVersion })}</p>
-                </SettingsSectionCard>
-              </>
-            )}
-
-            {activeGroup === 'workflow' && (
-              <>
-                <SettingsSectionCard title="网关与运行流程" description="复用当前网关状态与自动启动设置。">
-                  <p className="text-sm text-muted-foreground">{t('gateway.status')}: {gatewayStatus.state} ({t('gateway.port')}: {gatewayStatus.port})</p>
-                  <div className="flex gap-3">
-                    <Button variant="outline" onClick={restartGateway}>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      {t('common:actions.restart')}
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-[15px] font-medium text-foreground">{t('gateway.autoStart')}</Label>
-                      <p className="text-[13px] text-muted-foreground mt-1">{t('gateway.autoStartDesc')}</p>
-                    </div>
-                    <Switch checked={gatewayAutoStart} onCheckedChange={setGatewayAutoStart} />
-                  </div>
-                </SettingsSectionCard>
-                <SettingsSectionCard title="会话模板与自动化" description="静态占位：后续用于工作流模板与编排策略。">
-                  <p className="text-sm text-muted-foreground">即将支持模板化任务流程。</p>
-                </SettingsSectionCard>
-              </>
-            )}
-
-            {activeGroup === 'capability' && (
-              <>
-                <SettingsSectionCard title="模型与服务提供商" description="复用现有 Provider 配置区域。">
-                  <ProvidersSettings />
-                </SettingsSectionCard>
-                <SettingsSectionCard title="能力编排" description="静态占位：后续用于技能组合、多Agent策略。">
-                  <p className="text-sm text-muted-foreground">即将支持能力包与策略模板。</p>
-                </SettingsSectionCard>
-              </>
-            )}
-
-            {activeGroup === 'governance' && (
-              <>
-                <SettingsSectionCard title={t('updates.title')} description="版本更新策略与下载行为。">
-                  <UpdateSettings />
-                  <div className="flex items-center justify-between">
-                    <Label>{t('updates.autoCheck')}</Label>
-                    <Switch checked={autoCheckUpdate} onCheckedChange={setAutoCheckUpdate} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>{t('updates.autoDownload')}</Label>
-                    <Switch checked={autoDownloadUpdate} onCheckedChange={(value) => {
-                      setAutoDownloadUpdate(value);
-                      updateSetAutoDownload(value);
-                    }} />
-                  </div>
-                </SettingsSectionCard>
-
-                <SettingsSectionCard title={t('developer.title')} description="复用开发者、代理网络和代理配置。">
-                  <div className="flex items-center justify-between">
-                    <Label>{t('advanced.devMode')}</Label>
-                    <Switch checked={devModeUnlocked} onCheckedChange={setDevModeUnlocked} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label>{t('advanced.telemetry')}</Label>
-                    <Switch checked={telemetryEnabled} onCheckedChange={setTelemetryEnabled} />
-                  </div>
-
-                  {devModeUnlocked && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label>Gateway Proxy</Label>
-                        <Switch checked={proxyEnabledDraft} onCheckedChange={setProxyEnabledDraft} />
-                      </div>
-                      {proxyEnabledDraft && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <Input value={proxyServerDraft} onChange={(event) => setProxyServerDraft(event.target.value)} placeholder="proxyServer" />
-                          <Input value={proxyHttpServerDraft} onChange={(event) => setProxyHttpServerDraft(event.target.value)} placeholder="proxyHttpServer" />
-                          <Input value={proxyHttpsServerDraft} onChange={(event) => setProxyHttpsServerDraft(event.target.value)} placeholder="proxyHttpsServer" />
-                          <Input value={proxyAllServerDraft} onChange={(event) => setProxyAllServerDraft(event.target.value)} placeholder="proxyAllServer" />
-                          <Input value={proxyBypassRulesDraft} onChange={(event) => setProxyBypassRulesDraft(event.target.value)} placeholder="proxyBypassRules" className="sm:col-span-2" />
-                          <Button variant="outline" onClick={saveProxySettings} disabled={savingProxy} className="sm:col-span-2">
-                            {savingProxy ? t('common:status.saving') : t('common:actions.save')}
-                          </Button>
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => void runDoctor('diagnose')} disabled={doctorRunning !== null}>
-                          {doctorRunning === 'diagnose' ? t('common:status.running') : t('developer.runDoctor')}
-                        </Button>
-                        <Button variant="outline" onClick={() => void runDoctor('fix')} disabled={doctorRunning !== null}>
-                          {doctorRunning === 'fix' ? t('common:status.running') : t('developer.runDoctorFix')}
-                        </Button>
-                      </div>
-                      {doctorSummary ? <p className="text-xs text-muted-foreground">{doctorSummary}</p> : null}
-                    </div>
-                  )}
-                </SettingsSectionCard>
-
-                <SettingsSectionCard title="审计与策略" description="静态占位：后续用于策略审批、审计日志和合规控制。">
-                  <p className="text-sm text-muted-foreground">即将支持组织级治理能力。</p>
-                </SettingsSectionCard>
-              </>
-            )}
+            <div className="space-y-5">{renderActiveSection({
+              activeSection,
+              theme,
+              setTheme,
+              language,
+              setLanguage,
+              launchAtStartup,
+              setLaunchAtStartup,
+              gatewayStatus,
+              restartGateway,
+              gatewayAutoStart,
+              setGatewayAutoStart,
+              proxyEnabledDraft,
+              setProxyEnabledDraft,
+              proxyServerDraft,
+              setProxyServerDraft,
+              proxyHttpServerDraft,
+              setProxyHttpServerDraft,
+              proxyHttpsServerDraft,
+              setProxyHttpsServerDraft,
+              proxyAllServerDraft,
+              setProxyAllServerDraft,
+              proxyBypassRulesDraft,
+              setProxyBypassRulesDraft,
+              saveProxySettings,
+              savingProxy,
+              currentVersion,
+              autoCheckUpdate,
+              setAutoCheckUpdate,
+              autoDownloadUpdate,
+              setAutoDownloadUpdate,
+              updateSetAutoDownload,
+              devModeUnlocked,
+              setDevModeUnlocked,
+              telemetryEnabled,
+              setTelemetryEnabled,
+              doctorRunning,
+              runDoctor,
+              doctorSummary,
+              t,
+            })}</div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
+  );
+}
+
+type RenderSectionArgs = {
+  activeSection: SettingsSectionId;
+  theme: 'light' | 'dark' | 'system';
+  setTheme: (value: 'light' | 'dark' | 'system') => void;
+  language: string;
+  setLanguage: (value: string) => void;
+  launchAtStartup: boolean;
+  setLaunchAtStartup: (value: boolean) => void;
+  gatewayStatus: { state: string; port?: number };
+  restartGateway: () => unknown;
+  gatewayAutoStart: boolean;
+  setGatewayAutoStart: (value: boolean) => void;
+  proxyEnabledDraft: boolean;
+  setProxyEnabledDraft: (value: boolean) => void;
+  proxyServerDraft: string;
+  setProxyServerDraft: (value: string) => void;
+  proxyHttpServerDraft: string;
+  setProxyHttpServerDraft: (value: string) => void;
+  proxyHttpsServerDraft: string;
+  setProxyHttpsServerDraft: (value: string) => void;
+  proxyAllServerDraft: string;
+  setProxyAllServerDraft: (value: string) => void;
+  proxyBypassRulesDraft: string;
+  setProxyBypassRulesDraft: (value: string) => void;
+  saveProxySettings: () => Promise<void>;
+  savingProxy: boolean;
+  currentVersion: string;
+  autoCheckUpdate: boolean;
+  setAutoCheckUpdate: (value: boolean) => void;
+  autoDownloadUpdate: boolean;
+  setAutoDownloadUpdate: (value: boolean) => void;
+  updateSetAutoDownload: (value: boolean) => void;
+  devModeUnlocked: boolean;
+  setDevModeUnlocked: (value: boolean) => void;
+  telemetryEnabled: boolean;
+  setTelemetryEnabled: (value: boolean) => void;
+  doctorRunning: 'diagnose' | 'fix' | null;
+  runDoctor: (mode: 'diagnose' | 'fix') => Promise<void>;
+  doctorSummary: string;
+  t: (key: string, options?: Record<string, unknown>) => string;
+};
+
+function renderActiveSection(args: RenderSectionArgs) {
+  switch (args.activeSection) {
+    case 'general':
+      return (
+        <>
+          <SettingsSectionCard title="外观与语言" description="延续极简浅底的桌面工作台语义，保留核心偏好设置。">
+            <div className="space-y-3">
+              <Label className="text-[15px] font-medium text-[#111827]">主题模式</Label>
+              <div className="flex flex-wrap gap-2">
+                <ThemeButton active={args.theme === 'light'} icon={Sun} label="浅色" onClick={() => args.setTheme('light')} />
+                <ThemeButton active={args.theme === 'dark'} icon={Moon} label="深色" onClick={() => args.setTheme('dark')} />
+                <ThemeButton active={args.theme === 'system'} icon={Monitor} label="跟随系统" onClick={() => args.setTheme('system')} />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <Label className="text-[15px] font-medium text-[#111827]">界面语言</Label>
+              <div className="flex flex-wrap gap-2">
+                {SUPPORTED_LANGUAGES.map((lang) => (
+                  <Button
+                    key={lang.code}
+                    variant={args.language === lang.code ? 'secondary' : 'outline'}
+                    className={cn(
+                      'rounded-full border-black/10 bg-white text-[#111827] hover:bg-[#f3f4f6]',
+                      args.language === lang.code && 'bg-[#eef2f7]',
+                    )}
+                    onClick={() => args.setLanguage(lang.code)}
+                  >
+                    {lang.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </SettingsSectionCard>
+
+          <SettingsSectionCard title="本地客户端" description="管理开机启动等与本机使用体验直接相关的设置。">
+            <div className="flex items-center justify-between gap-6">
+              <div>
+                <Label className="text-[15px] font-medium text-[#111827]">开机自动启动</Label>
+                <p className="mt-1 text-[13px] text-[#667085]">保持桌面工作台在系统启动后可用。</p>
+              </div>
+              <Switch checked={args.launchAtStartup} onCheckedChange={args.setLaunchAtStartup} />
+            </div>
+          </SettingsSectionCard>
+
+          <SettingsSectionCard title="关于 ClawX">
+            <p className="text-[14px] text-[#667085]">
+              {args.t('settings:about.version', { version: args.currentVersion })}
+            </p>
+          </SettingsSectionCard>
+        </>
+      );
+
+    case 'model-provider':
+      return (
+        <SettingsSectionCard title="模型路由与 Provider" description="沿用现有 Provider 管理能力，并放入新的高保真白卡片层级。">
+          <ProvidersSettings />
+        </SettingsSectionCard>
+      );
+
+    case 'network-proxy':
+      return (
+        <>
+          <SettingsSectionCard title="Gateway 运行状态" description="展示本地网关状态，并保留手动重启入口。">
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-[#f8fafc] px-4 py-3">
+              <div>
+                <div className="text-[13px] text-[#667085]">
+                  当前状态: <span className="font-semibold text-[#111827]">{args.gatewayStatus.state}</span>
+                </div>
+                <div className="mt-1 text-[12px] text-[#8e8e93]">端口: {args.gatewayStatus.port ?? 'n/a'}</div>
+              </div>
+              <Button variant="outline" className="rounded-full" onClick={args.restartGateway}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {args.t('common:actions.restart')}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-6">
+              <div>
+                <Label className="text-[15px] font-medium text-[#111827]">启动时自动拉起网关</Label>
+                <p className="mt-1 text-[13px] text-[#667085]">保持桌面应用打开后自动连通本地 Gateway。</p>
+              </div>
+              <Switch checked={args.gatewayAutoStart} onCheckedChange={args.setGatewayAutoStart} />
+            </div>
+          </SettingsSectionCard>
+
+          <SettingsSectionCard title="代理出口" description="保留真实可用的代理编辑表单，用于后续网络故障排查。">
+            <div className="flex items-center justify-between gap-6">
+              <div>
+                <Label className="text-[15px] font-medium text-[#111827]">启用代理</Label>
+                <p className="mt-1 text-[13px] text-[#667085]">分别配置 HTTP / HTTPS / ALL_PROXY 出口。</p>
+              </div>
+              <Switch checked={args.proxyEnabledDraft} onCheckedChange={args.setProxyEnabledDraft} />
+            </div>
+
+            {args.proxyEnabledDraft ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input value={args.proxyServerDraft} onChange={(event) => args.setProxyServerDraft(event.target.value)} placeholder="proxyServer" />
+                <Input value={args.proxyHttpServerDraft} onChange={(event) => args.setProxyHttpServerDraft(event.target.value)} placeholder="proxyHttpServer" />
+                <Input value={args.proxyHttpsServerDraft} onChange={(event) => args.setProxyHttpsServerDraft(event.target.value)} placeholder="proxyHttpsServer" />
+                <Input value={args.proxyAllServerDraft} onChange={(event) => args.setProxyAllServerDraft(event.target.value)} placeholder="proxyAllServer" />
+                <Input value={args.proxyBypassRulesDraft} onChange={(event) => args.setProxyBypassRulesDraft(event.target.value)} placeholder="proxyBypassRules" className="md:col-span-2" />
+                <Button variant="outline" onClick={() => void args.saveProxySettings()} disabled={args.savingProxy} className="md:col-span-2 rounded-full">
+                  {args.savingProxy ? args.t('common:status.saving') : args.t('common:actions.save')}
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-black/[0.08] bg-white/70 px-4 py-4 text-[13px] text-[#667085]">
+                当前未启用代理。后续接入真实网络环境时，可在这里配置固定出口。
+              </div>
+            )}
+          </SettingsSectionCard>
+        </>
+      );
+
+    case 'team-role-strategy':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: '团队模板',
+              description: '将研究、值守、内容等团队形态预置为静态策略骨架。',
+            },
+            {
+              title: '角色职责边界',
+              description: '预留 Owner / Reviewer / Runner 的职责分层与默认权限。',
+            },
+          ]}
+        />
+      );
+
+    case 'channel-advanced':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: '多通道路由',
+              description: '静态展示飞书、Telegram 与本地通知的优先级与兜底关系。',
+            },
+            {
+              title: '重试与熔断策略',
+              description: '为消息通道失败重试、限流和临时禁用提供视觉骨架。',
+            },
+          ]}
+        />
+      );
+
+    case 'automation-defaults':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: 'Cron 默认模版',
+              description: '管理日报、巡检、周报等定时任务的默认参数与负责人。',
+            },
+            {
+              title: '自动化审批门槛',
+              description: '预留成本、工具权限与人工确认的默认阈值配置。',
+            },
+          ]}
+        />
+      );
+
+    case 'memory-knowledge':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: '知识策略',
+              description: '预留知识库接入、检索范围和记忆保鲜策略的展示面板。',
+            },
+            {
+              title: '数据浏览器',
+              description: '为 Frame 09.1 的双栏浏览器保留真实 React 容器位置。',
+            },
+          ]}
+        />
+      );
+
+    case 'skills-mcp':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: '技能目录',
+              description: '统一展示已安装技能、推荐技能和来源状态。',
+            },
+            {
+              title: 'MCP 连接器',
+              description: '预留连接器健康度、配置摘要和重连入口。',
+            },
+          ]}
+        />
+      );
+
+    case 'tool-permissions':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: '执行白名单',
+              description: '对 shell、文件系统、浏览器等执行权限做静态分层展示。',
+            },
+            {
+              title: '风险边界',
+              description: '为未来的审核链路、审批阈值和审计事件预留面板。',
+            },
+          ]}
+        />
+      );
+
+    case 'monitoring':
+      return <SettingsMonitoringPanel />;
+
+    case 'security-audit':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: '审计日志保留',
+              description: '统一管理运行日志、工具执行记录和归档时长。',
+            },
+            {
+              title: '审批与例外',
+              description: '静态展示审批流、例外授权和高风险行为的升级路径。',
+            },
+          ]}
+        />
+      );
+
+    case 'migration-backup':
+      return (
+        <PlaceholderSection
+          cards={[
+            {
+              title: '快照迁移',
+              description: '预留 OpenClaw -> ClawX 迁移向导与兼容性报告入口。',
+            },
+            {
+              title: '冷备份与恢复',
+              description: '展示完整快照、增量备份和覆盖式导入等卡片布局。',
+            },
+          ]}
+        />
+      );
+
+    case 'feedback-developer':
+      return (
+        <>
+          <SettingsSectionCard title={args.t('settings:updates.title')} description="延续真实的更新设置，并嵌入新的设置中心卡片层级。">
+            <UpdateSettings />
+            <div className="flex items-center justify-between gap-6">
+              <Label>{args.t('settings:updates.autoCheck')}</Label>
+              <Switch checked={args.autoCheckUpdate} onCheckedChange={args.setAutoCheckUpdate} />
+            </div>
+            <div className="flex items-center justify-between gap-6">
+              <Label>{args.t('settings:updates.autoDownload')}</Label>
+              <Switch
+                checked={args.autoDownloadUpdate}
+                onCheckedChange={(value) => {
+                  args.setAutoDownloadUpdate(value);
+                  args.updateSetAutoDownload(value);
+                }}
+              />
+            </div>
+          </SettingsSectionCard>
+
+          <SettingsSectionCard title={args.t('settings:developer.title')} description="保留开发者模式、Doctor 诊断和遥测开关。">
+            <div className="flex items-center justify-between gap-6">
+              <Label>{args.t('settings:advanced.devMode')}</Label>
+              <Switch checked={args.devModeUnlocked} onCheckedChange={args.setDevModeUnlocked} />
+            </div>
+            <div className="flex items-center justify-between gap-6">
+              <Label>{args.t('settings:advanced.telemetry')}</Label>
+              <Switch checked={args.telemetryEnabled} onCheckedChange={args.setTelemetryEnabled} />
+            </div>
+
+            {args.devModeUnlocked ? (
+              <div className="space-y-4 rounded-2xl bg-[#f8fafc] px-4 py-4">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" className="rounded-full" onClick={() => void args.runDoctor('diagnose')} disabled={args.doctorRunning !== null}>
+                    {args.doctorRunning === 'diagnose' ? args.t('common:status.running') : args.t('settings:developer.runDoctor')}
+                  </Button>
+                  <Button variant="outline" className="rounded-full" onClick={() => void args.runDoctor('fix')} disabled={args.doctorRunning !== null}>
+                    {args.doctorRunning === 'fix' ? args.t('common:status.running') : args.t('settings:developer.runDoctorFix')}
+                  </Button>
+                </div>
+                {args.doctorSummary ? (
+                  <p className="text-[12px] text-[#667085]">{args.doctorSummary}</p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-[13px] text-[#667085]">启用开发者模式后，可运行 OpenClaw Doctor 和高级诊断动作。</p>
+            )}
+          </SettingsSectionCard>
+        </>
+      );
+
+    default:
+      return null;
+  }
+}
+
+function ThemeButton({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: typeof Sun;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      variant={active ? 'secondary' : 'outline'}
+      className={cn(
+        'rounded-full border-black/10 bg-white text-[#111827] hover:bg-[#f3f4f6]',
+        active && 'bg-[#eef2f7]',
+      )}
+      onClick={onClick}
+    >
+      <Icon className="mr-2 h-4 w-4" />
+      {label}
+    </Button>
+  );
+}
+
+function PlaceholderSection({
+  cards,
+}: {
+  cards: Array<{ title: string; description: string }>;
+}) {
+  return (
+    <>
+      {cards.map((card) => (
+        <SettingsSectionCard key={card.title} title={card.title} description={card.description}>
+          <div className="rounded-2xl border border-dashed border-black/[0.08] bg-[#f8fafc] px-4 py-4 text-[13px] leading-7 text-[#667085]">
+            当前先以高保真静态骨架承接设计稿，后续再逐步接入真实数据和交互。
+          </div>
+        </SettingsSectionCard>
+      ))}
+    </>
   );
 }
 
