@@ -8,7 +8,7 @@ type ElectronShim = {
   openExternal: (url: string) => Promise<void>;
   platform: string;
   isDev: boolean;
-  __clawxBrowserPreviewShim?: boolean;
+  __ktclawBrowserPreviewShim?: boolean;
 };
 
 function createElectronShim(): ElectronShim {

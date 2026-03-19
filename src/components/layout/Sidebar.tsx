@@ -209,12 +209,17 @@ export function Sidebar() {
           collapsed={sidebarCollapsed}
         >
           {staticChannels.map((channel) => (
-            <div key={channel.name} className="flex items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]">
+            <button
+              key={channel.name}
+              type="button"
+              onClick={() => navigate('/channels')}
+              className="flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]"
+            >
               <span className="w-5 shrink-0 text-center text-[14px]">
                 {channel.name === '飞书' ? '🪶' : channel.name === '钉钉' ? '💙' : '🍀'}
               </span>
               <span className="min-w-0 flex-1 truncate">{channel.name}</span>
-            </div>
+            </button>
           ))}
         </AccordionGroup>
 
