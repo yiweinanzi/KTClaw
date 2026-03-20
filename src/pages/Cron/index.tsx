@@ -154,12 +154,14 @@ export function Cron() {
           />
         )}
 
-        {activeTab === '排期表 Schedule' && <ScheduleTab />}
+        {activeTab === '排期表 Schedule' && <ScheduleTab jobs={jobs} />}
 
         {activeTab === '流水线 Pipelines' && (
-          <div className="flex flex-1 items-center justify-center text-[14px] text-[#8e8e93]">
-            流水线视图开发中...
-          </div>
+          <PipelinesTab
+            jobs={jobs}
+            loading={loading}
+            onTrigger={(id) => void triggerJob(id)}
+          />
         )}
       </div>
 
@@ -255,9 +257,16 @@ function OverviewTab({
 
 /* ─── Schedule Tab ─── */
 
-function ScheduleTab() {
+function ScheduleTab({ jobs }: { jobs: CronJob[] }) {
+  // Build a simple "next runs" list from real jobs that have nextRun
+  const upcoming = jobs
+    .filter((j) => j.enabled && j.nextRun)
+    .sort((a, b) => new Date(a.nextRun!).getTime() - new Date(b.nextRun!).getTime())
+    .slice(0, 8);
+
   return (
     <div className="flex flex-1 overflow-hidden">
+      {/* Left: static weekly grid (demo) */}
       <div className="flex w-[64px] shrink-0 flex-col">
         <div className="h-[42px] shrink-0" />
         {TIME_BLOCKS.map((block) => (
@@ -288,8 +297,30 @@ function ScheduleTab() {
           </div>
         ))}
       </div>
-      <div className="flex w-3 shrink-0 flex-col border-l border-black/[0.04] bg-[#f9f9f9]">
-        <div className="mx-auto mt-2 h-16 w-1.5 rounded-full bg-[#d1d5db]" />
+
+      {/* Right: upcoming real jobs panel */}
+      <div className="flex w-[220px] shrink-0 flex-col border-l border-black/[0.06] bg-[#f9f9f9]">
+        <div className="border-b border-black/[0.06] px-4 py-3">
+          <p className="text-[12px] font-semibold text-[#3c3c43]">即将执行</p>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {upcoming.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
+              <span className="text-[24px]">⏰</span>
+              <p className="text-[12px] text-[#c6c6c8]">暂无排期</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-0">
+              {upcoming.map((job) => (
+                <div key={job.id} className="border-b border-black/[0.04] px-4 py-3">
+                  <p className="truncate text-[13px] font-medium text-[#000000]">{job.name}</p>
+                  <p className="mt-0.5 text-[11px] text-[#007aff]">{formatTime(job.nextRun)}</p>
+                  <p className="mt-0.5 font-mono text-[10px] text-[#c6c6c8]">{formatSchedule(job.schedule)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -305,6 +336,126 @@ function ScheduleCard({ task }: { task: ScheduleTask }) {
       </div>
       <p className="text-[12px] font-semibold leading-tight" style={{ color: isDark ? '#ffffff' : '#1c1c1e' }}>{task.name}</p>
       <p className="mt-0.5 text-[11px]" style={{ color: isDark ? '#6b7280' : '#8e8e93' }}>{task.time}</p>
+    </div>
+  );
+}
+
+/* ─── Pipelines Tab ─── */
+
+function formatDuration(ms?: number): string {
+  if (!ms) return '—';
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
+}
+
+function PipelinesTab({
+  jobs,
+  loading,
+  onTrigger,
+}: {
+  jobs: CronJob[];
+  loading: boolean;
+  onTrigger: (id: string) => void;
+}) {
+  const ran = jobs.filter((j) => j.lastRun);
+  const succeeded = ran.filter((j) => j.lastRun?.success).length;
+  const failed = ran.filter((j) => !j.lastRun?.success).length;
+  const successRate = ran.length > 0 ? Math.round((succeeded / ran.length) * 100) : null;
+
+  const sorted = [...jobs].sort((a, b) => {
+    const ta = a.lastRun?.time ? new Date(a.lastRun.time).getTime() : 0;
+    const tb = b.lastRun?.time ? new Date(b.lastRun.time).getTime() : 0;
+    return tb - ta;
+  });
+
+  if (loading) return <div className="flex flex-1 items-center justify-center text-[14px] text-[#8e8e93]">加载中...</div>;
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Stats bar */}
+      <div className="flex shrink-0 items-center gap-6 border-b border-black/[0.06] px-8 py-4">
+        <StatPill label="任务总数" value={String(jobs.length)} color="#3c3c43" />
+        <StatPill label="已执行" value={String(ran.length)} color="#007aff" />
+        <StatPill label="成功" value={String(succeeded)} color="#10b981" />
+        <StatPill label="失败" value={String(failed)} color={failed > 0 ? '#ef4444' : '#c6c6c8'} />
+        {successRate !== null && (
+          <StatPill label="成功率" value={`${successRate}%`} color={successRate >= 80 ? '#10b981' : successRate >= 50 ? '#f59e0b' : '#ef4444'} />
+        )}
+      </div>
+
+      {/* Run log */}
+      {jobs.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+          <span className="text-[40px]">🔁</span>
+          <p className="text-[14px] text-[#8e8e93]">暂无执行记录</p>
+          <p className="text-[12px] text-[#c6c6c8]">创建任务并执行后，流水线记录将显示在这里</p>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto px-8 py-4">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-black/[0.06]">
+                {['任务名称', '调度', '上次执行', '耗时', '状态', '操作'].map((h) => (
+                  <th key={h} className="pb-2 text-left text-[11px] font-semibold uppercase tracking-[0.5px] text-[#8e8e93]">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((job) => {
+                const run = job.lastRun;
+                return (
+                  <tr key={job.id} className="group border-b border-black/[0.04] transition-colors hover:bg-[#f9f9f9]">
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('h-2 w-2 shrink-0 rounded-full', job.enabled ? 'bg-[#10b981]' : 'bg-[#d1d5db]')} />
+                        <span className="font-medium text-[#000000]">{job.name}</span>
+                      </div>
+                      {run?.error && (
+                        <p className="mt-0.5 truncate pl-4 text-[11px] text-[#ef4444]">{run.error}</p>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <code className="rounded bg-[#f2f2f7] px-1.5 py-0.5 font-mono text-[11px] text-[#3c3c43]">
+                        {formatSchedule(job.schedule)}
+                      </code>
+                    </td>
+                    <td className="py-3 pr-4 text-[#3c3c43]">{run ? formatTime(run.time) : <span className="text-[#c6c6c8]">从未执行</span>}</td>
+                    <td className="py-3 pr-4 font-mono text-[#3c3c43]">{run ? formatDuration(run.duration) : '—'}</td>
+                    <td className="py-3 pr-4">
+                      {!run ? (
+                        <span className="text-[12px] text-[#c6c6c8]">—</span>
+                      ) : run.success ? (
+                        <span className="rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[11px] font-medium text-[#059669]">成功</span>
+                      ) : (
+                        <span className="rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-medium text-[#ef4444]">失败</span>
+                      )}
+                    </td>
+                    <td className="py-3">
+                      <button
+                        type="button"
+                        onClick={() => onTrigger(job.id)}
+                        className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[#f2f2f7]"
+                      >
+                        ▶ 执行
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatPill({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[12px] text-[#8e8e93]">{label}</span>
+      <span className="text-[20px] font-semibold" style={{ color }}>{value}</span>
     </div>
   );
 }

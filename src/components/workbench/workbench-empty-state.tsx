@@ -1,6 +1,12 @@
+import { useChatStore } from '@/stores/chat';
+import { useGatewayStore } from '@/stores/gateway';
+
 type WorkbenchEmptyStateProps = Record<string, never>;
 
 export function WorkbenchEmptyState(_props: WorkbenchEmptyStateProps) {
+  const sendMessage = useChatStore((s) => s.sendMessage);
+  const isGatewayRunning = useGatewayStore((s) => s.status.state === 'running');
+
   const suggestions = [
     {
       icon: '🔧',
@@ -34,6 +40,10 @@ export function WorkbenchEmptyState(_props: WorkbenchEmptyStateProps) {
         {suggestions.map((suggestion) => (
           <article
             key={suggestion.title}
+            role="button"
+            tabIndex={0}
+            onClick={() => isGatewayRunning && sendMessage(suggestion.description)}
+            onKeyDown={(e) => e.key === 'Enter' && isGatewayRunning && sendMessage(suggestion.description)}
             className="flex cursor-pointer flex-col gap-[6px] rounded-xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:border-black/[0.15] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-white/[0.04]"
           >
             <div className="flex items-center gap-2">
