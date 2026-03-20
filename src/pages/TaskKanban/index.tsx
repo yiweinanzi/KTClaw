@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
+import { useApprovalsStore } from '@/stores/approvals';
 import type { AgentSummary } from '@/types/agent';
 
 /* ─── Types ─── */
@@ -100,8 +101,10 @@ export function TaskKanban() {
   const [dragOverCol, setDragOverCol] = useState<TicketStatus | null>(null);
 
   const { agents, fetchAgents } = useAgentsStore();
+  const { approvals, fetchApprovals, approveItem, rejectItem } = useApprovalsStore();
 
   useEffect(() => { void fetchAgents(); }, [fetchAgents]);
+  useEffect(() => { void fetchApprovals(); }, [fetchApprovals]);
 
   // Persist on every change
   useEffect(() => { saveTickets(tickets); }, [tickets]);
@@ -163,6 +166,15 @@ export function TaskKanban() {
             + 新建任务
           </button>
         </div>
+
+        {/* Pending Approvals */}
+        {approvals.length > 0 && (
+          <ApprovalsSection
+            approvals={approvals}
+            onApprove={(id) => void approveItem(id)}
+            onReject={(id, reason) => void rejectItem(id, reason)}
+          />
+        )}
 
         {/* Agent filter pills */}
         <div className="flex shrink-0 items-center gap-2 overflow-x-auto px-8 pb-5">
@@ -538,3 +550,103 @@ function DetailPanel({
 }
 
 export default TaskKanban;
+
+/* ─── Approvals Section ─── */
+
+import type { ApprovalItem } from '@/stores/approvals';
+
+function ApprovalsSection({
+  approvals,
+  onApprove,
+  onReject,
+}: {
+  approvals: ApprovalItem[];
+  onApprove: (id: string) => void;
+  onReject: (id: string, reason: string) => void;
+}) {
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+
+  return (
+    <div className="shrink-0 border-b border-black/[0.06] px-8 pb-5">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f59e0b] text-[11px] font-bold text-white">
+          {approvals.length}
+        </span>
+        <span className="text-[13px] font-semibold text-[#000000]">待审批 Approvals</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {approvals.map((item) => (
+          <div
+            key={item.id}
+            className="flex items-start justify-between gap-4 rounded-xl border border-[#f59e0b]/30 bg-[#fffbeb] px-4 py-3"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-[#000000]">
+                {item.command ?? item.prompt ?? item.id}
+              </p>
+              {item.agentId && (
+                <p className="mt-0.5 text-[11px] text-[#8e8e93]">Agent: {item.agentId}</p>
+              )}
+              {(item.createdAt ?? item.requestedAt) && (
+                <p className="mt-0.5 text-[11px] text-[#8e8e93]">
+                  {new Date(item.createdAt ?? item.requestedAt ?? '').toLocaleString('zh-CN')}
+                </p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {rejectingId === item.id ? (
+                <>
+                  <input
+                    autoFocus
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="拒绝原因..."
+                    className="w-[140px] rounded-lg border border-black/10 px-2 py-1 text-[12px] outline-none focus:border-[#007aff]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (rejectReason.trim()) {
+                        onReject(item.id, rejectReason.trim());
+                        setRejectingId(null);
+                        setRejectReason('');
+                      }
+                    }}
+                    className="rounded-lg bg-[#ef4444] px-2.5 py-1 text-[12px] font-medium text-white hover:bg-[#dc2626]"
+                  >
+                    确认
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setRejectingId(null); setRejectReason(''); }}
+                    className="rounded-lg border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
+                  >
+                    取消
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onApprove(item.id)}
+                    className="rounded-lg bg-[#10b981] px-2.5 py-1 text-[12px] font-medium text-white hover:bg-[#059669]"
+                  >
+                    批准
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRejectingId(item.id)}
+                    className="rounded-lg border border-[#ef4444]/30 px-2.5 py-1 text-[12px] text-[#ef4444] hover:bg-[#fef2f2]"
+                  >
+                    拒绝
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
