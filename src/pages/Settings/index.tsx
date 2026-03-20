@@ -650,7 +650,9 @@ function ModelProviderSection({
 }) {
   const [contextLimit, setContextLimit] = useState(32000);
   const isConnected = gatewayStatus.state === 'running';
-  const port = gatewayStatus.port ?? 18789;
+  const { gatewayPort, setGatewayPort } = useSettingsStore();
+  const [portDraft, setPortDraft] = useState(String(gatewayPort));
+  const [savingPort, setSavingPort] = useState(false);
 
   return (
     <>
@@ -784,9 +786,28 @@ function ModelProviderSection({
                 修改端口后 Gateway 将自动重启，请确保目标端口未被其他程序占用。
               </p>
             </div>
-            <span className="shrink-0 rounded-lg border border-black/10 bg-[#f9f9f9] px-3 py-1.5 font-mono text-[12px] text-[#3c3c43]">
-              ws://127.0.0.1:{port}
-            </span>
+            <div className="flex shrink-0 items-center gap-2">
+              <input
+                type="number"
+                value={portDraft}
+                onChange={(e) => setPortDraft(e.target.value)}
+                className="w-[100px] rounded-lg border border-black/10 bg-[#f9f9f9] px-3 py-1.5 font-mono text-[12px] text-[#3c3c43] outline-none focus:border-[#007aff] focus:bg-white"
+              />
+              <button
+                type="button"
+                disabled={savingPort || portDraft === String(gatewayPort)}
+                onClick={async () => {
+                  const p = parseInt(portDraft, 10);
+                  if (!p || p < 1024 || p > 65535) return;
+                  setSavingPort(true);
+                  setGatewayPort(p);
+                  setSavingPort(false);
+                }}
+                className="rounded-lg border border-black/10 px-2.5 py-1.5 text-[12px] text-[#3c3c43] transition-colors hover:bg-[#f2f2f7] disabled:opacity-40"
+              >
+                保存
+              </button>
+            </div>
           </div>
         </div>
       </section>

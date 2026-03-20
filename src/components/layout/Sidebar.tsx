@@ -12,6 +12,8 @@ import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useAgentsStore } from '@/stores/agents';
+import { useChannelsStore } from '@/stores/channels';
+import { CHANNEL_ICONS } from '@/types/channel';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useTranslation } from 'react-i18next';
 import { AccordionGroup } from '@/components/workbench/accordion-group';
@@ -56,9 +58,15 @@ export function Sidebar() {
 
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
 
+  const { channels, fetchChannels } = useChannelsStore();
+
   useEffect(() => {
     void fetchAgents();
   }, [fetchAgents]);
+
+  useEffect(() => {
+    void fetchChannels();
+  }, [fetchChannels]);
 
   const navigate = useNavigate();
   const isOnChat = useLocation().pathname === '/';
@@ -83,12 +91,7 @@ export function Sidebar() {
 
   const staticTeams: SidebarMetaItem[] = [
     { name: '团队总览', summary: '', meta: '' },
-    { name: '团队看板', summary: '', meta: '' },
-  ];
-  const staticChannels: SidebarMetaItem[] = [
-    { name: '飞书', summary: '', meta: '' },
-    { name: '钉钉', summary: '', meta: '' },
-    { name: '企业微信', summary: '', meta: '' },
+    { name: '团队地图', summary: '', meta: '' },
   ];
   const staticCronTasks: SidebarMetaItem[] = [
     { name: '任务看板', summary: '', meta: '' },
@@ -223,19 +226,36 @@ export function Sidebar() {
           icon={<Network className="h-[18px] w-[18px]" strokeWidth={2} />}
           collapsed={sidebarCollapsed}
         >
-          {staticChannels.map((channel) => (
+          {channels.length > 0 ? (
+            channels.map((channel) => (
+              <button
+                key={channel.id}
+                type="button"
+                onClick={() => navigate('/channels')}
+                className="flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]"
+              >
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">
+                  {CHANNEL_ICONS[channel.type] ?? '📡'}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-left">{channel.name}</span>
+                <span className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  channel.status === 'connected' ? 'bg-[#10b981]' :
+                  channel.status === 'connecting' ? 'bg-[#f59e0b]' :
+                  channel.status === 'error' ? 'bg-[#ef4444]' : 'bg-[#d1d5db]',
+                )} />
+              </button>
+            ))
+          ) : (
             <button
-              key={channel.name}
               type="button"
               onClick={() => navigate('/channels')}
-              className="flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]"
+              className="flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#8e8e93] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]"
             >
-              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">
-                {channel.name === '飞书' ? '🪶' : channel.name === '钉钉' ? '💙' : '🍀'}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-left">{channel.name}</span>
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">＋</span>
+              <span className="min-w-0 flex-1 truncate text-left">添加频道</span>
             </button>
-          ))}
+          )}
         </AccordionGroup>
 
         <AccordionGroup

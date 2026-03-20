@@ -30,10 +30,15 @@ export const useCronStore = create<CronState>((set) => ({
     set({ loading: true, error: null });
     
     try {
-      const result = await hostApiFetch<CronJob[]>('/api/cron/jobs');
-      set({ jobs: result, loading: false });
+      const result = await hostApiFetch<CronJob[] | { jobs?: CronJob[] } | null>('/api/cron/jobs');
+      const jobs = Array.isArray(result)
+        ? result
+        : Array.isArray((result as { jobs?: CronJob[] } | null)?.jobs)
+          ? (result as { jobs: CronJob[] }).jobs
+          : [];
+      set({ jobs, loading: false });
     } catch (error) {
-      set({ error: String(error), loading: false });
+      set({ jobs: [], error: String(error), loading: false });
     }
   },
   
@@ -101,14 +106,18 @@ export const useCronStore = create<CronState>((set) => ({
   
   triggerJob: async (id) => {
     try {
-      const result = await hostApiFetch('/api/cron/trigger', {
+      await hostApiFetch('/api/cron/trigger', {
         method: 'POST',
         body: JSON.stringify({ id }),
       });
-      console.log('Cron trigger result:', result);
       // Refresh jobs after trigger to update lastRun/nextRun state
       try {
-        const jobs = await hostApiFetch<CronJob[]>('/api/cron/jobs');
+        const result = await hostApiFetch<CronJob[] | { jobs?: CronJob[] } | null>('/api/cron/jobs');
+        const jobs = Array.isArray(result)
+          ? result
+          : Array.isArray((result as { jobs?: CronJob[] } | null)?.jobs)
+            ? (result as { jobs: CronJob[] }).jobs
+            : [];
         set({ jobs });
       } catch {
         // Ignore refresh error
