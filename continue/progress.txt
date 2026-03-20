@@ -892,3 +892,41 @@ Next: P1 任务
 - 预算治理设置 (budget limit / alert threshold)
 - 审计时间线页面
 - 头像偏好持久化
+
+[2026-03-20 session: P0 Chat深度对接 + Wizard + 工作目录]
+Focus: Chat Markdown升级 / AskUserQuestion Wizard / FolderSelector
+
+What changed:
+1. src/pages/Chat/MarkdownContent.tsx — 新建：代码高亮(Prism)、数学公式(katex)、本地文件链接点击打开、复制按钮+语言标签
+2. src/pages/Chat/ChatMessage.tsx — 替换 ReactMarkdown → MarkdownContent（MessageBubble + ThinkingBlock）
+3. src/pages/TaskKanban/AskUserQuestionWizard.tsx — 新建：多步骤审批向导 fullscreen modal，单选/多选/其他/跳过/提交
+4. src/pages/TaskKanban/index.tsx — ApprovalsSection 集成 Wizard（AskUserQuestion 类型显示"回答问题"按钮）
+5. src/pages/Chat/FolderSelectorPopover.tsx — 新建：工作目录选择 popover（新建+最近文件夹子菜单）
+6. src/pages/Chat/ChatInput.tsx — 新增文件夹按钮+工作目录 chip，onSend 传递 workingDir
+7. 安装依赖：react-syntax-highlighter, remark-math, rehype-katex, katex（pnpm）
+
+Commits:
+- fbaf344 feat: P0 Chat升级 — Markdown渲染、AskUserQuestion Wizard、工作目录选择器
+
+TypeScript: 0 errors, build: ✓ (3440 modules)
+
+Decisions:
+- AskUserQuestion Wizard 使用 fullscreen modal 而非普通弹窗，避免被 z-index 遮挡
+- MarkdownContent 适配 ClawX 颜色系统（#007aff 而非 claude-accent）
+- 工作目录暂不传给 Gateway（sendMessage 签名未扩展），留给下一步对接
+
+P0 完成状态 (本次):
+- ✅ Markdown 代码语法高亮 + 数学公式
+- ✅ 本地文件链接点击打开
+- ✅ 复制按钮 + 语言标签
+- ✅ AskUserQuestion Wizard（多步骤）
+- ✅ 工作目录选择器（FolderSelectorPopover）
+
+P0 剩余:
+- ⏳ 会话批量管理（长按/右键批量删除）
+- ⏳ 快捷操作栏（空会话快捷按钮，已有 WorkbenchEmptyState 但未升级为 QuickActionBar 风格）
+
+Next: P1 任务
+- 自动记忆提取 POST /api/memory/extract
+- MCP 服务器管理页面（Skills 新增 tab）
+- 定时任务运行历史
