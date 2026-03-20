@@ -16,6 +16,7 @@ import { handleSessionRoutes } from './routes/sessions';
 import { handleCronRoutes } from './routes/cron';
 import { handleApprovalRoutes } from './routes/approvals';
 import { handleHealthRoutes } from './routes/health';
+import { handleMemoryRoutes } from './routes/memory';
 import { sendJson } from './route-utils';
 
 type RouteHandler = (
@@ -38,6 +39,7 @@ const routeHandlers: RouteHandler[] = [
   handleCronRoutes,
   handleApprovalRoutes,
   handleHealthRoutes,
+  handleMemoryRoutes,
   handleLogRoutes,
   handleUsageRoutes,
 ];
