@@ -106,6 +106,7 @@ export function Sidebar() {
     { name: '任务看板', summary: '', meta: '' },
     { name: '任务日程', summary: '', meta: '' },
     // { name: '运行日志', summary: '', meta: '' },
+    { name: '🧠记忆知识库', summary: '', meta: '' },
     { name: '费用用量', summary: '', meta: '' },
   ];
 
@@ -278,13 +279,18 @@ export function Sidebar() {
             <button
               key={task.name}
               type="button"
-              onClick={() => navigate(task.name === '任务看板' ? '/kanban' : task.name === '费用用量' ? '/costs' : '/cron')}
+              onClick={() => {
+                if (task.name === '任务看板') navigate('/kanban');
+                else if (task.name === '费用用量') navigate('/costs');
+                else if (task.name === '🧠记忆知识库') navigate('/memory');
+                else navigate('/cron');
+              }}
               className="flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]"
             >
               <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">
-                {task.name === '任务看板' ? '📋' : task.name === '费用用量' ? '💰' : '📅'}
+                {task.name === '任务看板' ? '📋' : task.name === '费用用量' ? '💰' : task.name === '🧠记忆知识库' ? '🧠' : '📅'}
               </span>
-              <span className="min-w-0 flex-1 truncate text-left">{task.name}</span>
+              <span className="min-w-0 flex-1 truncate text-left">{task.name.replace('🧠', '')}</span>
             </button>
           ))}
         </AccordionGroup>
