@@ -7,7 +7,7 @@
  * are sent with the message (no base64 over WebSocket).
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { SendHorizontal, Square, X, Mic, FileText, Film, Music, FileArchive, File, Loader2, AtSign } from 'lucide-react';
+import { SendHorizontal, Square, X, Mic, FileText, Film, Music, FileArchive, File, Loader2, AtSign, Folder } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { hostApiFetch } from '@/lib/host-api';
@@ -17,6 +17,7 @@ import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
 import type { AgentSummary } from '@/types/agent';
 import { useTranslation } from 'react-i18next';
+import { FolderSelectorPopover } from './FolderSelectorPopover';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ export interface FileAttachment {
 }
 
 interface ChatInputProps {
-  onSend: (text: string, attachments?: FileAttachment[], targetAgentId?: string | null) => void;
+  onSend: (text: string, attachments?: FileAttachment[], targetAgentId?: string | null, workingDir?: string | null) => void;
   onStop?: () => void;
   disabled?: boolean;
   sending?: boolean;
@@ -89,8 +90,11 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [targetAgentId, setTargetAgentId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [workingDirectory, setWorkingDirectory] = useState<string | null>(null);
+  const [folderPopoverOpen, setFolderPopoverOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const folderBtnRef = useRef<HTMLButtonElement>(null);
   const isComposingRef = useRef(false);
   const agents = useAgentsStore((s) => s.agents);
   const currentAgentId = useChatStore((s) => s.currentAgentId);
@@ -306,9 +310,10 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-    onSend(textToSend, attachmentsToSend, targetAgentId);
+    onSend(textToSend, attachmentsToSend, targetAgentId, workingDirectory);
     setTargetAgentId(null);
     setPickerOpen(false);
+    setWorkingDirectory(null);
   }, [input, attachments, canSend, onSend, targetAgentId]);
 
   const handleStop = useCallback(() => {
@@ -416,17 +421,33 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
             'focus-within:border-[#d1d1d1] focus-within:bg-white focus-within:shadow-[0_2px_8px_rgba(0,0,0,0.04)]',
           )}
         >
-          {selectedTarget && (
-            <div className="relative px-2.5 pt-2 pb-1">
-              <button
-                type="button"
-                onClick={() => setTargetAgentId(null)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-primary/15"
-                title={t('composer.clearTarget')}
-              >
-                <span>{t('composer.targetChip', { agent: selectedTarget.name })}</span>
-                <X className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
+          {(selectedTarget || workingDirectory) && (
+            <div className="flex flex-wrap items-center gap-2 px-2.5 pt-2 pb-1">
+              {selectedTarget && (
+                <button
+                  type="button"
+                  onClick={() => setTargetAgentId(null)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[13px] font-medium text-foreground transition-colors hover:bg-primary/15"
+                  title={t('composer.clearTarget')}
+                >
+                  <span>{t('composer.targetChip', { agent: selectedTarget.name })}</span>
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
+              {workingDirectory && (
+                <button
+                  type="button"
+                  onClick={() => setWorkingDirectory(null)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[13px] font-medium text-emerald-700 transition-colors hover:bg-emerald-500/15"
+                  title={workingDirectory}
+                >
+                  <Folder className="h-3.5 w-3.5" />
+                  <span className="max-w-[160px] truncate">
+                    {workingDirectory.split(/[\\/]/).filter(Boolean).pop() ?? workingDirectory}
+                  </span>
+                  <X className="h-3 w-3 opacity-70" />
+                </button>
+              )}
             </div>
           )}
 
@@ -442,6 +463,35 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
             >
               <Mic className="h-4 w-4" />
             </Button>
+
+            {/* Folder / Working Directory Button */}
+            <div className="relative shrink-0">
+              <Button
+                ref={folderBtnRef}
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-[30px] w-[30px] rounded-full bg-transparent text-[#3c3c43] transition-colors hover:bg-[#e5e5ea] hover:text-black',
+                  workingDirectory && 'bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20',
+                )}
+                onClick={() => setFolderPopoverOpen((v) => !v)}
+                disabled={disabled || sending}
+                title={workingDirectory
+                  ? (workingDirectory.split(/[\\/]/).filter(Boolean).pop() ?? workingDirectory)
+                  : '选择工作目录'}
+              >
+                <Folder className="h-4 w-4" />
+              </Button>
+              <FolderSelectorPopover
+                isOpen={folderPopoverOpen}
+                onClose={() => setFolderPopoverOpen(false)}
+                onSelectFolder={(p) => {
+                  setWorkingDirectory(p);
+                  setFolderPopoverOpen(false);
+                }}
+                anchorRef={folderBtnRef}
+              />
+            </div>
 
             {showAgentPicker && (
               <div ref={pickerRef} className="relative shrink-0">

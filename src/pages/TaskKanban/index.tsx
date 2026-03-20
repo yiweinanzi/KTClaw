@@ -1,12 +1,13 @@
 /**
- * Task Kanban Page — Frame 05
+ * Task Kanban Page �?Frame 05
  * 任务看板 / 自动化工作流：拖拽式任务管理
  */
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
-import { useApprovalsStore } from '@/stores/approvals';
+import { useApprovalsStore, type ApprovalItem } from '@/stores/approvals';
 import type { AgentSummary } from '@/types/agent';
+import { AskUserQuestionWizard } from './AskUserQuestionWizard';
 
 /* ─── Types ─── */
 
@@ -66,7 +67,7 @@ function createTicket(input: { title: string; description: string; priority: Tic
 const COLUMNS: { key: TicketStatus; label: string }[] = [
   { key: 'backlog',     label: 'Backlog 积压' },
   { key: 'todo',        label: 'To Do 待办' },
-  { key: 'in-progress', label: 'In Progress 进行中' },
+  { key: 'in-progress', label: 'In Progress' },
   { key: 'review',      label: 'Review 审查' },
   { key: 'done',        label: 'Done 完成' },
 ];
@@ -79,9 +80,9 @@ const PRIORITY_STYLES: Record<TicketPriority, { dot: string; text: string; bg: s
 
 const WORK_STATE_STYLES: Record<WorkState, { label: string; color: string }> = {
   idle:     { label: '',       color: '' },
-  starting: { label: '启动中', color: '#f59e0b' },
-  working:  { label: '执行中', color: '#3b82f6' },
-  done:     { label: '已完成', color: '#10b981' },
+  starting: { label: 'Starting', color: '#f59e0b' },
+  working:  { label: 'Working', color: '#3b82f6' },
+  done:     { label: 'Done', color: '#10b981' },
   failed:   { label: '失败',   color: '#ef4444' },
 };
 
@@ -156,7 +157,7 @@ export function TaskKanban() {
         <div className="flex shrink-0 items-start justify-between px-8 pb-5 pt-8">
           <div>
             <h1 className="text-[26px] font-semibold text-[#000000]">任务看板 Kanban</h1>
-            <p className="mt-1 text-[13px] text-[#8e8e93]">{activeCount} 个活跃任务</p>
+            <p className="mt-1 text-[13px] text-[#8e8e93]">{activeCount} active tasks</p>
           </div>
           <button
             type="button"
@@ -171,7 +172,7 @@ export function TaskKanban() {
         {approvals.length > 0 && (
           <ApprovalsSection
             approvals={approvals}
-            onApprove={(id) => void approveItem(id)}
+            onApprove={(id, reason) => void approveItem(id, reason)}
             onReject={(id, reason) => void rejectItem(id, reason)}
           />
         )}
@@ -231,8 +232,7 @@ export function TaskKanban() {
                 )}>
                   {colTickets.length === 0 ? (
                     <div className="flex items-center justify-center py-8 text-[13px] text-[#c6c6c8]">
-                      拖拽到此处
-                    </div>
+                      拖拽到此�?                    </div>
                   ) : (
                     colTickets.map((ticket) => (
                       <TicketCard
@@ -365,7 +365,7 @@ function CreateModal({
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-            placeholder="简短描述任务目标..."
+            placeholder="简短描述任务目�?.."
             className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-[#007aff]"
           />
         </div>
@@ -380,7 +380,7 @@ function CreateModal({
           />
         </div>
         <div className="mb-3">
-          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">优先级</p>
+          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Priority</p>
           <div className="flex gap-2">
             {(['high', 'medium', 'low'] as TicketPriority[]).map((p) => {
               const s = PRIORITY_STYLES[p];
@@ -409,7 +409,7 @@ function CreateModal({
               onChange={(e) => setAssigneeId(e.target.value)}
               className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-[#007aff]"
             >
-              <option value="">不指派</option>
+              <option value="">Unassigned</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
@@ -485,7 +485,7 @@ function DetailPanel({
 
           <div className="flex gap-4">
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">优先级</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Priority</p>
               <span
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium"
                 style={{ background: p.bg, color: p.text }}
@@ -495,7 +495,7 @@ function DetailPanel({
               </span>
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">状态</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Status</p>
               <span className="text-[13px] text-[#3c3c43]">
                 {COLUMNS.find((c) => c.key === ticket.status)?.label ?? ticket.status}
               </span>
@@ -514,7 +514,7 @@ function DetailPanel({
 
           {ticket.workState !== 'idle' && (
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">执行状态</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Execution</p>
               <span className="text-[13px] font-medium" style={{ color: WORK_STATE_STYLES[ticket.workState].color }}>
                 {WORK_STATE_STYLES[ticket.workState].label}
               </span>
@@ -529,7 +529,7 @@ function DetailPanel({
 
           {/* Move to column */}
           <div>
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">移动到</p>
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Move To</p>
             <div className="flex flex-wrap gap-2">
               {COLUMNS.filter((c) => c.key !== ticket.status).map((col) => (
                 <button
@@ -553,7 +553,6 @@ export default TaskKanban;
 
 /* ─── Approvals Section ─── */
 
-import type { ApprovalItem } from '@/stores/approvals';
 
 function ApprovalsSection({
   approvals,
@@ -561,92 +560,114 @@ function ApprovalsSection({
   onReject,
 }: {
   approvals: ApprovalItem[];
-  onApprove: (id: string) => void;
+  onApprove: (id: string, reason?: string) => void;
   onReject: (id: string, reason: string) => void;
 }) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [wizard, setWizard] = useState<ApprovalItem | null>(null);
 
   return (
-    <div className="shrink-0 border-b border-black/[0.06] px-8 pb-5">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f59e0b] text-[11px] font-bold text-white">
-          {approvals.length}
-        </span>
-        <span className="text-[13px] font-semibold text-[#000000]">待审批 Approvals</span>
-      </div>
-      <div className="flex flex-col gap-2">
-        {approvals.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-start justify-between gap-4 rounded-xl border border-[#f59e0b]/30 bg-[#fffbeb] px-4 py-3"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-medium text-[#000000]">
-                {item.command ?? item.prompt ?? item.id}
-              </p>
-              {item.agentId && (
-                <p className="mt-0.5 text-[11px] text-[#8e8e93]">Agent: {item.agentId}</p>
-              )}
-              {(item.createdAt ?? item.requestedAt) && (
-                <p className="mt-0.5 text-[11px] text-[#8e8e93]">
-                  {new Date(item.createdAt ?? item.requestedAt ?? '').toLocaleString('zh-CN')}
+    <>
+      <div className="shrink-0 border-b border-black/[0.06] px-8 pb-5">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f59e0b] text-[11px] font-bold text-white">
+            {approvals.length}
+          </span>
+          <span className="text-[13px] font-semibold text-[#000000]">Pending Approvals</span>
+        </div>
+        <div className="flex flex-col gap-2">
+          {approvals.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-start justify-between gap-4 rounded-xl border border-[#f59e0b]/30 bg-[#fffbeb] px-4 py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-medium text-[#000000]">
+                  {item.command ?? item.prompt ?? item.id}
                 </p>
-              )}
+                {item.agentId && (
+                  <p className="mt-0.5 text-[11px] text-[#8e8e93]">Agent: {item.agentId}</p>
+                )}
+                {(item.createdAt ?? item.requestedAt) && (
+                  <p className="mt-0.5 text-[11px] text-[#8e8e93]">
+                    {new Date(item.createdAt ?? item.requestedAt ?? '').toLocaleString('zh-CN')}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {item.command === 'AskUserQuestion' ? (
+                  <button
+                    type="button"
+                    onClick={() => setWizard(item)}
+                    className="rounded-lg bg-[#007aff] px-2.5 py-1 text-[12px] font-medium text-white hover:bg-[#005fd6]"
+                  >
+                    �ش�����
+                  </button>
+                ) : rejectingId === item.id ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      placeholder="Reject reason..."
+                      className="w-[140px] rounded-lg border border-black/10 px-2 py-1 text-[12px] outline-none focus:border-[#007aff]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (rejectReason.trim()) {
+                          onReject(item.id, rejectReason.trim());
+                          setRejectingId(null);
+                          setRejectReason('');
+                        }
+                      }}
+                      className="rounded-lg bg-[#ef4444] px-2.5 py-1 text-[12px] font-medium text-white hover:bg-[#dc2626]"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setRejectingId(null); setRejectReason(''); }}
+                      className="rounded-lg border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onApprove(item.id)}
+                      className="rounded-lg bg-[#10b981] px-2.5 py-1 text-[12px] font-medium text-white hover:bg-[#059669]"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRejectingId(item.id)}
+                      className="rounded-lg border border-[#ef4444]/30 px-2.5 py-1 text-[12px] text-[#ef4444] hover:bg-[#fef2f2]"
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {rejectingId === item.id ? (
-                <>
-                  <input
-                    autoFocus
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="拒绝原因..."
-                    className="w-[140px] rounded-lg border border-black/10 px-2 py-1 text-[12px] outline-none focus:border-[#007aff]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (rejectReason.trim()) {
-                        onReject(item.id, rejectReason.trim());
-                        setRejectingId(null);
-                        setRejectReason('');
-                      }
-                    }}
-                    className="rounded-lg bg-[#ef4444] px-2.5 py-1 text-[12px] font-medium text-white hover:bg-[#dc2626]"
-                  >
-                    确认
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setRejectingId(null); setRejectReason(''); }}
-                    className="rounded-lg border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
-                  >
-                    取消
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => onApprove(item.id)}
-                    className="rounded-lg bg-[#10b981] px-2.5 py-1 text-[12px] font-medium text-white hover:bg-[#059669]"
-                  >
-                    批准
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRejectingId(item.id)}
-                    className="rounded-lg border border-[#ef4444]/30 px-2.5 py-1 text-[12px] text-[#ef4444] hover:bg-[#fef2f2]"
-                  >
-                    拒绝
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+
+      {wizard && (
+        <AskUserQuestionWizard
+          approval={wizard}
+          onRespond={(answers) => {
+            onApprove(wizard.id, JSON.stringify(answers));
+            setWizard(null);
+          }}
+          onDismiss={() => setWizard(null)}
+        />
+      )}
+    </>
   );
 }

@@ -98,6 +98,7 @@ export function Chat() {
     text: string,
     attachments?: Parameters<typeof sendMessage>[1],
     targetAgentId?: Parameters<typeof sendMessage>[2],
+    _workingDir?: string | null,
   ) => {
     setStreamingTimestamp(Date.now() / 1000);
     sendMessage(text, attachments, targetAgentId);

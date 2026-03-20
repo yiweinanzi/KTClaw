@@ -1,0 +1,199 @@
+/**
+ * FolderSelectorPopover — 工作目录选择器
+ * 点击弹出，提供"选择文件夹"和"最近文件夹"两个入口。
+ */
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { FolderPlus, Clock, Folder, ChevronRight } from 'lucide-react';
+import { invokeIpc } from '@/lib/api-client';
+
+const RECENT_KEY = 'clawx-recent-cwds';
+const MAX_RECENT = 10;
+
+function loadRecent(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent(path: string) {
+  const prev = loadRecent().filter((p) => p !== path);
+  localStorage.setItem(RECENT_KEY, JSON.stringify([path, ...prev].slice(0, MAX_RECENT)));
+}
+
+function isWindowsDriveRoot(p: string): boolean {
+  return /^[A-Za-z]:[/\\]?$/.test(p.trim());
+}
+
+function getLastSegment(p: string): string {
+  return p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+}
+
+interface FolderSelectorPopoverProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectFolder: (path: string) => void;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+}
+
+export function FolderSelectorPopover({
+  isOpen,
+  onClose,
+  onSelectFolder,
+  anchorRef,
+}: FolderSelectorPopoverProps) {
+  const [showRecent, setShowRecent] = useState(false);
+  const [recent, setRecent] = useState<string[]>([]);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const recentRef = useRef<HTMLDivElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
+  const submenuCloseTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setRecent(loadRecent());
+    } else {
+      setShowRecent(false);
+    }
+  }, [isOpen]);
+
+  // Click-outside closes the popover
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        !popoverRef.current?.contains(target) &&
+        !submenuRef.current?.contains(target) &&
+        !anchorRef.current?.contains(target)
+      ) {
+        onClose();
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isOpen, onClose, anchorRef]);
+
+  // Escape closes
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
+
+  const handleAddFolder = useCallback(async () => {
+    onClose();
+    try {
+      const result = await invokeIpc('dialog:open', {
+        properties: ['openDirectory'],
+      }) as { canceled?: boolean; filePaths?: string[] };
+      if (result.canceled || !result.filePaths?.length) return;
+      const path = result.filePaths[0];
+      if (isWindowsDriveRoot(path)) return;
+      saveRecent(path);
+      onSelectFolder(path);
+    } catch (err) {
+      console.error('[FolderSelector] dialog failed:', err);
+    }
+  }, [onClose, onSelectFolder]);
+
+  const handleSelectRecent = useCallback((path: string) => {
+    if (isWindowsDriveRoot(path)) return;
+    saveRecent(path);
+    onSelectFolder(path);
+    onClose();
+  }, [onSelectFolder, onClose]);
+
+  const handleSubmenuEnter = useCallback(() => {
+    if (submenuCloseTimer.current) {
+      clearTimeout(submenuCloseTimer.current);
+      submenuCloseTimer.current = null;
+    }
+    setShowRecent(true);
+  }, []);
+
+  const handleSubmenuLeave = useCallback(() => {
+    submenuCloseTimer.current = window.setTimeout(() => {
+      setShowRecent(false);
+    }, 150);
+  }, []);
+
+  useEffect(() => () => {
+    if (submenuCloseTimer.current) clearTimeout(submenuCloseTimer.current);
+  }, []);
+
+  if (!isOpen) return null;
+
+  return (
+    <>
+      {/* Main popover */}
+      <div
+        ref={popoverRef}
+        className="absolute bottom-full left-0 z-50 mb-2 w-52 overflow-hidden rounded-xl border border-[#c6c6c8] bg-white shadow-lg"
+      >
+        {/* 选择新文件夹 */}
+        <button
+          type="button"
+          onClick={handleAddFolder}
+          className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-[#000000] transition-colors hover:bg-[#f2f2f7]"
+        >
+          <FolderPlus className="h-4 w-4 text-[#8e8e93]" />
+          <span>选择文件夹</span>
+        </button>
+
+        {/* 最近文件夹 — hover 展开子菜单 */}
+        <div
+          ref={recentRef}
+          className="relative border-t border-[#f2f2f7]"
+          onMouseEnter={handleSubmenuEnter}
+          onMouseLeave={handleSubmenuLeave}
+        >
+          <button
+            type="button"
+            className="flex w-full items-center justify-between gap-2.5 px-3 py-2.5 text-left text-[13px] text-[#000000] transition-colors hover:bg-[#f2f2f7]"
+          >
+            <div className="flex items-center gap-2.5">
+              <Clock className="h-4 w-4 text-[#8e8e93]" />
+              <span>最近文件夹</span>
+            </div>
+            <ChevronRight className="h-3.5 w-3.5 text-[#8e8e93]" />
+          </button>
+
+          {/* Submenu */}
+          {showRecent && (
+            <div
+              ref={submenuRef}
+              className="absolute bottom-0 left-full z-[60] ml-1 w-64 max-h-72 overflow-y-auto rounded-xl border border-[#c6c6c8] bg-white shadow-lg"
+              onMouseEnter={handleSubmenuEnter}
+              onMouseLeave={handleSubmenuLeave}
+            >
+              {recent.length === 0 ? (
+                <div className="px-3 py-2.5 text-[13px] text-[#8e8e93]">暂无最近文件夹</div>
+              ) : (
+                recent.map((folder) => (
+                  <button
+                    key={folder}
+                    type="button"
+                    onClick={() => handleSelectRecent(folder)}
+                    title={folder}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-[#000000] transition-colors hover:bg-[#f2f2f7] first:rounded-t-xl last:rounded-b-xl"
+                  >
+                    <Folder className="h-4 w-4 shrink-0 text-[#8e8e93]" />
+                    <span className="truncate">{getLastSegment(folder)}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default FolderSelectorPopover;

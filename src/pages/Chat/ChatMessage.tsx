@@ -5,9 +5,8 @@
  */
 import { useState, useCallback, useEffect, memo } from 'react';
 import { Sparkles, Copy, Check, ChevronDown, ChevronRight, Wrench, FileText, Film, Music, FileArchive, File, X, FolderOpen, ZoomIn, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { createPortal } from 'react-dom';
+import MarkdownContent from './MarkdownContent';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { invokeIpc } from '@/lib/api-client';
@@ -347,45 +346,13 @@ function MessageBubble({
       {isUser ? (
         <p className="whitespace-pre-wrap break-words break-all text-[14px] leading-[1.65]">{text}</p>
       ) : (
-        <div className="prose prose-sm dark:prose-invert max-w-none break-words break-all text-[14px] leading-[1.65] prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-pre:my-3">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || '');
-                const isInline = !match && !className;
-                if (isInline) {
-                  return (
-                    <code className="bg-black/[0.05] dark:bg-white/10 px-1.5 py-0.5 rounded text-sm font-mono break-words break-all" {...props}>
-                      {children}
-                    </code>
-                  );
-                }
-                return (
-                  <pre className="bg-black/[0.045] dark:bg-white/[0.08] rounded-lg p-4 overflow-x-auto">
-                    <code className={cn('text-sm font-mono', className)} {...props}>
-                      {children}
-                    </code>
-                  </pre>
-                );
-              },
-              a({ href, children }) {
-                return (
-                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-sky-600 dark:text-sky-400 hover:underline break-words break-all">
-                    {children}
-                  </a>
-                );
-              },
-            }}
-          >
-            {text}
-          </ReactMarkdown>
+        <div className="relative">
+          <MarkdownContent content={text} />
           {isStreaming && (
-            <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />
+            <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5 align-middle" />
           )}
         </div>
       )}
-
     </div>
   );
 }
@@ -406,8 +373,8 @@ function ThinkingBlock({ content }: { content: string }) {
       </button>
       {expanded && (
         <div className="px-3.5 pb-3 text-muted-foreground">
-          <div className="prose prose-sm dark:prose-invert max-w-none opacity-75">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+          <div className="opacity-75">
+            <MarkdownContent content={content} />
           </div>
         </div>
       )}
