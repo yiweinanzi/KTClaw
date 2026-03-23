@@ -174,26 +174,21 @@ tail -30 continue/progress.txt
 - **Debug 清理**：ChatInput、Skills 所有 `console.log/warn/error` 已移除
 - **链接 hover 颜色**：MarkdownContent 链接 hover 改用 `text-clawx-ac/80`（跟随主题色）
 
-### 待实现（下一步重点）
-
-#### 前端
-- [x] **Costs 大盘监控 Tab** ✅ 已完成 — 折线图/柱状图（用量趋势）、按 Agent/模型分组
-- [x] **Costs 告警策略 Tab** ✅ 已完成 — 阈值配置表单、告警规则 CRUD
-- [ ] **Settings 应用自动更新 UI**：接入 update store（checkForUpdates/downloadUpdate/installUpdate）
-- [ ] **TeamMap 层级图**：真实 Agent 树形结构渲染（目前是静态占位）
-
-#### 后端
-- [x] **`electron/api/routes/costs.ts`** ✅ 已完成 — GET /api/costs/summary（按天/周/月聚合）、GET /api/costs/by-agent、GET /api/costs/by-model
-- [x] **`electron/api/routes/alerts.ts`** ✅ 已完成 — 告警规则 CRUD，写入 `~/.openclaw/alerts.json`
-- [x] **`electron/api/routes/channels.ts`** 测试接口 ✅ 已完成 — POST /api/channels/:id/test + POST /api/channels/:id/send
-- [ ] **`electron/api/routes/update.ts`**：接入 electron-updater，暴露 check/download/install 端点
-
 ### Settings 页面优化（2026-03-23 完成）
 - **ModelProviderSection**：替换 STATIC_PROVIDERS 为真实 ProvidersSettings 组件；defaultModel + contextLimit 接入 persist store
 - **ChannelAdvancedSection**：替换 STATIC_ROUTES 为正确空状态
 - **ToolPermissionsSection**：替换 CUSTOM_GRANTS_DATA 为空状态
 - **反馈按钮**：「提交 Issue」打开 GitHub；「复制本机运行环境清单」写入剪贴板
 - **settings store**：新增 defaultModel（默认 claude-sonnet-4-6）+ contextLimit（默认 32000）
+
+### 待实现（下一步重点）
+
+#### 前端
+- [ ] **Settings 应用自动更新 UI**：接入 update store（checkForUpdates/downloadUpdate/installUpdate）；Settings 已有 autoCheckUpdate/autoDownloadUpdate toggle，需补充「检查更新」「下载」「安装」按钮
+- [ ] **TeamMap 层级图**：真实 Agent 树形结构渲染（目前是静态占位，需从 useAgentsStore 读取 parentId 构建树）
+
+#### 后端
+- [ ] **`electron/api/routes/update.ts`**：接入 electron-updater，暴露 GET /api/update/check、POST /api/update/download、POST /api/update/install 端点；在 server.ts 注册
 
 ---
 
@@ -247,13 +242,15 @@ tail -40 continue/progress.txt
 
 ---
 
-## 最近提交记录（截至 2026-03-23）
+## 最近提交记录（截至 2026-03-23 session-3）
 
 ```
+9cc1879 chore: update Prompt.md — mark completed items, add Settings polish notes
+b323f17 feat: Settings page — wire real data, remove static placeholders
+d403a09 feat: SkillsMcpSection 接入真实 useSkillsStore + MCP CRUD API
+8431783 feat: 持久化 Settings 所有 section 配置 + 清除 Costs 静态假数据
+faa069c feat: 持久化 Settings 品牌字段 + Channels 发送功能 + Session-2 完善
+0361c60 feat: 后端 costs/alerts 路由 + Channels 测试 + Settings 更新 UI + Costs 真实数据
+b32f539 chore: 更新 Prompt.md — design polish 记录 + 下一步待实现清单
 3ddda7b feat: design polish — accent color token system + empty states + debug cleanup
-5b17915 feat: P2全量完成 — 记忆提取、主题色自定义
-61c5df1 feat: P0剩余 + P1全量完成 — MCP管理、Cron历史、头像持久化、批量管理、快捷操作
-8cd9d5f chore: 更新 Prompt.md + progress.txt (P0 session-2 完成记录)
-fbaf344 feat: P0 Chat升级 — Markdown渲染、AskUserQuestion Wizard、工作目录选择器
-433141c feat: full memory dashboard page + enhanced backend + sidebar entry
 ```

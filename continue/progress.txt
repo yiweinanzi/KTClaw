@@ -1033,3 +1033,28 @@ npx tsc --noEmit → 零报错
 ### 下一步
 - Settings 其他 section 的 local state（TeamRole/ChannelAdvanced/AutomationDefaults）可按需接入 store
 - electron/api/routes/update.ts：electron-updater IPC 已完整，HTTP 端点可选
+
+[2026-03-23 session-3] Settings 页面全量对接 + Design Polish 收尾
+Focus: 清除所有静态假数据，接入真实 store/API
+
+完成内容：
+- Settings/ModelProviderSection：移除 STATIC_PROVIDERS，接入 ProvidersSettings 组件 + defaultModel/contextLimit persist store
+- Settings/ChannelAdvancedSection：移除 STATIC_ROUTES，改为正确空状态
+- Settings/ToolPermissionsSection：移除 CUSTOM_GRANTS_DATA，改为空状态
+- Settings 反馈按钮：「提交 Issue」→ invokeIpc shell:openExternal；「复制环境清单」→ clipboard
+- settings store：新增 defaultModel（claude-sonnet-4-6）+ contextLimit（32000）字段
+- 验证：npx tsc --noEmit 零报错
+
+提交：
+- b323f17 feat: Settings page — wire real data, remove static placeholders
+- 9cc1879 chore: update Prompt.md
+
+当前状态：
+- 所有页面（Chat/Memory/Costs/Cron/Kanban/Skills/Channels/Settings/Models/Activity/TeamOverview）均已接入真实 API，无静态假数据残留
+
+阻塞：无
+
+下一步（优先级）：
+1. electron/api/routes/update.ts — 接入 electron-updater，暴露 check/download/install
+2. Settings 自动更新 UI — 接入 update store 的 checkForUpdates/downloadUpdate/installUpdate
+3. TeamMap — 从 useAgentsStore 读取 parentId 构建真实树形层级图
