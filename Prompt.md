@@ -177,17 +177,23 @@ tail -30 continue/progress.txt
 ### 待实现（下一步重点）
 
 #### 前端
-- [ ] **Costs 大盘监控 Tab**：折线图/柱状图（用量趋势）、按 Agent/模型分组
-- [ ] **Costs 告警策略 Tab**：阈值配置表单、告警规则 CRUD
+- [x] **Costs 大盘监控 Tab** ✅ 已完成 — 折线图/柱状图（用量趋势）、按 Agent/模型分组
+- [x] **Costs 告警策略 Tab** ✅ 已完成 — 阈值配置表单、告警规则 CRUD
 - [ ] **Settings 应用自动更新 UI**：接入 update store（checkForUpdates/downloadUpdate/installUpdate）
 - [ ] **TeamMap 层级图**：真实 Agent 树形结构渲染（目前是静态占位）
-- [ ] **Channels 频道测试**：发送测试消息按钮 + 结果反馈
 
 #### 后端
-- [ ] **`electron/api/routes/costs.ts`**：GET /api/costs/summary（按天/周/月聚合）、GET /api/costs/by-agent、GET /api/costs/by-model
-- [ ] **`electron/api/routes/alerts.ts`**：告警规则 CRUD，写入 `~/.openclaw/alerts.json`
-- [ ] **`electron/api/routes/channels.ts`** 测试接口：POST /api/channels/:id/test（发送测试消息）
+- [x] **`electron/api/routes/costs.ts`** ✅ 已完成 — GET /api/costs/summary（按天/周/月聚合）、GET /api/costs/by-agent、GET /api/costs/by-model
+- [x] **`electron/api/routes/alerts.ts`** ✅ 已完成 — 告警规则 CRUD，写入 `~/.openclaw/alerts.json`
+- [x] **`electron/api/routes/channels.ts`** 测试接口 ✅ 已完成 — POST /api/channels/:id/test + POST /api/channels/:id/send
 - [ ] **`electron/api/routes/update.ts`**：接入 electron-updater，暴露 check/download/install 端点
+
+### Settings 页面优化（2026-03-23 完成）
+- **ModelProviderSection**：替换 STATIC_PROVIDERS 为真实 ProvidersSettings 组件；defaultModel + contextLimit 接入 persist store
+- **ChannelAdvancedSection**：替换 STATIC_ROUTES 为正确空状态
+- **ToolPermissionsSection**：替换 CUSTOM_GRANTS_DATA 为空状态
+- **反馈按钮**：「提交 Issue」打开 GitHub；「复制本机运行环境清单」写入剪贴板
+- **settings store**：新增 defaultModel（默认 claude-sonnet-4-6）+ contextLimit（默认 32000）
 
 ---
 
