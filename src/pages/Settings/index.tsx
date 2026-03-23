@@ -8,6 +8,7 @@ import { SettingsMigrationPanel } from '@/components/settings-center/settings-mi
 import { SettingsMigrationWizard } from '@/components/settings-center/settings-migration-wizard';
 import { SettingsNav } from '@/components/settings-center/settings-nav';
 import { SettingsSectionCard } from '@/components/settings-center/settings-section-card';
+import { ProvidersSettings } from '@/components/settings/ProvidersSettings';
 import {
   DEFAULT_SETTINGS_SECTION,
   SETTINGS_NAV_GROUPS,
@@ -414,12 +415,22 @@ function renderActiveSection(args: RenderSectionArgs) {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
+                onClick={() => void invokeIpc('shell:openExternal', 'https://github.com/anthropics/claude-code/issues')}
                 className="flex-1 rounded-xl border border-dashed border-[#c6c6c8] px-3 py-2.5 text-[13px] text-[#8e8e93] transition-colors hover:border-[#8e8e93] hover:text-[#3c3c43]"
               >
                 📝 提交 Issue (GitHub)
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  const info = [
+                    `Platform: ${window.electron?.platform ?? navigator.platform}`,
+                    `App Version: ${args.currentVersion}`,
+                    `Gateway: ${args.gatewayStatus.state} (port ${args.gatewayStatus.port ?? 'n/a'})`,
+                    `User Agent: ${navigator.userAgent}`,
+                  ].join('\n');
+                  void navigator.clipboard.writeText(info);
+                }}
                 className="flex-1 rounded-xl border border-dashed border-[#c6c6c8] px-3 py-2.5 text-[13px] text-[#8e8e93] transition-colors hover:border-[#8e8e93] hover:text-[#3c3c43]"
               >
                 🐛 复制本机运行环境清单
@@ -703,18 +714,14 @@ function GeneralSection() {
 
 /* ─── Section: Model & Provider (07.2) ─── */
 
-const STATIC_PROVIDERS = [
-  { name: 'OpenAI', connected: true, keySnippet: 'sk-proj-****Fq29', action: 'speed-edit' },
-  { name: 'Google Gemini', connected: true, keySnippet: 'AIzaSyB****L8U', action: 'speed-edit' },
-  { name: 'Anthropic', connected: true, keySnippet: 'sk-ant-****pQ7x', action: 'speed-edit' },
-  { name: 'DeepSeek', connected: false, keySnippet: '未配置 API Key', action: 'add' },
-  {
-    name: 'Ollama (Local LM)',
-    connected: false,
-    keySnippet: '未启动本地服务 (127.0.0.1:11434)',
-    action: 'setup',
-  },
-] as const;
+const MODEL_OPTIONS = [
+  { value: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6 (Anthropic)' },
+  { value: 'claude-opus-4-6', label: 'claude-opus-4-6 (Anthropic)' },
+  { value: 'gpt-4o', label: 'gpt-4o (OpenAI)' },
+  { value: 'gpt-4o-mini', label: 'gpt-4o-mini (OpenAI)' },
+  { value: 'gemini-2.0-flash', label: 'gemini-2.0-flash (Google)' },
+  { value: 'deepseek-chat', label: 'deepseek-chat (DeepSeek)' },
+];
 
 function ModelProviderSection({
   gatewayStatus,
@@ -723,9 +730,8 @@ function ModelProviderSection({
   gatewayStatus: { state: string; port?: number };
   restartGateway: () => unknown;
 }) {
-  const [contextLimit, setContextLimit] = useState(32000);
   const isConnected = gatewayStatus.state === 'running';
-  const { gatewayPort, setGatewayPort } = useSettingsStore();
+  const { gatewayPort, setGatewayPort, defaultModel, setDefaultModel, contextLimit, setContextLimit } = useSettingsStore();
   const [portDraft, setPortDraft] = useState(String(gatewayPort));
   const [savingPort, setSavingPort] = useState(false);
 
@@ -735,16 +741,15 @@ function ModelProviderSection({
       <SettingsCard title="默认路由与偏好">
         <div className="py-3">
           <p className="mb-2 text-[13px] font-medium text-[#000000]">全局默认模型</p>
-          <div className="flex items-center gap-2">
-            <select className="flex-1 appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac">
-              <option>gpt-4o (OpenAI)</option>
-              <option>claude-sonnet-4-6 (Anthropic)</option>
-              <option>gemini-2.0-flash (Google)</option>
-            </select>
-            <span className="shrink-0 rounded-full bg-[#10b981] px-2.5 py-1 text-[11px] font-medium text-white">
-              当前选择
-            </span>
-          </div>
+          <select
+            value={defaultModel}
+            onChange={(e) => setDefaultModel(e.target.value)}
+            className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
+          >
+            {MODEL_OPTIONS.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
         </div>
         <div className="py-3">
           <p className="mb-3 text-[13px] font-medium text-[#000000]">对话上下文压缩阈值</p>
@@ -764,58 +769,7 @@ function ModelProviderSection({
       </SettingsCard>
 
       {/* 云端服务商配置 */}
-      <SettingsCard title="云端服务商配置 (Cloud Providers)">
-        {STATIC_PROVIDERS.map((p) => (
-          <div key={p.name} className="flex items-center justify-between gap-3 py-3">
-            <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <span
-                className={cn(
-                  'h-2 w-2 shrink-0 rounded-full',
-                  p.connected ? 'bg-[#10b981]' : 'bg-[#d1d5db]',
-                )}
-              />
-              <div className="min-w-0">
-                <p className="text-[13px] font-medium text-[#000000]">{p.name}</p>
-                <p className="text-[11px] text-[#8e8e93]">{p.keySnippet}</p>
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {p.action === 'speed-edit' && (
-                <>
-                  <button
-                    type="button"
-                    className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] transition-colors hover:bg-[#f2f2f7]"
-                  >
-                    测速
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] transition-colors hover:bg-[#f2f2f7]"
-                  >
-                    编辑
-                  </button>
-                </>
-              )}
-              {p.action === 'add' && (
-                <button
-                  type="button"
-                  className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] transition-colors hover:bg-[#f2f2f7]"
-                >
-                  + 添加
-                </button>
-              )}
-              {p.action === 'setup' && (
-                <button
-                  type="button"
-                  className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] transition-colors hover:bg-[#f2f2f7]"
-                >
-                  设置
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </SettingsCard>
+      <ProvidersSettings />
 
       {/* Gateway 配置 */}
       <section className="rounded-xl border border-[#c6c6c8] bg-white px-5 py-4">
@@ -982,11 +936,6 @@ function TeamRoleSection() {
 
 /* ─── Section: Channel Advanced Config (08.2) ─── */
 
-const STATIC_ROUTES = [
-  { channel: '飞书全渠道', agent: '+ KTClaw 主脑', agentColor: '#10b981' },
-  { channel: 'Discord（Support 群组）', agent: '🐕 小运营顾进', agentColor: '#3b82f6' },
-];
-
 function ChannelAdvancedSection() {
   const { groupRate, setGroupRate } = useSettingsStore();
 
@@ -1006,21 +955,9 @@ function ChannelAdvancedSection() {
 
       {/* 路由分发矩阵 */}
       <SettingsCard title="路由分发矩阵">
-        {STATIC_ROUTES.map((r) => (
-          <div key={r.channel} className="flex items-center gap-3 py-3">
-            <div className="flex-1 rounded-lg border border-black/10 bg-[#f9f9f9] px-3 py-2 text-[13px] font-medium text-[#000000]">
-              {r.channel}
-            </div>
-            <span className="shrink-0 text-[12px] text-[#8e8e93]">→</span>
-            <span className="shrink-0 text-[12px] text-[#8e8e93]">分配给</span>
-            <div
-              className="rounded-full border border-black/10 bg-white px-2.5 py-1 text-[12px] font-medium"
-              style={{ color: r.agentColor }}
-            >
-              {r.agent}
-            </div>
-          </div>
-        ))}
+        <div className="py-6 text-center text-[13px] text-[#8e8e93]">
+          暂无路由规则，请先在「频道」页面配置频道后添加
+        </div>
         <div className="py-2">
           <button
             type="button"
@@ -1364,21 +1301,6 @@ function SkillsMcpSection() {
 
 /* ─── Section: Tool Permissions (09.3) ─── */
 
-const CUSTOM_GRANTS_DATA = [
-  {
-    name: 'Custom Python Script',
-    tag: 'High Risk',
-    tagColor: '#ef4444',
-    path: '/usr/local/bin/python3 /opt/scripts/*',
-  },
-  {
-    name: 'Git CLI',
-    tag: 'Safe',
-    tagColor: '#10b981',
-    path: '/usr/bin/git — clone, pull, push, status, log',
-  },
-];
-
 function ToolPermissionsSection() {
   const { fileAcl, setFileAcl, terminalAcl, setTerminalAcl, networkAcl, setNetworkAcl } = useSettingsStore();
 
@@ -1484,36 +1406,9 @@ function ToolPermissionsSection() {
           </div>
         </div>
 
-        {CUSTOM_GRANTS_DATA.map((grant) => (
-          <div key={grant.name} className="border-t border-black/[0.04] py-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-medium text-[#000000]">{grant.name}</span>
-                <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                  style={{ color: grant.tagColor, background: grant.tagColor + '1a' }}
-                >
-                  {grant.tag}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
-                >
-                  范围配置
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-[#ef4444]/20 px-2.5 py-1 text-[12px] text-[#ef4444] hover:bg-[#fef2f2]"
-                >
-                  撤销
-                </button>
-              </div>
-            </div>
-            <code className="font-mono text-[11px] text-[#8e8e93]">{grant.path}</code>
-          </div>
-        ))}
+        <div className="rounded-lg border border-dashed border-black/10 py-8 text-center text-[13px] text-[#8e8e93]">
+          暂无自定义工具授权
+        </div>
       </SettingsCard>
     </>
   );

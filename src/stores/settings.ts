@@ -48,6 +48,10 @@ interface SettingsState {
   brandSubtitle: string;
   myName: string;
 
+  // Model defaults
+  defaultModel: string;
+  contextLimit: number;
+
   // Appearance toggles
   showToolCalls: boolean;
   emojiAvatar: boolean;
@@ -106,6 +110,8 @@ interface SettingsState {
   setBrandName: (value: string) => void;
   setBrandSubtitle: (value: string) => void;
   setMyName: (value: string) => void;
+  setDefaultModel: (value: string) => void;
+  setContextLimit: (value: number) => void;
   setShowToolCalls: (value: boolean) => void;
   setEmojiAvatar: (value: boolean) => void;
   setHideAvatarBg: (value: boolean) => void;
@@ -155,6 +161,8 @@ const defaultSettings = {
   brandName: 'KTClaw Control',
   brandSubtitle: '智能编排中枢',
   myName: 'Commander',
+  defaultModel: 'claude-sonnet-4-6',
+  contextLimit: 32000,
   showToolCalls: false,
   emojiAvatar: true,
   hideAvatarBg: false,
@@ -264,6 +272,8 @@ export const useSettingsStore = create<SettingsState>()(
       setBrandName: (brandName) => set({ brandName }),
       setBrandSubtitle: (brandSubtitle) => set({ brandSubtitle }),
       setMyName: (myName) => set({ myName }),
+      setDefaultModel: (defaultModel) => set({ defaultModel }),
+      setContextLimit: (contextLimit) => set({ contextLimit }),
       setShowToolCalls: (showToolCalls) => set({ showToolCalls }),
       setEmojiAvatar: (emojiAvatar) => set({ emojiAvatar }),
       setHideAvatarBg: (hideAvatarBg) => set({ hideAvatarBg }),
