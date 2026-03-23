@@ -1099,3 +1099,27 @@ Focus: 清除所有静态假数据，接入真实 store/API
 2. #25 TeamMap 真实层级 + 节点详情行为（src/pages/TeamMap/index.tsx）
 3. #27 路由懒加载重构（主 chunk 2.24MB，route-level lazy import）
 4. #20 Settings 剩余死按钮（添加路由规则/路径白名单/编辑黑名单/添加工具许可/快速授权模版）
+
+---
+## 2026-03-23 Session-5
+
+### 完成内容
+1. **context-rail 文件面板接真实数据**：从 chat store messages 聚合 _attachedFiles（去重），有文件时显示列表（图片缩略图/文件名/大小），无文件时显示空态
+2. **TeamMap 真实层级 + 节点详情**：AgentNode 补 onClick prop；节点点击弹出 AgentDetailDrawer（名称/模型/工作区/会话Key/频道）；Tab 文案改为中文（团队视图/层级图）；TeamsView 接入 onSelectAgent
+3. **路由懒加载**：App.tsx 所有页面改为 React.lazy + Suspense，主 chunk 从 2.24MB 拆分为多个独立 chunk
+4. **update store cleanup**：ipcRenderer.on 改为具名函数 + _cleanup 注册 off()，防止 StrictMode/HMR 重复订阅
+5. **ChannelConfigModal shell API 统一**：openDocs 改用 invokeIpc('shell:openExternal') 替代 window.electron.openExternal 直调
+
+### 类型检查
+- pnpm run typecheck → 零报错
+- pnpm run build:vite → 构建成功，路由已拆包
+
+### 提交
+- 49137f1 feat: session-5 — context-rail 文件面板、TeamMap 详情、路由懒加载
+- ec63d86 fix: session-5b — update store cleanup + ChannelConfigModal shell API
+
+### 下一步（优先级）
+1. #7 Settings Run Doctor 调用形态修复（invokeIpc 参数格式错误）
+2. #8 删除 API key 误删整个 provider runtime 配置
+3. #9 provider 列表读取副作用（getAllProvidersWithKeyInfo 删除 non-builtin）
+4. #20 Settings 剩余死按钮（添加路由规则/路径白名单/编辑黑名单/添加工具许可）

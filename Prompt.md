@@ -223,16 +223,17 @@ tail -30 continue/progress.txt
 | # | 范围 | 问题 | 说明 / 后续动作 |
 |---|------|------|------|
 | 17 | `src/pages/Chat/ChatInput.tsx` / `src/pages/Chat/index.tsx` | ~~**工作目录选择器是死功能**~~ ✅ 已修复 (session-4) | workingDir 已接入 chat store / RPC cwd 字段 |
-| 18 | `src/components/workbench/context-rail.tsx` | **`📄 文件` 面板仍是静态占位** | 现在永远显示”当前会话暂无文件”，不读取当前 session 的附件 / tool 产物。需聚合当前会话文件列表，真正无数据时再显示空态。 |
+| 18 | `src/components/workbench/context-rail.tsx` | ~~**`📄 文件` 面板仍是静态占位**~~ ✅ 已修复 (session-5) | 从 chat store messages 聚合 _attachedFiles，有文件显示列表，无文件显示空态 |
 | 19 | `src/pages/Channels/index.tsx` / `src/stores/channels.ts` | ~~**频道页发送与加载都有明显 UX bug**~~ ✅ 已修复 (session-4) | 发送成功后清空 composer；Enter IME guard；load error 不再吞掉 |
 | 20 | `src/pages/Settings/index.tsx` | **两个 `<select>` 已绑定，多个按钮仍未接线** | `当前默认架构方案` / `默认群聊行为模式` ✅ 已绑定 store；`添加路由规则`、`路径白名单`、`编辑黑名单`、`添加工具许可`、快速授权模版仍是死按钮。 |
 | 21 | `src/pages/TaskKanban/index.tsx` | ~~**乱码与文案/i18n 清理未完成**~~ ✅ 已修复 (session-4) | 拖拽到此处/简短描述任务目标/回答问题/拒绝/批准/取消/确认；IME guard 补全 |
 | 22 | `src/pages/Channels/index.tsx` / `src/pages/Chat/ChatInput.tsx` | ~~**模型 fallback 仍硬编码 `GLM-5`**~~ ✅ 已修复 (session-4) | 改为 useSettingsStore().defaultModel |
 | 23 | `src/i18n/index.ts` / `src/pages/Settings/index.tsx` | ~~**日语资源实际不可达**~~ ✅ 已修复 (session-4) | ja 重新接入 supportedLngs 和语言设置 UI |
-| 24 | `src/pages/Chat/MarkdownContent.tsx` / `src/components/channels/ChannelConfigModal.tsx` | **少数 renderer 仍绕过统一适配层** | 页面直接调用 `window.electron.shell.openPath/openExternal` 或 `window.electron.openExternal`。需统一收口到 `invokeIpc('shell:*')`。 |
-| 25 | `src/pages/TeamMap/index.tsx` / `src/types/agent.ts` / `electron/api/routes/agents.ts` | **TeamMap 仍停留在 demo 级别** | 当前只有 `root + children` 两层平铺，无 `parentId`；节点给了 `cursor-pointer` 却没有详情行为；底部 `Teams/Hierarchy` 也未接 i18n。需补真实层级、详情行为和文案国际化。 |
-| 26 | `src/stores/update.ts` | **update 事件订阅没有 guard / cleanup** | `useUpdateStore.init()` 没有 in-flight guard，也没有释放 `ipcRenderer.on()` 监听；StrictMode / HMR 下容易重复订阅。需引入模块级 `initPromise + unsubscribe` 或统一走 `subscribeHostEvent`。 |
-| 27 | `src/App.tsx` / `vite.config.ts` / `src/pages/Cron/index.tsx` / `src/stores/gateway.ts` | **打包与懒加载策略需要重构** | 路由全量静态导入，renderer 主 chunk 已到 2.24 MB；同时 `host-api/chat/channels/store` 的动态导入又被静态导入抵消，Vite 明确提示不会切包。需做 route-level lazy、真实分层，而不是假懒加载。 |
+| 24 | `src/pages/Chat/MarkdownContent.tsx` / `src/components/channels/ChannelConfigModal.tsx` | ~~**少数 renderer 仍绕过统一适配层**~~ ✅ 已修复 (session-5) | ChannelConfigModal 改用 invokeIpc('shell:openExternal') |
+| 25 | `src/pages/TeamMap/index.tsx` / `src/types/agent.ts` / `electron/api/routes/agents.ts` | ~~**TeamMap 仍停留在 demo 级别**~~ ✅ 已修复 (session-5) | 节点点击弹出 AgentDetailDrawer；Tab 文案中文化；TeamsView 接入 onSelectAgent |
+| 26 | `src/stores/update.ts` | ~~**update 事件订阅没有 guard / cleanup**~~ ✅ 已修复 (session-5) | 具名函数 + _cleanup 注册 off()，防止重复订阅 |
+| 27 | `src/App.tsx` / `vite.config.ts` / `src/pages/Cron/index.tsx` / `src/stores/gateway.ts` | ~~**打包与懒加载策略需要重构**~~ ✅ 已修复 (session-5) | 所有路由改为 React.lazy + Suspense，主 chunk 已拆分 |
+| 27 | `src/App.tsx` / `vite.config.ts` / `src/pages/Cron/index.tsx` / `src/stores/gateway.ts` | ~~**打包与懒加载策略需要重构**~~ ✅ 已修复 (session-5) | 所有路由改为 React.lazy + Suspense，主 chunk 已拆分 |
 
 ---
 
@@ -331,15 +332,15 @@ tail -40 continue/progress.txt
 
 ---
 
-## 最近提交记录（截至 2026-03-23 session-4）
+## 最近提交记录（截至 2026-03-23 session-5）
 
 ```
+ec63d86 fix: session-5b — update store cleanup + ChannelConfigModal shell API
+49137f1 feat: session-5 — context-rail 文件面板、TeamMap 详情、路由懒加载
+ea6bffb chore: 更新 Prompt.md + continue/ (session-4 完成记录)
 1fe85f2 chore: ignore .npm-cache directory
 18bbece fix: session-4 — TS errors, UX bugs, Vitest env split
 3890698 chore: 全量代码审查 — 更新 Prompt.md 待办清单（17项已知问题）
 a2f6131 chore: 更新 Prompt.md + progress.txt (session-3 完成记录)
 9cc1879 chore: update Prompt.md — mark completed items, add Settings polish notes
-b323f17 feat: Settings page — wire real data, remove static placeholders
-d403a09 feat: SkillsMcpSection 接入真实 useSkillsStore + MCP CRUD API
-8431783 feat: 持久化 Settings 所有 section 配置 + 清除 Costs 静态假数据
 ```

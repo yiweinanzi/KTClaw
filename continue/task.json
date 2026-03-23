@@ -2,7 +2,7 @@
   "project": "ClawX Control Plane",
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "in_progress",
-  "current_focus": "session-5-context-rail-teammap-lazyload",
+  "current_focus": "session-6-backend-correctness",
   "last_updated": "2026-03-23T00:00:00+08:00",
   "tasks": [
     {
@@ -37,33 +37,61 @@
       "id": "SESSION-5-001",
       "title": "context-rail file panel real data",
       "type": "feature",
-      "status": "pending",
-      "priority": "P1",
-      "description": "src/components/workbench/context-rail.tsx: 聚合当前会话文件列表，真正无数据时再显示空态"
+      "status": "done",
+      "priority": "P1"
     },
     {
       "id": "SESSION-5-002",
       "title": "TeamMap real hierarchy + node detail",
       "type": "feature",
-      "status": "pending",
-      "priority": "P1",
-      "description": "src/pages/TeamMap/index.tsx: 从 useAgentsStore 读取 parentId 构建真实树形层级，节点点击显示详情"
+      "status": "done",
+      "priority": "P1"
     },
     {
       "id": "SESSION-5-003",
       "title": "Route-level lazy loading",
       "type": "perf",
-      "status": "pending",
-      "priority": "P1",
-      "description": "src/App.tsx + vite.config.ts: 路由全量静态导入改为 React.lazy，主 chunk 从 2.24MB 降下来"
+      "status": "done",
+      "priority": "P1"
     },
     {
       "id": "SESSION-5-004",
+      "title": "update store cleanup + shell API unification",
+      "type": "bugfix",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-6-001",
+      "title": "Settings Run Doctor fix",
+      "type": "bugfix",
+      "status": "pending",
+      "priority": "P1",
+      "description": "runDoctor() 改为标准 hostApiFetch 调用"
+    },
+    {
+      "id": "SESSION-6-002",
+      "title": "Delete API key should not remove provider runtime",
+      "type": "bugfix",
+      "status": "pending",
+      "priority": "P1",
+      "description": "syncDeletedProviderApiKeyToRuntime 改为仅删 key"
+    },
+    {
+      "id": "SESSION-6-003",
+      "title": "Provider list read side-effect fix",
+      "type": "bugfix",
+      "status": "pending",
+      "priority": "P1",
+      "description": "getAllProvidersWithKeyInfo 不应在读取阶段删除 non-builtin provider"
+    },
+    {
+      "id": "SESSION-6-004",
       "title": "Settings remaining dead buttons",
       "type": "feature",
       "status": "pending",
       "priority": "P1",
-      "description": "添加路由规则/路径白名单/编辑黑名单/添加工具许可/快速授权模版 接线"
+      "description": "添加路由规则/路径白名单/编辑黑名单/添加工具许可 接线"
     }
   ]
 }
