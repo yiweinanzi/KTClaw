@@ -1357,3 +1357,22 @@ Focus: Fix the remaining real-UI search miss, then continue session-management e
 
 ### 下一步
 - 继续 `PLAN-2026-03-24-SESSION-MANAGEMENT`：优先补会话置顶与更完整的 session management surface。
+[2026-03-24 20:50 +08:00] Session: Session-10c agent context export entry
+Focus: Make export discoverable from clone context menus
+
+### 完成内容
+1. `src/components/layout/Sidebar.tsx`
+   - 在分身（agent）右键菜单中新增 `导出 Markdown`
+   - 直接导出该分身对应的 `mainSessionKey` 会话历史
+2. `tests/unit/workbench-sidebar.test.tsx`
+   - 新增分身右键导出用例，覆盖 `gateway:rpc -> chat.history -> /api/files/save-image`
+
+### 验证结果
+- `pnpm run typecheck` → 通过
+- `pnpm exec tsc -p tsconfig.node.json --noEmit` → 通过
+- `pnpm run lint` → 通过
+- `pnpm run build:vite` → 通过
+- `pnpm test` → 77/77 files, 370/370 tests passed
+
+### 下一步
+- 继续 `PLAN-2026-03-24-SESSION-MANAGEMENT`：补会话置顶与更多 session management 入口

@@ -714,6 +714,23 @@ export function Sidebar() {
             type="button"
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-[#000000] hover:bg-[#f2f2f7]"
             onClick={() => {
+              const agentId = agentContextMenu.agentId;
+              const targetSessionKey = agents.find((agent) => agent.id === agentId)?.mainSessionKey;
+              setAgentContextMenu(null);
+              if (targetSessionKey) {
+                void exportSession(targetSessionKey);
+              } else {
+                toast.error('未找到该分身的主会话');
+              }
+            }}
+          >
+            ⤓ 导出 Markdown
+          </button>
+          <div className="mx-3 my-0.5 border-t border-[#f2f2f7]" />
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-[#000000] hover:bg-[#f2f2f7]"
+            onClick={() => {
               setAgentSettingsId(agentContextMenu.agentId);
               setAgentContextMenu(null);
             }}

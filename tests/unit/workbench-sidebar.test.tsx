@@ -40,7 +40,7 @@ const mockGatewayState = {
 };
 
 const mockAgentsState = {
-  agents: [{ id: 'main', name: 'KaiTianClaw' }],
+  agents: [{ id: 'main', name: 'KaiTianClaw', mainSessionKey: 'agent:main:main', isDefault: true }],
   fetchAgents: mockFetchAgents,
 };
 
@@ -165,6 +165,43 @@ describe('workbench sidebar', () => {
         'gateway:rpc',
         'chat.history',
         { sessionKey: 'agent:main:session-1', limit: 200 },
+      );
+    });
+    expect(hostApiFetch).toHaveBeenCalledWith(
+      '/api/files/save-image',
+      expect.objectContaining({
+        method: 'POST',
+      }),
+    );
+  });
+
+  it('exports an agent main session from the agent context menu', async () => {
+    mockChatState.currentSessionKey = 'agent:main:session-1';
+    vi.mocked(invokeIpc).mockResolvedValueOnce({
+      success: true,
+      result: {
+        messages: [
+          { role: 'user', content: 'Export agent main' },
+          { role: 'assistant', content: 'Agent export ready' },
+        ],
+      },
+    });
+    vi.mocked(hostApiFetch).mockResolvedValueOnce({ success: true, savedPath: 'C:/tmp/main-agent.md' });
+
+    render(
+      <MemoryRouter>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.contextMenu(screen.getByText('KaiTianClaw'));
+    fireEvent.click(await screen.findByRole('button', { name: /导出 markdown/i }));
+
+    await waitFor(() => {
+      expect(invokeIpc).toHaveBeenCalledWith(
+        'gateway:rpc',
+        'chat.history',
+        { sessionKey: 'agent:main:main', limit: 200 },
       );
     });
     expect(hostApiFetch).toHaveBeenCalledWith(
