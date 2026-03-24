@@ -181,13 +181,16 @@ describe('workbench global search from sidebar', () => {
       const sessionKey = (payload as { sessionKey?: string })?.sessionKey;
       if (sessionKey === 'session-beta') {
         return {
-          messages: [
-            { role: 'user', content: 'Please prepare the quarterly budget review' },
-            { role: 'assistant', content: 'Quarterly budget draft is ready for approval' },
-          ],
+          success: true,
+          result: {
+            messages: [
+              { role: 'user', content: 'Please prepare the quarterly budget review' },
+              { role: 'assistant', content: 'Quarterly budget draft is ready for approval' },
+            ],
+          },
         };
       }
-      return { messages: [] };
+      return { success: true, result: { messages: [] } };
     });
 
     renderSidebar();

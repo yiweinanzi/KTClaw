@@ -45,6 +45,12 @@ type SearchHistoryResponse = {
   messages?: SearchHistoryMessage[];
 };
 
+type GatewayRpcEnvelope<T> = {
+  success?: boolean;
+  result?: T;
+  error?: string;
+};
+
 type SearchHistoryEntry = {
   text: string;
   preview: string;
@@ -125,6 +131,20 @@ function buildPreviewSnippet(preview: string, query: string): string {
   return `${prefix}${snippet}${suffix}`;
 }
 
+function unwrapHistoryResponse(
+  response: SearchHistoryResponse | GatewayRpcEnvelope<SearchHistoryResponse> | null | undefined,
+): SearchHistoryResponse {
+  if (
+    response
+    && typeof response === 'object'
+    && 'success' in response
+    && typeof (response as GatewayRpcEnvelope<SearchHistoryResponse>).success === 'boolean'
+  ) {
+    return (response as GatewayRpcEnvelope<SearchHistoryResponse>).result ?? {};
+  }
+  return (response as SearchHistoryResponse | null | undefined) ?? {};
+}
+
 export function GlobalSearchModal({
   onOpenChange,
   sessions,
@@ -163,13 +183,18 @@ export function GlobalSearchModal({
 
     void Promise.allSettled(
       missingKeys.map(async (sessionKey) => {
-        const response = await invokeIpc<SearchHistoryResponse>('gateway:rpc', 'chat.history', {
+        const response = await invokeIpc<SearchHistoryResponse | GatewayRpcEnvelope<SearchHistoryResponse>>(
+          'gateway:rpc',
+          'chat.history',
+          {
           sessionKey,
           limit: HISTORY_LIMIT,
-        });
+          },
+        );
+        const history = unwrapHistoryResponse(response);
         HISTORY_CACHE.set(
           sessionKey,
-          buildHistorySearchEntry(Array.isArray(response?.messages) ? response.messages : []),
+          buildHistorySearchEntry(Array.isArray(history.messages) ? history.messages : []),
         );
       }),
     ).then(() => {

@@ -12,18 +12,22 @@ import { SendHorizontal, Square, X, Paperclip, FileText, Film, Music, FileArchiv
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  buildConversationExportFileName,
+  buildConversationMarkdownExport,
+  encodeUtf8ToBase64,
+} from '@/lib/chat-session-export';
 import { hostApiFetch } from '@/lib/host-api';
 import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
-import { useChatStore, type RawMessage } from '@/stores/chat';
+import { useChatStore } from '@/stores/chat';
 import { useSettingsStore } from '@/stores/settings';
 import { useProviderStore } from '@/stores/providers';
 import type { AgentSummary } from '@/types/agent';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { FolderSelectorPopover } from './FolderSelectorPopover';
-import { extractText } from './message-utils';
 import { getChatInputSlashMatches, isSlashCommandPrefixInput, parseChatInputSlashCommand } from './slash-commands';
 
 // ── Types ────────────────────────────────────────────────────────
@@ -87,62 +91,6 @@ function readFileAsBase64(file: globalThis.File): Promise<string> {
     reader.onerror = () => reject(new Error(`Failed to read file: ${file.name}`));
     reader.readAsDataURL(file);
   });
-}
-
-function formatSlashExportRole(role: RawMessage['role']): string {
-  switch (role) {
-    case 'user':
-      return 'User';
-    case 'assistant':
-      return 'Assistant';
-    case 'system':
-      return 'System';
-    case 'toolresult':
-      return 'Tool Result';
-    default:
-      return 'Message';
-  }
-}
-
-function buildMarkdownConversationExport(messages: RawMessage[], sessionKey: string): string {
-  const exportedAt = new Date().toISOString();
-  const sections = messages.map((message, index) => {
-    const extracted = extractText(message);
-    const fallback = message.content != null
-      ? (typeof message.content === 'string' ? message.content : JSON.stringify(message.content, null, 2))
-      : '';
-    const body = (extracted || fallback || '[no text content]').trim();
-    return `## ${index + 1}. ${formatSlashExportRole(message.role)}\n\n${body}`;
-  });
-
-  return [
-    '# Chat Conversation Export',
-    '',
-    `- Session: \`${sessionKey}\``,
-    `- Exported At: ${exportedAt}`,
-    '',
-    '---',
-    '',
-    ...sections,
-    '',
-  ].join('\n');
-}
-
-function encodeUtf8ToBase64(input: string): string {
-  const bytes = new TextEncoder().encode(input);
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
-
-function buildSlashExportFileName(sessionKey: string): string {
-  const normalized = sessionKey.replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-  const suffix = new Date().toISOString().replace(/[:]/g, '-').replace(/\..+$/, '');
-  const base = normalized || 'session';
-  return `${base}-${suffix}.md`;
 }
 
 // ── Component ────────────────────────────────────────────────────
@@ -522,9 +470,9 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
           return true;
         }
 
-        const markdown = buildMarkdownConversationExport(messages, currentSessionKey);
+        const markdown = buildConversationMarkdownExport(messages, currentSessionKey);
         const base64 = encodeUtf8ToBase64(markdown);
-        const defaultFileName = buildSlashExportFileName(currentSessionKey);
+        const defaultFileName = buildConversationExportFileName(currentSessionKey);
         void hostApiFetch<{ success?: boolean; savedPath?: string; error?: string }>('/api/files/save-image', {
           method: 'POST',
           body: JSON.stringify({

@@ -10,6 +10,16 @@ import {
   Trash2,
   Users,
 } from 'lucide-react';
+import {
+  buildConversationExportFileName,
+  buildConversationMarkdownExport,
+  encodeUtf8ToBase64,
+  unwrapChatHistoryResponse,
+  type ChatHistoryResponse,
+  type GatewayRpcEnvelope,
+} from '@/lib/chat-session-export';
+import { hostApiFetch } from '@/lib/host-api';
+import { invokeIpc } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useSettingsStore } from '@/stores/settings';
 import { useChatStore } from '@/stores/chat';
@@ -57,6 +67,7 @@ export function Sidebar() {
   const deleteSession = useChatStore((s) => s.deleteSession);
   const loadSessions = useChatStore((s) => s.loadSessions);
   const loadHistory = useChatStore((s) => s.loadHistory);
+  const messages = useChatStore((s) => s.messages);
 
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
@@ -131,6 +142,46 @@ export function Sidebar() {
     }
     exitBatchMode();
   }, [selectedKeys, deleteSession, exitBatchMode]);
+
+  const exportSession = useCallback(async (sessionKey: string) => {
+    try {
+      const history = sessionKey === currentSessionKey
+        ? { messages }
+        : unwrapChatHistoryResponse(
+            await invokeIpc<ChatHistoryResponse | GatewayRpcEnvelope<ChatHistoryResponse>>(
+              'gateway:rpc',
+              'chat.history',
+              { sessionKey, limit: 200 },
+            ),
+          );
+      const exportMessages = Array.isArray(history.messages) ? history.messages : [];
+      if (exportMessages.length === 0) {
+        toast.info('当前会话还没有可导出的消息');
+        return;
+      }
+
+      const markdown = buildConversationMarkdownExport(exportMessages, sessionKey);
+      const result = await hostApiFetch<{ success?: boolean; savedPath?: string; error?: string }>('/api/files/save-image', {
+        method: 'POST',
+        body: JSON.stringify({
+          base64: encodeUtf8ToBase64(markdown),
+          mimeType: 'text/markdown',
+          defaultFileName: buildConversationExportFileName(sessionKey),
+        }),
+      });
+      if (result?.success) {
+        toast.success(result.savedPath ? `已导出到 ${result.savedPath}` : '会话导出成功');
+        return;
+      }
+      if (result?.error) {
+        toast.info(`已取消导出：${result.error}`);
+        return;
+      }
+      toast.info('已取消导出');
+    } catch (error) {
+      toast.error(`导出会话失败：${String(error)}`);
+    }
+  }, [currentSessionKey, messages]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -625,6 +676,17 @@ export function Sidebar() {
             }}
           >
             ☑ 批量选择
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-[#000000] hover:bg-[#f2f2f7]"
+            onClick={() => {
+              const sessionKey = contextMenu.key;
+              setContextMenu(null);
+              void exportSession(sessionKey);
+            }}
+          >
+            ⤓ 导出 Markdown
           </button>
           <div className="mx-3 my-0.5 border-t border-[#f2f2f7]" />
           <button
