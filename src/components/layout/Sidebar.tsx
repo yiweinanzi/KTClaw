@@ -6,6 +6,7 @@ import {
   Bot,
   Clock,
   Network,
+  Pin,
   Search,
   Trash2,
   Users,
@@ -49,6 +50,7 @@ type SidebarMetaItem = {
 
 const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
 const INITIAL_NOTIFICATION_TIME = Date.now();
+const PINNED_SESSIONS_STORAGE_KEY = 'clawx-sidebar-pinned-sessions';
 
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed);
@@ -118,6 +120,29 @@ export function Sidebar() {
   const [batchMode, setBatchMode] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [contextMenu, setContextMenu] = useState<{ key: string; label: string; x: number; y: number } | null>(null);
+  const [pinnedSessionKeys, setPinnedSessionKeys] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(PINNED_SESSIONS_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+  const pinnedSessionKeySet = useMemo(() => new Set(pinnedSessionKeys), [pinnedSessionKeys]);
+
+  useEffect(() => {
+    localStorage.setItem(PINNED_SESSIONS_STORAGE_KEY, JSON.stringify(pinnedSessionKeys));
+  }, [pinnedSessionKeys]);
+
+  const toggleSessionPinned = useCallback((sessionKey: string) => {
+    setPinnedSessionKeys((prev) => (
+      prev.includes(sessionKey)
+        ? prev.filter((key) => key !== sessionKey)
+        : [...prev, sessionKey]
+    ));
+  }, []);
 
   const toggleSelect = useCallback((key: string) => {
     setSelectedKeys((prev) => {
@@ -218,8 +243,15 @@ export function Sidebar() {
   const orderedSessions = useMemo(
     () => [...sessions]
       .filter((s) => !agentMainKeys.has(s.key))
-      .sort((a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0)),
-    [sessions, sessionLastActivity, agentMainKeys],
+      .sort((a, b) => {
+        const aPinned = pinnedSessionKeySet.has(a.key);
+        const bPinned = pinnedSessionKeySet.has(b.key);
+        if (aPinned !== bPinned) {
+          return aPinned ? -1 : 1;
+        }
+        return (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0);
+      }),
+    [sessions, sessionLastActivity, agentMainKeys, pinnedSessionKeySet],
   );
 
   const searchSessions = useMemo<SearchSessionItem[]>(
@@ -253,6 +285,8 @@ export function Sidebar() {
     { name: '🧠记忆知识库', summary: '', meta: '' },
     { name: '费用用量', summary: '', meta: '' },
   ];
+
+  const isContextSessionPinned = contextMenu ? pinnedSessionKeySet.has(contextMenu.key) : false;
 
   return (
     <aside
@@ -403,6 +437,7 @@ export function Sidebar() {
                 const sessionTitle = getSessionLabel(session.key, session.displayName, session.label);
                 const isActive = isOnChat && currentSessionKey === session.key;
                 const isSelected = selectedKeys.has(session.key);
+                const isPinned = pinnedSessionKeySet.has(session.key);
 
                 return (
                   <div
@@ -439,6 +474,9 @@ export function Sidebar() {
                         <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">✦</span>
                       )}
                       <span className="min-w-0 flex-1 truncate">{sessionTitle}</span>
+                      {isPinned && !batchMode ? (
+                        <Pin className="h-3.5 w-3.5 shrink-0 text-[#8e8e93]" aria-label="Pinned session" />
+                      ) : null}
                     </button>
 
                     {!batchMode && (
@@ -676,6 +714,16 @@ export function Sidebar() {
             }}
           >
             ☑ 批量选择
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-[#000000] hover:bg-[#f2f2f7]"
+            onClick={() => {
+              toggleSessionPinned(contextMenu.key);
+              setContextMenu(null);
+            }}
+          >
+            {isContextSessionPinned ? '取消置顶' : '置顶会话'}
           </button>
           <button
             type="button"

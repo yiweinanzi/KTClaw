@@ -1357,6 +1357,44 @@ Focus: Fix the remaining real-UI search miss, then continue session-management e
 
 ### 下一步
 - 继续 `PLAN-2026-03-24-SESSION-MANAGEMENT`：优先补会话置顶与更完整的 session management surface。
+[2026-03-24 21:16 +08:00] Session: Session-11 session pinning + chat header export + activity live
+Focus: Continue the remaining high-priority session-management surfaces from Prompt.md
+
+### 完成内容
+1. **会话置顶**
+   - `src/components/layout/Sidebar.tsx` 新增 session pin/unpin
+   - 置顶会话会在左栏中排到未置顶会话之前，且在置顶/未置顶组内继续按活跃时间排序
+   - 置顶状态通过 `localStorage` (`clawx-sidebar-pinned-sessions`) 轻量持久化
+
+2. **聊天页顶部导出按钮**
+   - `src/pages/Chat/index.tsx` 顶部工具区新增 `Export`
+   - 复用现有 Markdown 导出链路和 `/api/files/save-image`
+   - 已覆盖空会话、取消保存、保存失败等反馈路径
+
+3. **Activity live 入口**
+   - `src/pages/Activity/index.tsx` 新增 `Live: On/Off`
+   - 使用现有 `/api/logs` 文本契约，每 5s 自动刷新
+   - 已确保 toggle 和 unmount 时清理 interval
+
+4. **验证 / 测试**
+   - 新增 `tests/unit/sidebar-session-pinning.test.tsx`
+   - 更新 `tests/unit/workbench-shell.test.tsx`
+   - 更新 `tests/unit/activity-page.test.tsx`
+   - `tests/unit/app-request-security.test.ts` 的 `beforeEach` 在全套并发压力下会触发 hook timeout，已将超时从 20s 提升到 40s，full suite 恢复稳定
+
+### 验证结果
+- `pnpm run typecheck` → 通过
+- `pnpm exec tsc -p tsconfig.node.json --noEmit` → 通过
+- `pnpm run lint` → 通过
+- `pnpm run build:vite` → 通过
+- `pnpm test` → 78/78 files, 378/378 tests passed
+
+### 剩余待办
+- 会话详情面的更多导出入口仍未补
+- MCP runtime / Docs / Costs drill-down / Memory 深化 / E2E 门禁等较大块能力仍未进入实施
+
+### 下一步
+- 继续 `PLAN-2026-03-24-SESSION-MANAGEMENT` 或切到下一个 P0：优先考虑 Docs / Help system 或 MCP runtime closure
 [2026-03-24 20:50 +08:00] Session: Session-10c agent context export entry
 Focus: Make export discoverable from clone context menus
 

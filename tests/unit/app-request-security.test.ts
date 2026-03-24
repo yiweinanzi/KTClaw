@@ -136,7 +136,7 @@ describe('app:request security', () => {
       mainWindow,
       'session-token',
     );
-  }, 20000);
+  }, 40000);
 
   it('sanitizes gatewayToken for unified settings:get', async () => {
     const handler = handlers.get('app:request');

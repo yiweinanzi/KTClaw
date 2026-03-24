@@ -31,6 +31,7 @@ const LEVEL_BADGE: Record<LogLevel, string> = {
   error: 'bg-[#fef2f2] text-[#b91c1c]',
   debug: 'bg-[#f5f3ff] text-[#6d28d9]',
 };
+const LIVE_REFRESH_INTERVAL_MS = 5000;
 
 function detectLevel(line: string): LogLevel {
   const match = line.match(LEVEL_RE);
@@ -166,13 +167,17 @@ export function Activity() {
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLive, setIsLive] = useState(true);
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState<LogLevelFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<EventCategoryFilter>('all');
   const [expandedRaw, setExpandedRaw] = useState<Set<string>>(new Set());
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
+  const fetchLogs = useCallback(async (options?: { showLoading?: boolean }) => {
+    const shouldShowLoading = options?.showLoading ?? true;
+    if (shouldShowLoading) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const response = await hostApiFetch<LogsResponse>('/api/logs?tailLines=400');
@@ -184,13 +189,27 @@ export function Activity() {
       setError(message);
       setEntries([]);
     } finally {
-      setLoading(false);
+      if (shouldShowLoading) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void fetchLogs();
   }, [fetchLogs]);
+
+  useEffect(() => {
+    if (!isLive) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      void fetchLogs({ showLoading: false });
+    }, LIVE_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [fetchLogs, isLive]);
 
   const filteredEntries = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -229,14 +248,32 @@ export function Activity() {
     <div className="flex h-full flex-col bg-[#f2f2f7]">
       <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-[#c6c6c8] bg-white px-5">
         <h1 className="text-[15px] font-semibold text-[#000000]">Activity logs</h1>
-        <button
-          type="button"
-          onClick={() => void fetchLogs()}
-          disabled={loading}
-          className="rounded-lg px-3 py-1.5 text-[13px] text-[#3c3c43] transition-colors hover:bg-[#f2f2f7] disabled:opacity-60"
-        >
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-[#6b7280]">
+            {isLive ? 'Auto-refresh every 5s' : 'Auto-refresh paused'}
+          </span>
+          <button
+            type="button"
+            aria-pressed={isLive}
+            onClick={() => setIsLive((previous) => !previous)}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-[13px] transition-colors',
+              isLive
+                ? 'bg-[#e8f1ff] text-[#1d4ed8] hover:bg-[#dbe9ff]'
+                : 'bg-[#f2f2f7] text-[#3c3c43] hover:bg-[#e6e6eb]',
+            )}
+          >
+            {isLive ? 'Live: On' : 'Live: Off'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void fetchLogs()}
+            disabled={loading}
+            className="rounded-lg px-3 py-1.5 text-[13px] text-[#3c3c43] transition-colors hover:bg-[#f2f2f7] disabled:opacity-60"
+          >
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">

@@ -98,8 +98,8 @@ tail -30 continue/progress.txt
 
 #### 13. 会话管理增强（置顶 / 更多导出入口待补）
 
-* **当前状态**：全局搜索（含 chat history）、slash 导出、侧边栏会话/分身右键导出入口、结构化 Activity 已补齐
-* **剩余工作**：补会话置顶、会话详情里的更多导出入口，以及更完整的会话管理表面
+* **当前状态**：全局搜索（含 chat history）、slash 导出、侧边栏会话/分身右键导出入口、聊天页顶部导出按钮、会话置顶、结构化 Activity 与 live 刷新已补齐
+* **剩余工作**：补会话详情里的更多导出入口，以及更完整的会话管理表面
 
 ---
 
@@ -230,7 +230,7 @@ tail -40 continue/progress.txt
 
 - 【已实现】Slash 命令：session-10 已补 `/` 解析、候选下拉、Arrow/Tab/Enter 键盘交互、本地命令执行与导出链路。
 - 【已实现】会话搜索 / 全局搜索：session-10 已补 Sidebar 搜索入口、`Ctrl/Cmd+K`，并支持 sessions / agents / pages / chat history 搜索。
-- 【缺失】会话置顶 / 导出：当前侧栏和聊天详情没有 pin/export；参考 `reference/LobsterAI-main/src/renderer/components/cowork/CoworkSessionItem.tsx` 与 `CoworkSessionDetail.tsx`。
+- 【部分完成】会话置顶 / 导出：session-11 已补侧栏会话置顶、会话/分身右键导出、聊天页顶部导出；聊天详情里的更多导出入口仍未补齐。
 - 【不完善】QuickAction bar：当前 `src/components/workbench/workbench-empty-state.tsx` 仅空态卡片；参考 `reference/LobsterAI-main/src/renderer/components/quick-actions/QuickActionBar.tsx` 常驻快捷栏与二级 prompt panel。
 - 【不完善】思维链展示：当前 `src/pages/Chat/ChatMessage.tsx` 仅静态折叠；参考 `reference/LobsterAI-main/src/renderer/components/cowork/CoworkSessionDetail.tsx` 的流式 reasoning 展示。
 - 【不完善】AskUserQuestion / 工具确认 / 文件变更预览：当前 `src/pages/TaskKanban/AskUserQuestionWizard.tsx` 与 `src/pages/TaskKanban/index.tsx` 只覆盖简化审批流；参考 `CoworkQuestionWizard.tsx` 与 `CoworkPermissionModal.tsx`。
@@ -273,7 +273,7 @@ tail -40 continue/progress.txt
 
 #### Activity
 
-- ClawPort 有结构化审计事件、分类过滤、详情展开和 live logs 入口；ClawX 已在 session-10 补齐结构化事件卡片、分类过滤、详情 raw 展开，但 live logs 入口仍未补。
+- ClawPort 有结构化审计事件、分类过滤、详情展开和 live logs 入口；ClawX 已在 session-10/11 补齐结构化事件卡片、分类过滤、详情 raw 展开和 live 自动刷新入口。
 
 #### Settings
 
@@ -296,7 +296,7 @@ tail -40 continue/progress.txt
 
 ### Cross-Project Priority Candidates
 
-- P0：补齐会话置顶与更多导出入口，并继续打磨已落地的 Slash commands / 全局搜索 / 会话搜索。
+- P0：继续补会话详情里的更多导出入口，并继续打磨已落地的会话置顶 / Slash commands / 全局搜索 / 会话搜索。
 - P0：补齐 MCP runtime 生命周期、per-server 日志与工具可见性。
 - P0：继续深化 Activity 和 Cron 运行详情视图（Activity 结构化卡片已落地），补 delivery / error context。
 - P0：补真实 Playwright E2E、CI 深度门禁、release / install smoke。

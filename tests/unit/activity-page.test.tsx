@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Activity } from '@/pages/Activity';
 import { hostApiFetch } from '@/lib/host-api';
 
@@ -23,6 +23,7 @@ describe('Activity page structured log view', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -101,6 +102,50 @@ describe('Activity page structured log view', () => {
 
     expect(await screen.findByText(/Error: tool timeout while waiting for shell result/i)).toBeInTheDocument();
     expect(screen.getAllByText(/at runTool \(planner\.ts:42:13\)/i).length).toBeGreaterThan(0);
+  });
+
+  it('shows live auto-refresh state, polls logs when live, and cleans up interval timers', async () => {
+    vi.useFakeTimers();
+    vi.mocked(hostApiFetch).mockResolvedValue({
+      content: '2026-03-24T10:00:00Z [INFO] System boot completed',
+    });
+
+    const { unmount } = render(<Activity />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('System boot completed')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Live: On' })).toBeInTheDocument();
+    expect(hostApiFetch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(hostApiFetch).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Live: On' }));
+    expect(screen.getByRole('button', { name: 'Live: Off' })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(hostApiFetch).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Live: Off' }));
+    expect(screen.getByRole('button', { name: 'Live: On' })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(hostApiFetch).toHaveBeenCalledTimes(3);
+
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(hostApiFetch).toHaveBeenCalledTimes(3);
   });
 
   it('renders an empty state when api logs content is blank', async () => {

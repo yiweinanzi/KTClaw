@@ -3,7 +3,7 @@
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "execution",
   "current_focus": "PLAN-2026-03-24-SESSION-MANAGEMENT",
-  "last_updated": "2026-03-24T20:50:51.0816963+08:00",
+  "last_updated": "2026-03-24T21:16:58.6685858+08:00",
   "tasks": [
     {
       "id": "SESSION-8-001",
@@ -99,6 +99,27 @@
     {
       "id": "SESSION-10-007",
       "title": "Add agent context-menu export entrypoint",
+      "type": "feature",
+      "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-11-001",
+      "title": "Add sidebar session pinning",
+      "type": "feature",
+      "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-11-002",
+      "title": "Add chat header export entrypoint",
+      "type": "feature",
+      "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-11-003",
+      "title": "Add Activity live auto-refresh entry",
       "type": "feature",
       "status": "done",
       "priority": "P0"
