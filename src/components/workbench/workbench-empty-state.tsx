@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useChatStore } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 
@@ -38,6 +39,14 @@ const suggestions = [
 export function WorkbenchEmptyState(_props: WorkbenchEmptyStateProps) {
   const sendMessage = useChatStore((s) => s.sendMessage);
   const isGatewayRunning = useGatewayStore((s) => s.status.state === 'running');
+  const [selectedQuickActionIndex, setSelectedQuickActionIndex] = useState(0);
+
+  const selectedQuickAction = quickActions[selectedQuickActionIndex] ?? quickActions[0];
+
+  const runQuickAction = (prompt: string) => {
+    if (!isGatewayRunning) return;
+    void sendMessage(prompt);
+  };
 
   return (
     <div className="flex min-h-full flex-col items-center justify-center px-8 pb-8 pt-12 text-center">
@@ -56,19 +65,53 @@ export function WorkbenchEmptyState(_props: WorkbenchEmptyStateProps) {
         </div>
       )}
 
-      {/* Quick Action Pills */}
-      <div className="flex flex-wrap items-center justify-center gap-2 mb-6 max-w-[640px]">
-        {quickActions.map((action) => (
+      {/* Quick Action Bar */}
+      <div
+        role="toolbar"
+        aria-label="Quick action bar"
+        className="mb-6 w-full max-w-[640px] rounded-2xl border border-black/[0.08] bg-white/95 p-3 text-left shadow-[0_10px_30px_rgba(0,0,0,0.06)] backdrop-blur-sm"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {quickActions.map((action, index) => {
+            const isSelected = index === selectedQuickActionIndex;
+            return (
+              <button
+                key={action.label}
+                type="button"
+                aria-label={`Quick action: ${action.label}`}
+                aria-pressed={isSelected}
+                onClick={() => {
+                  setSelectedQuickActionIndex(index);
+                  runQuickAction(action.prompt);
+                }}
+                disabled={!isGatewayRunning}
+                className={`rounded-full border px-4 py-1.5 text-[13px] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
+                  isSelected
+                    ? 'border-clawx-ac/40 bg-clawx-ac/10 text-clawx-ac'
+                    : 'border-black/[0.08] bg-white text-[#3c3c43] hover:-translate-y-[1px] hover:border-clawx-ac/30 hover:bg-clawx-ac/5 hover:text-clawx-ac hover:shadow-[0_4px_12px_rgba(0,122,255,0.1)]'
+                }`}
+              >
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-black/[0.06] bg-[#f8faff] px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-[#6b7280]">Ready to run</p>
+            <p className="truncate text-[13px] font-semibold text-foreground">{selectedQuickAction.label}</p>
+          </div>
           <button
-            key={action.label}
             type="button"
-            onClick={() => isGatewayRunning && sendMessage(action.prompt)}
+            aria-label="Use selected action"
+            onClick={() => runQuickAction(selectedQuickAction.prompt)}
             disabled={!isGatewayRunning}
-            className="rounded-full border border-black/[0.08] bg-white px-4 py-1.5 text-[13px] font-medium text-[#3c3c43] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-[1px] hover:border-clawx-ac/30 hover:bg-clawx-ac/5 hover:text-clawx-ac hover:shadow-[0_4px_12px_rgba(0,122,255,0.1)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="shrink-0 rounded-lg border border-clawx-ac/40 bg-clawx-ac/10 px-3 py-1.5 text-[12px] font-semibold text-clawx-ac transition-all hover:bg-clawx-ac/15 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {action.label}
+            Use selected action
           </button>
-        ))}
+        </div>
       </div>
 
       {/* Suggestion Cards */}

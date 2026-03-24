@@ -1,19 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { Chat } from '@/pages/Chat';
 import { useSettingsStore } from '@/stores/settings';
-
-const {
-  hostApiFetchMock,
-  toastInfoMock,
-  toastSuccessMock,
-  toastErrorMock,
-} = vi.hoisted(() => ({
-  hostApiFetchMock: vi.fn(),
-  toastInfoMock: vi.fn(),
-  toastSuccessMock: vi.fn(),
-  toastErrorMock: vi.fn(),
-}));
 
 const chatState = {
   messages: [] as Array<Record<string, unknown>>,
@@ -69,18 +57,6 @@ vi.mock('@/stores/agents', () => ({
   useAgentsStore: (selector: (state: typeof agentsState) => unknown) => selector(agentsState),
 }));
 
-vi.mock('@/lib/host-api', () => ({
-  hostApiFetch: hostApiFetchMock,
-}));
-
-vi.mock('sonner', () => ({
-  toast: {
-    info: toastInfoMock,
-    success: toastSuccessMock,
-    error: toastErrorMock,
-  },
-}));
-
 vi.mock('@/hooks/use-stick-to-bottom-instant', () => ({
   useStickToBottomInstant: () => ({
     contentRef: { current: null },
@@ -134,10 +110,6 @@ describe('Chat workbench shell', () => {
     chatState.error = null;
     chatState.showThinking = false;
     gatewayState.status = { state: 'running', port: 18789 };
-    hostApiFetchMock.mockReset();
-    toastInfoMock.mockReset();
-    toastSuccessMock.mockReset();
-    toastErrorMock.mockReset();
     useSettingsStore.setState({ rightPanelMode: null });
   });
 
@@ -156,72 +128,8 @@ describe('Chat workbench shell', () => {
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
   });
 
-  it('shows a visible export action in the chat header tool area', () => {
+  it('does not show a top-level export action in the chat header tool area', () => {
     render(<Chat />);
-    expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
-  });
-
-  it('shows empty-session feedback instead of opening save flow', () => {
-    chatState.messages = [];
-
-    render(<Chat />);
-    fireEvent.click(screen.getByRole('button', { name: /export/i }));
-
-    expect(hostApiFetchMock).not.toHaveBeenCalled();
-    expect(toastInfoMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('exports current session through the host markdown save flow', async () => {
-    chatState.messages = [
-      { role: 'user', content: 'Export this chat' },
-      { role: 'assistant', content: 'Ready' },
-    ];
-    hostApiFetchMock.mockResolvedValueOnce({ success: true, savedPath: 'C:/tmp/session.md' });
-
-    render(<Chat />);
-    fireEvent.click(screen.getByRole('button', { name: /export/i }));
-
-    await waitFor(() => {
-      expect(hostApiFetchMock).toHaveBeenCalledWith(
-        '/api/files/save-image',
-        expect.objectContaining({ method: 'POST' }),
-      );
-    });
-    const body = JSON.parse((hostApiFetchMock.mock.calls[0]?.[1] as { body?: string })?.body ?? '{}');
-    expect(body.defaultFileName).toMatch(/\.md$/);
-    expect(body.base64).toBeTypeOf('string');
-    expect(body.base64.length).toBeGreaterThan(0);
-    expect(toastSuccessMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows canceled feedback when save dialog is canceled', async () => {
-    chatState.messages = [
-      { role: 'user', content: 'Export this chat' },
-      { role: 'assistant', content: 'Ready' },
-    ];
-    hostApiFetchMock.mockResolvedValueOnce({ error: 'canceled by user' });
-
-    render(<Chat />);
-    fireEvent.click(screen.getByRole('button', { name: /export/i }));
-
-    await waitFor(() => {
-      expect(toastInfoMock).toHaveBeenCalledTimes(1);
-    });
-    expect(toastSuccessMock).not.toHaveBeenCalled();
-  });
-
-  it('shows error feedback when export save flow fails', async () => {
-    chatState.messages = [
-      { role: 'user', content: 'Export this chat' },
-      { role: 'assistant', content: 'Ready' },
-    ];
-    hostApiFetchMock.mockRejectedValueOnce(new Error('disk full'));
-
-    render(<Chat />);
-    fireEvent.click(screen.getByRole('button', { name: /export/i }));
-
-    await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledTimes(1);
-    });
+    expect(screen.queryByRole('button', { name: /export/i })).not.toBeInTheDocument();
   });
 });

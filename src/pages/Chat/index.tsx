@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSettingsStore } from '@/stores/settings';
-import { AlertCircle, Download, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { useChatStore, type RawMessage } from '@/stores/chat';
 import { hostApiFetch } from '@/lib/host-api';
 import { toast } from 'sonner';
@@ -22,11 +22,6 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
-import {
-  buildConversationExportFileName,
-  buildConversationMarkdownExport,
-  encodeUtf8ToBase64,
-} from '@/lib/chat-session-export';
 
 export function Chat() {
   const { t } = useTranslation(['chat', 'common']);
@@ -102,7 +97,6 @@ export function Chat() {
   const isEmpty = messages.length === 0 && !sending;
 
   const [extracting, setExtracting] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const handleExtractMemory = useCallback(async () => {
     if (extracting || messages.length < 2) return;
     setExtracting(true);
@@ -126,42 +120,6 @@ export function Chat() {
       setExtracting(false);
     }
   }, [extracting, messages, currentSessionKey, currentAgentName]);
-
-  const handleExportSession = useCallback(async () => {
-    if (exporting) return;
-    if (messages.length === 0) {
-      toast.info('No conversation messages to export yet.');
-      return;
-    }
-
-    const sessionKey = currentSessionKey || 'session';
-    setExporting(true);
-    try {
-      const markdown = buildConversationMarkdownExport(messages, sessionKey);
-      const result = await hostApiFetch<{ success?: boolean; savedPath?: string; error?: string }>('/api/files/save-image', {
-        method: 'POST',
-        body: JSON.stringify({
-          base64: encodeUtf8ToBase64(markdown),
-          mimeType: 'text/markdown',
-          defaultFileName: buildConversationExportFileName(sessionKey),
-        }),
-      });
-
-      if (result?.success) {
-        toast.success(result.savedPath ? `Exported to ${result.savedPath}` : 'Conversation exported.');
-        return;
-      }
-      if (result?.error) {
-        toast.info(`Export canceled: ${result.error}`);
-        return;
-      }
-      toast.info('Export canceled.');
-    } catch (error) {
-      toast.error(`Failed to export conversation: ${String(error)}`);
-    } finally {
-      setExporting(false);
-    }
-  }, [currentSessionKey, exporting, messages]);
 
   const handleSendMessage = (
     text: string,
@@ -212,17 +170,6 @@ export function Chat() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void handleExportSession()}
-              disabled={exporting || sending}
-              className="inline-flex items-center gap-1 rounded-lg border border-black/10 bg-white px-3 py-[5px] text-[13px] font-medium text-black shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-[1px] hover:bg-[#f9f9f9] hover:border-black/15 hover:shadow-[0_2px_4px_rgba(0,0,0,0.06)] active:scale-[0.98] disabled:opacity-50"
-              aria-label="Export session"
-              title="Export current session as Markdown"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>{exporting ? 'Exporting...' : 'Export'}</span>
-            </button>
             {!isEmpty && messages.length >= 2 && (
               <button
                 type="button"

@@ -3,7 +3,7 @@
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "execution",
   "current_focus": "PLAN-2026-03-24-SESSION-MANAGEMENT",
-  "last_updated": "2026-03-24T21:16:58.6685858+08:00",
+  "last_updated": "2026-03-24T21:58:50.0000000+08:00",
   "tasks": [
     {
       "id": "SESSION-8-001",
@@ -122,6 +122,41 @@
       "title": "Add Activity live auto-refresh entry",
       "type": "feature",
       "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-12-001",
+      "title": "Add standalone docs/help route",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-12-002",
+      "title": "Add mhchem chemistry formula rendering support",
+      "type": "feature",
+      "status": "done",
+      "priority": "P2"
+    },
+    {
+      "id": "SESSION-12-003",
+      "title": "Upgrade quick action surface in empty workbench state",
+      "type": "feature",
+      "status": "done",
+      "priority": "P2"
+    },
+    {
+      "id": "SESSION-12-004",
+      "title": "Disable docs/help surfaces and remove chat header export per user feedback",
+      "type": "feature",
+      "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "PLAN-2026-03-24-PLATFORM-CLOSURE",
+      "title": "Choose next platform-level gap after session management (MCP runtime, Cron detail, or E2E gates)",
+      "type": "planning",
+      "status": "planned",
       "priority": "P0"
     }
   ]

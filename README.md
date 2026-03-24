@@ -101,7 +101,10 @@ Complete the entire setup—from installation to your first AI interaction—thr
 Communicate with AI agents through a modern chat experience. Support for multiple conversation contexts, message history, rich content rendering with Markdown, and direct `@agent` routing in the main composer for multi-agent setups.
 When you target another agent with `@agent`, KTClaw switches into that agent's own conversation context directly instead of relaying through the default agent. Agent workspaces stay separate by default, and stronger isolation depends on OpenClaw sandbox settings.
 The chat composer also includes slash commands such as `/new`, `/stop`, `/agent`, `/cwd`, `/memory`, `/cron`, `/settings`, and `/export` for fast local actions without leaving the keyboard.
-Sidebar search is available from the search entry or `Ctrl/Cmd+K`, and now searches sessions, agents, pages, and cached chat-history text. Sessions can be pinned in the Sidebar, and both session/agent context menus plus the Chat header can export the related conversation as Markdown. The Activity page also upgrades raw logs into filterable structured event cards with raw-line expansion and live auto-refresh.
+Sidebar search is available from the search entry or `Ctrl/Cmd+K`, and now searches sessions, agents, pages, and cached chat-history text. Sessions can be pinned in the Sidebar, and both the session/agent context menus plus `/export` can export the related conversation as Markdown. The Activity page also upgrades raw logs into filterable structured event cards with raw-line expansion and live auto-refresh.
+
+### 🧪 Rich Markdown Rendering
+Chat markdown now covers standard math rendering and KaTeX `mhchem` chemistry formulas, alongside syntax highlighting, local file links, and copy-friendly code blocks.
 
 ### 📡 Multi-Channel Management
 Configure and monitor multiple AI channels simultaneously. Each channel operates independently, allowing you to run specialized agents for different tasks.
