@@ -7,6 +7,7 @@
  * are sent with the message (no base64 over WebSocket).
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { SendHorizontal, Square, X, Mic, FileText, Film, Music, FileArchive, File, Loader2, AtSign, Folder } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
 import { useSettingsStore } from '@/stores/settings';
+import { useProviderStore } from '@/stores/providers';
 import type { AgentSummary } from '@/types/agent';
 import { useTranslation } from 'react-i18next';
 import { FolderSelectorPopover } from './FolderSelectorPopover';
@@ -106,6 +108,29 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   const defaultModel = useSettingsStore((s) => s.defaultModel);
   const currentAgentName = currentAgent?.name ?? 'KTClaw';
   const currentModelDisplay = currentAgent?.modelDisplay ?? defaultModel ?? 'Not configured';
+
+  // Model selector
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const modelPickerRef = useRef<HTMLDivElement>(null);
+  const providerAccounts = useProviderStore((s) => s.accounts);
+  const providerVendors = useProviderStore((s) => s.vendors);
+  const updateAgent = useAgentsStore((s) => s.updateAgent);
+  const modelOptions = useMemo(() => {
+    const vendorMap = new Map(providerVendors.map((v) => [v.id, v]));
+    const options: Array<{ value: string; label: string }> = [];
+    for (const account of providerAccounts) {
+      if (!account.enabled) continue;
+      const vendor = vendorMap.get(account.vendorId);
+      const modelId = account.model || vendor?.defaultModelId;
+      if (!modelId) continue;
+      const value = `${account.vendorId}/${modelId}`;
+      const label = `${vendor?.name || account.vendorId} / ${modelId}`;
+      if (!options.some((o) => o.value === value)) {
+        options.push({ value, label });
+      }
+    }
+    return options;
+  }, [providerAccounts, providerVendors]);
   const mentionableAgents = useMemo(
     () => agents.filter((agent) => agent.id !== currentAgentId),
     [agents, currentAgentId],
@@ -542,10 +567,33 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
             </div>
 
             {/* Model Pill */}
-            <div data-testid="chat-composer-model-pill" className="flex shrink-0 items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1 text-[12px] text-[#3c3c43] shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-              <span className="h-[6px] w-[6px] rounded-full bg-[#10b981]" />
-              <span className="font-medium">{currentModelDisplay}</span>
-              <span className="text-[#8e8e93]">▾</span>
+            <div className="relative" ref={modelPickerRef}>
+              <button
+                type="button"
+                data-testid="chat-composer-model-pill"
+                className="flex shrink-0 items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1 text-[12px] text-[#3c3c43] shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-black/20 hover:bg-[#f9f9f9]"
+                onClick={() => setModelPickerOpen((v) => !v)}
+              >
+                <span className={cn('h-[6px] w-[6px] rounded-full', currentModelDisplay === 'Not configured' ? 'bg-[#f59e0b]' : 'bg-[#10b981]')} />
+                <span className="max-w-[140px] truncate font-medium">{currentModelDisplay}</span>
+                <span className="text-[#8e8e93]">▾</span>
+              </button>
+
+              {modelPickerOpen && createPortal(
+                <ModelPickerDropdown
+                  anchorRef={modelPickerRef}
+                  modelOptions={modelOptions}
+                  currentAgent={currentAgent}
+                  onSelect={async (model) => {
+                    if (currentAgent) {
+                      await updateAgent(currentAgent.id, { model });
+                    }
+                    setModelPickerOpen(false);
+                  }}
+                  onClose={() => setModelPickerOpen(false)}
+                />,
+                document.body,
+              )}
             </div>
 
             {/* Send Button */}
@@ -665,5 +713,82 @@ function AgentPickerItem({
         {agent.modelDisplay}
       </span>
     </button>
+  );
+}
+
+// ── Model Picker Dropdown (portal) ──────────────────────────────
+
+function ModelPickerDropdown({
+  anchorRef,
+  modelOptions,
+  currentAgent,
+  onSelect,
+  onClose,
+}: {
+  anchorRef: React.RefObject<HTMLDivElement | null>;
+  modelOptions: Array<{ value: string; label: string }>;
+  currentAgent: AgentSummary | null;
+  onSelect: (model: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    setPos({
+      top: rect.top - 8,
+      right: window.innerWidth - rect.right,
+    });
+  }, [anchorRef]);
+
+  return (
+    <div className="fixed inset-0 z-[200]" onMouseDown={onClose}>
+      <div
+        className="fixed z-[201] w-[260px] max-h-[320px] overflow-y-auto rounded-xl border border-black/10 bg-white py-1 shadow-xl"
+        style={{ top: pos.top, right: pos.right, transform: 'translateY(-100%)' }}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#8e8e93]">选择模型</div>
+        {modelOptions.length === 0 ? (
+          <div className="px-3 py-3 text-[12px] text-[#8e8e93]">
+            暂无可用模型，请先在设置中配置 AI 服务商
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={cn(
+                'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors hover:bg-[#f2f2f7]',
+                (currentAgent?.inheritedModel || !currentAgent?.model) && 'text-clawx-ac font-medium',
+              )}
+              onClick={() => void onSelect('')}
+            >
+              <span className="truncate">继承默认模型</span>
+              {(currentAgent?.inheritedModel || !currentAgent?.model) && <span className="ml-auto text-clawx-ac">✓</span>}
+            </button>
+            <div className="mx-3 border-t border-black/[0.06]" />
+            {modelOptions.map((opt) => {
+              const isActive = currentAgent?.model === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={cn(
+                    'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors hover:bg-[#f2f2f7]',
+                    isActive && 'text-clawx-ac font-medium',
+                  )}
+                  onClick={() => void onSelect(opt.value)}
+                >
+                  <span className="min-w-0 flex-1 truncate">{opt.label}</span>
+                  {isActive && <span className="shrink-0 text-clawx-ac">✓</span>}
+                </button>
+              );
+            })}
+          </>
+        )}
+      </div>
+    </div>
   );
 }

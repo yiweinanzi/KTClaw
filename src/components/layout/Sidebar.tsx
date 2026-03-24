@@ -144,9 +144,13 @@ export function Sidebar() {
   const getSessionLabel = (key: string, displayName?: string, label?: string) =>
     sessionLabels[key] ?? label ?? displayName ?? key;
 
+  // Exclude sessions that are already represented by an agent's mainSessionKey
+  const agentMainKeys = useMemo(() => new Set(agents.map((a) => a.mainSessionKey)), [agents]);
   const orderedSessions = useMemo(
-    () => [...sessions].sort((a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0)),
-    [sessions, sessionLastActivity],
+    () => [...sessions]
+      .filter((s) => !agentMainKeys.has(s.key))
+      .sort((a, b) => (sessionLastActivity[b.key] ?? 0) - (sessionLastActivity[a.key] ?? 0)),
+    [sessions, sessionLastActivity, agentMainKeys],
   );
 
   const staticTeams: SidebarMetaItem[] = [
@@ -254,7 +258,7 @@ export function Sidebar() {
             </div>
           )}
 
-          {orderedSessions.length > 0 ? (
+          {orderedSessions.length > 0 && (
             <>
               {/* Batch mode toolbar */}
               {batchMode && (
@@ -341,7 +345,10 @@ export function Sidebar() {
                 );
               })}
             </>
-          ) : (
+          )}
+
+          {/* Static fallback only when no agents AND no sessions */}
+          {agents.length === 0 && orderedSessions.length === 0 && (
             <>
               <button
                 onClick={() => navigate('/')}
