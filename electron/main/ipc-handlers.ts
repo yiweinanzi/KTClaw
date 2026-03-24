@@ -15,9 +15,9 @@ import {
 import { getOpenClawStatus, getOpenClawDir, getOpenClawConfigDir, getOpenClawSkillsDir, ensureDir } from '../utils/paths';
 import { getOpenClawCliCommand } from '../utils/openclaw-cli';
 import { getAllSettings, getSetting, resetSettings, setSetting, type AppSettings } from '../utils/store';
+import { HOST_API_SESSION_HEADER } from '../api/route-utils';
 import {
   saveProviderKeyToOpenClaw,
-  removeProviderFromOpenClaw,
 } from '../utils/openclaw-auth';
 import { buildOpenClawControlUiUrl } from '../utils/openclaw-control-ui';
 import { logger } from '../utils/logger';
@@ -37,6 +37,7 @@ import { whatsAppLoginManager } from '../utils/whatsapp-login';
 import { getProviderConfig } from '../utils/provider-registry';
 import { deviceOAuthManager, OAuthProviderType } from '../utils/device-oauth';
 import { browserOAuthManager, type BrowserOAuthProviderType } from '../utils/browser-oauth';
+import { getOutboundMediaDir, isOutboundMediaPath } from '../utils/outbound-media';
 import { applyProxySettings } from './proxy';
 import { syncLaunchAtStartupSettingFromStore } from './launch-at-startup';
 import { proxyAwareFetch } from '../utils/proxy-fetch';
@@ -81,13 +82,14 @@ type AppResponse = {
 export function registerIpcHandlers(
   gatewayManager: GatewayManager,
   clawHubService: ClawHubService,
-  mainWindow: BrowserWindow
+  mainWindow: BrowserWindow,
+  hostApiSessionToken: string,
 ): void {
   // Unified request protocol (non-breaking: legacy channels remain available)
   registerUnifiedRequestHandlers(gatewayManager);
 
   // Host API proxy handlers
-  registerHostApiProxyHandlers();
+  registerHostApiProxyHandlers(hostApiSessionToken);
 
   // Gateway handlers
   registerGatewayHandlers(gatewayManager, mainWindow);
@@ -151,7 +153,7 @@ type HostApiFetchRequest = {
   body?: unknown;
 };
 
-function registerHostApiProxyHandlers(): void {
+function registerHostApiProxyHandlers(hostApiSessionToken: string): void {
   ipcMain.handle('hostapi:fetch', async (_, request: HostApiFetchRequest) => {
     try {
       const path = typeof request?.path === 'string' ? request.path : '';
@@ -160,7 +162,10 @@ function registerHostApiProxyHandlers(): void {
       }
 
       const method = (request.method || 'GET').toUpperCase();
-      const headers: Record<string, string> = { ...(request.headers || {}) };
+      const headers: Record<string, string> = {
+        ...(request.headers || {}),
+        [HOST_API_SESSION_HEADER]: hostApiSessionToken,
+      };
       let body: string | undefined;
 
       if (request.body !== undefined && request.body !== null) {
@@ -230,6 +235,20 @@ function isLaunchAtStartupKey(key: keyof AppSettings): boolean {
   return key === 'launchAtStartup';
 }
 
+function sanitizeRendererSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): AppSettings[K] {
+  if (key === 'gatewayToken') {
+    return '' as AppSettings[K];
+  }
+  return value;
+}
+
+function sanitizeRendererSettings(settings: AppSettings): AppSettings {
+  return {
+    ...settings,
+    gatewayToken: '',
+  };
+}
+
 function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
   const providerService = getProviderService();
   const handleProxySettingsChange = async () => {
@@ -292,11 +311,14 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
             break;
           }
           if (request.action === 'getApiKey') {
-            const payload = request.payload as { providerId?: string } | string | undefined;
-            const providerId = typeof payload === 'string' ? payload : payload?.providerId;
-            if (!providerId) throw new Error('Invalid provider.getApiKey payload');
-            data = await providerService.getLegacyProviderApiKey(providerId);
-            break;
+            return {
+              id: request.id,
+              ok: false,
+              error: {
+                code: 'UNSUPPORTED',
+                message: 'APP_REQUEST_UNSUPPORTED:provider.getApiKey',
+              },
+            };
           }
           if (request.action === 'validateKey') {
             const payload = request.payload as
@@ -343,7 +365,7 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
               try {
                 await syncSavedProviderToRuntime(config, apiKey, gatewayManager);
               } catch (err) {
-                console.warn('Failed to sync openclaw provider config:', err);
+                logger.warn('Failed to sync openclaw provider config', { scope: 'provider.save' }, err);
               }
 
               data = { success: true };
@@ -364,7 +386,7 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
                 try {
                   await syncDeletedProviderToRuntime(existing, providerId, gatewayManager);
                 } catch (err) {
-                  console.warn('Failed to completely remove provider from OpenClaw:', err);
+                  logger.warn('Failed to completely remove provider from OpenClaw', { scope: 'provider.delete' }, err);
                 }
               }
               data = { success: true };
@@ -390,7 +412,7 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
               try {
                 await saveProviderKeyToOpenClaw(ock, apiKey);
               } catch (err) {
-                console.warn('Failed to save key to OpenClaw auth-profiles:', err);
+                logger.warn('Failed to save key to OpenClaw auth-profiles', { scope: 'provider.setApiKey' }, err);
               }
               data = { success: true };
             } catch (error) {
@@ -433,14 +455,14 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
                   await saveProviderKeyToOpenClaw(ock, trimmedKey);
                 } else {
                   await providerService.deleteLegacyProviderApiKey(providerId);
-                  await removeProviderFromOpenClaw(ock);
+                  await syncDeletedProviderApiKeyToRuntime(nextConfig, providerId, ock);
                 }
               }
 
               try {
                 await syncUpdatedProviderToRuntime(nextConfig, apiKey, gatewayManager);
               } catch (err) {
-                console.warn('Failed to sync openclaw config after provider update:', err);
+                logger.warn('Failed to sync openclaw config after provider update', { scope: 'provider.updateWithKey' }, err);
               }
 
               data = { success: true };
@@ -452,10 +474,10 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
                   await saveProviderKeyToOpenClaw(previousOck, previousKey);
                 } else {
                   await providerService.deleteLegacyProviderApiKey(providerId);
-                  await removeProviderFromOpenClaw(previousOck);
+                  await syncDeletedProviderApiKeyToRuntime(existing, providerId, previousOck);
                 }
               } catch (rollbackError) {
-                console.warn('Failed to rollback provider updateWithKey:', rollbackError);
+                logger.warn('Failed to rollback provider updateWithKey', { scope: 'provider.updateWithKey' }, rollbackError);
               }
 
               data = { success: false, error: String(error) };
@@ -473,10 +495,10 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
               const ock = getOpenClawProviderKey(providerType, providerId);
               try {
                 if (ock) {
-                  await removeProviderFromOpenClaw(ock);
+                  await syncDeletedProviderApiKeyToRuntime(provider, providerId, ock);
                 }
               } catch (err) {
-                console.warn('Failed to completely remove provider from OpenClaw:', err);
+                logger.warn('Failed to remove provider API key from OpenClaw auth-profiles', { scope: 'provider.deleteApiKey' }, err);
               }
               data = { success: true };
             } catch (error) {
@@ -496,7 +518,7 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
                 try {
                   await syncDefaultProviderToRuntime(providerId, gatewayManager);
                 } catch (err) {
-                  console.warn('Failed to set OpenClaw default model:', err);
+                  logger.warn('Failed to set OpenClaw default model', { scope: 'provider.setDefault' }, err);
                 }
               }
 
@@ -682,14 +704,14 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
         }
         case 'settings': {
           if (request.action === 'getAll') {
-            data = await getAllSettings();
+            data = sanitizeRendererSettings(await getAllSettings());
             break;
           }
           if (request.action === 'get') {
             const payload = request.payload as { key?: keyof AppSettings } | [keyof AppSettings] | undefined;
             const key = Array.isArray(payload) ? payload[0] : payload?.key;
             if (!key) throw new Error('Invalid settings.get payload');
-            data = await getSetting(key);
+            data = sanitizeRendererSetting(key, await getSetting(key));
             break;
           }
           if (request.action === 'set') {
@@ -901,7 +923,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
               job.state.lastStatus = 'ok';
             }
           } catch (e) {
-            console.warn(`Failed to auto-repair cron job ${job.id}:`, e);
+            logger.warn('Failed to auto-repair cron job', { jobId: job.id }, e);
           }
         }
       }
@@ -909,7 +931,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
       // Transform Gateway format to frontend format
       return jobs.map(transformCronJob);
     } catch (error) {
-      console.error('Failed to list cron jobs:', error);
+      logger.error('Failed to list cron jobs', { scope: 'cron.list' }, error);
       throw error;
     }
   });
@@ -945,7 +967,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
       }
       return result;
     } catch (error) {
-      console.error('Failed to create cron job:', error);
+      logger.error('Failed to create cron job', { scope: 'cron.create' }, error);
       throw error;
     }
   });
@@ -966,7 +988,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
       const result = await gatewayManager.rpc('cron.update', { id, patch });
       return result;
     } catch (error) {
-      console.error('Failed to update cron job:', error);
+      logger.error('Failed to update cron job', { scope: 'cron.update' }, error);
       throw error;
     }
   });
@@ -977,7 +999,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
       const result = await gatewayManager.rpc('cron.remove', { id });
       return result;
     } catch (error) {
-      console.error('Failed to delete cron job:', error);
+      logger.error('Failed to delete cron job', { scope: 'cron.delete' }, error);
       throw error;
     }
   });
@@ -988,7 +1010,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
       const result = await gatewayManager.rpc('cron.update', { id, patch: { enabled } });
       return result;
     } catch (error) {
-      console.error('Failed to toggle cron job:', error);
+      logger.error('Failed to toggle cron job', { scope: 'cron.toggle' }, error);
       throw error;
     }
   });
@@ -999,7 +1021,7 @@ function registerCronHandlers(gatewayManager: GatewayManager): void {
       const result = await gatewayManager.rpc('cron.run', { id, mode: 'force' });
       return result;
     } catch (error) {
-      console.error('Failed to trigger cron job:', error);
+      logger.error('Failed to trigger cron job', { scope: 'cron.trigger' }, error);
       throw error;
     }
   });
@@ -1025,7 +1047,7 @@ function registerUvHandlers(): void {
       await setupManagedPython();
       return { success: true };
     } catch (error) {
-      console.error('Failed to setup uv/python:', error);
+      logger.error('Failed to setup uv/python', { scope: 'uv.setup' }, error);
       return { success: false, error: String(error) };
     }
   });
@@ -1228,6 +1250,11 @@ function registerGatewayHandlers(
       const fileReferences: string[] = [];
 
       if (params.media && params.media.length > 0) {
+        const invalidMedia = params.media.find((m) => !isOutboundMediaPath(m.filePath));
+        if (invalidMedia) {
+          logger.warn(`[chat:sendWithMedia] Rejected non-staged media path: ${invalidMedia.filePath}`);
+          return { success: false, error: 'MEDIA_PATH_NOT_STAGED', filePath: invalidMedia.filePath };
+        }
         const fsP = await import('fs/promises');
         for (const m of params.media) {
           const exists = await fsP.access(m.filePath).then(() => true, () => false);
@@ -1290,10 +1317,9 @@ function registerGatewayHandlers(
   ipcMain.handle('gateway:getControlUiUrl', async () => {
     try {
       const status = gatewayManager.getStatus();
-      const token = await getSetting('gatewayToken');
       const port = status.port || 18789;
-      const url = buildOpenClawControlUiUrl(port, token);
-      return { success: true, url, port, token };
+      const url = buildOpenClawControlUiUrl(port, '').split('#')[0];
+      return { success: true, url, port };
     } catch (error) {
       return { success: false, error: String(error) };
     }
@@ -1602,7 +1628,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       scheduleGatewayChannelSaveRefresh(channelType, `channel:saveConfig (${channelType})`);
       return { success: true };
     } catch (error) {
-      console.error('Failed to save channel config:', error);
+      logger.error('Failed to save channel config', { scope: 'channel.saveConfig' }, error);
       return { success: false, error: String(error) };
     }
   });
@@ -1613,7 +1639,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       const config = await getChannelConfig(channelType);
       return { success: true, config };
     } catch (error) {
-      console.error('Failed to get channel config:', error);
+      logger.error('Failed to get channel config', { scope: 'channel.getConfig' }, error);
       return { success: false, error: String(error) };
     }
   });
@@ -1624,7 +1650,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       const values = await getChannelFormValues(channelType);
       return { success: true, values };
     } catch (error) {
-      console.error('Failed to get channel form values:', error);
+      logger.error('Failed to get channel form values', { scope: 'channel.getFormValues' }, error);
       return { success: false, error: String(error) };
     }
   });
@@ -1636,7 +1662,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       scheduleGatewayChannelRestart(`channel:deleteConfig (${channelType})`);
       return { success: true };
     } catch (error) {
-      console.error('Failed to delete channel config:', error);
+      logger.error('Failed to delete channel config', { scope: 'channel.deleteConfig' }, error);
       return { success: false, error: String(error) };
     }
   });
@@ -1647,7 +1673,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       const channels = await listConfiguredChannels();
       return { success: true, channels };
     } catch (error) {
-      console.error('Failed to list channels:', error);
+      logger.error('Failed to list channels', { scope: 'channel.list' }, error);
       return { success: false, error: String(error) };
     }
   });
@@ -1659,7 +1685,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       scheduleGatewayChannelRestart(`channel:setEnabled (${channelType}, enabled=${enabled})`);
       return { success: true };
     } catch (error) {
-      console.error('Failed to set channel enabled:', error);
+      logger.error('Failed to set channel enabled', { scope: 'channel.setEnabled' }, error);
       return { success: false, error: String(error) };
     }
   });
@@ -1670,7 +1696,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       const result = await validateChannelConfig(channelType);
       return { success: true, ...result };
     } catch (error) {
-      console.error('Failed to validate channel:', error);
+      logger.error('Failed to validate channel', { scope: 'channel.validate' }, error);
       return { success: false, valid: false, errors: [String(error)], warnings: [] };
     }
   });
@@ -1681,7 +1707,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
       const result = await validateChannelCredentials(channelType, config);
       return { success: true, ...result };
     } catch (error) {
-      console.error('Failed to validate channel credentials:', error);
+      logger.error('Failed to validate channel credentials', { scope: 'channel.validateCredentials' }, error);
       return { success: false, valid: false, errors: [String(error)], warnings: [] };
     }
   });
@@ -1851,7 +1877,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
           try {
             await syncProviderApiKeyToRuntime(config.type, config.id, trimmedKey);
           } catch (err) {
-            console.warn('Failed to save key to OpenClaw auth-profiles:', err);
+            logger.warn('Failed to save key to OpenClaw auth-profiles', { scope: 'provider.saveProvider.syncApiKey' }, err);
           }
         }
       }
@@ -1860,7 +1886,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
       try {
         await syncSavedProviderToRuntime(config, apiKey, gatewayManager);
       } catch (err) {
-        console.warn('Failed to sync openclaw provider config:', err);
+        logger.warn('Failed to sync openclaw provider config', { scope: 'provider.saveProvider' }, err);
       }
 
       return { success: true };
@@ -1881,7 +1907,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
         try {
           await syncDeletedProviderToRuntime(existing, providerId, gatewayManager);
         } catch (err) {
-          console.warn('Failed to completely remove provider from OpenClaw:', err);
+          logger.warn('Failed to completely remove provider from OpenClaw', { scope: 'provider.deleteProvider' }, err);
         }
       }
 
@@ -1903,7 +1929,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
       try {
         await syncProviderApiKeyToRuntime(providerType, providerId, apiKey);
       } catch (err) {
-        console.warn('Failed to save key to OpenClaw auth-profiles:', err);
+        logger.warn('Failed to save key to OpenClaw auth-profiles', { scope: 'provider.setProviderApiKey' }, err);
       }
 
       return { success: true };
@@ -1948,7 +1974,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
             await syncProviderApiKeyToRuntime(nextConfig.type, providerId, trimmedKey);
           } else {
             await providerService.deleteLegacyProviderApiKey(providerId);
-            await removeProviderFromOpenClaw(ock);
+            await syncDeletedProviderApiKeyToRuntime(nextConfig, providerId, ock);
           }
         }
 
@@ -1956,7 +1982,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
         try {
           await syncUpdatedProviderToRuntime(nextConfig, apiKey, gatewayManager);
         } catch (err) {
-          console.warn('Failed to sync openclaw config after provider update:', err);
+          logger.warn('Failed to sync openclaw config after provider update', { scope: 'provider.updateProvider' }, err);
         }
 
         return { success: true };
@@ -1969,10 +1995,10 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
             await saveProviderKeyToOpenClaw(previousOck, previousKey);
           } else {
             await providerService.deleteLegacyProviderApiKey(providerId);
-            await removeProviderFromOpenClaw(previousOck);
+            await syncDeletedProviderApiKeyToRuntime(existing, providerId, previousOck);
           }
         } catch (rollbackError) {
-          console.warn('Failed to rollback provider updateWithKey:', rollbackError);
+          logger.warn('Failed to rollback provider updateWithKey', { scope: 'provider.updateProvider' }, rollbackError);
         }
 
         return { success: false, error: String(error) };
@@ -1991,7 +2017,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
       try {
         await syncDeletedProviderApiKeyToRuntime(provider, providerId);
       } catch (err) {
-        console.warn('Failed to completely remove provider from OpenClaw:', err);
+        logger.warn('Failed to completely remove provider from OpenClaw', { scope: 'provider.deleteProviderApiKey' }, err);
       }
 
       return { success: true };
@@ -2009,7 +2035,8 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
   // Get the actual API key (for internal use only - be careful!)
   ipcMain.handle('provider:getApiKey', async (_, providerId: string) => {
     logLegacyProviderChannel('provider:getApiKey');
-    return await providerService.getLegacyProviderApiKey(providerId);
+    const hasKey = await providerService.hasLegacyProviderApiKey(providerId);
+    return hasKey ? null : null;
   });
 
   // Set default provider and update OpenClaw default model
@@ -2022,7 +2049,7 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
       try {
         await syncDefaultProviderToRuntime(providerId, gatewayManager);
       } catch (err) {
-        console.warn('Failed to set OpenClaw default model:', err);
+        logger.warn('Failed to set OpenClaw default model', { scope: 'provider.setDefaultProvider' }, err);
       }
 
       return { success: true };
@@ -2063,13 +2090,13 @@ function registerProviderHandlers(gatewayManager: GatewayManager): void {
         const resolvedBaseUrl = options?.baseUrl || provider?.baseUrl || registryBaseUrl;
         const resolvedProtocol = options?.apiProtocol || provider?.apiProtocol;
 
-        console.log(`[clawx-validate] validating provider type: ${providerType}`);
+        logger.info('[clawx-validate] validating provider type', { providerType });
         return await validateApiKeyWithProvider(providerType, apiKey, {
           baseUrl: resolvedBaseUrl,
           apiProtocol: resolvedProtocol,
         });
       } catch (error) {
-        console.error('Validation error:', error);
+        logger.error('Validation error', { scope: 'provider.validate' }, error);
         return { valid: false, error: String(error) };
       }
     }
@@ -2220,11 +2247,12 @@ function registerSettingsHandlers(gatewayManager: GatewayManager): void {
   };
 
   ipcMain.handle('settings:get', async (_, key: keyof AppSettings) => {
-    return await getSetting(key);
+    const value = await getSetting(key);
+    return sanitizeRendererSetting(key, value);
   });
 
   ipcMain.handle('settings:getAll', async () => {
-    return await getAllSettings();
+    return sanitizeRendererSettings(await getAllSettings());
   });
 
   ipcMain.handle('settings:set', async (_, key: keyof AppSettings, value: AppSettings[keyof AppSettings]) => {
@@ -2366,7 +2394,7 @@ function mimeToExt(mimeType: string): string {
   return '';
 }
 
-const OUTBOUND_DIR = join(homedir(), '.openclaw', 'media', 'outbound');
+const OUTBOUND_DIR = getOutboundMediaDir();
 
 /**
  * Generate a preview data URL for image files.

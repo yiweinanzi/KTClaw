@@ -28,6 +28,9 @@ type SidebarMetaItem = {
   meta: string;
 };
 
+const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
+const INITIAL_NOTIFICATION_TIME = Date.now();
+
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed);
   const setSidebarCollapsed = useSettingsStore((state) => state.setSidebarCollapsed);
@@ -90,7 +93,11 @@ export function Sidebar() {
   const toggleSelect = useCallback((key: string) => {
     setSelectedKeys((prev) => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
       return next;
     });
   }, []);
@@ -534,8 +541,17 @@ function NotificationPanel({
   onDismiss: (id: string) => void;
   onClose: () => void;
 }) {
+  const [now, setNow] = useState(INITIAL_NOTIFICATION_TIME);
+
+  useEffect(() => {
+    const syncNow = () => setNow(Date.now());
+    syncNow();
+    const timer = setInterval(syncNow, NOTIFICATION_REFRESH_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
   function relativeTime(ts: number) {
-    const diff = Math.floor((Date.now() - ts) / 1000);
+    const diff = Math.floor((now - ts) / 1000);
     if (diff < 60) return '刚刚';
     if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`;

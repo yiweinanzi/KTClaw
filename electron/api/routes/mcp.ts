@@ -27,6 +27,16 @@ interface McpConfig {
   servers: McpServer[];
 }
 
+type LegacyMcpServerEntry = Partial<{
+  command: string;
+  args: unknown;
+  env: Record<string, string>;
+  enabled: boolean;
+  transport: McpServer['transport'];
+  url: string;
+  addedAt: string;
+}>;
+
 // ── Storage ──────────────────────────────────────────────────────
 
 function configPath(): string {
@@ -41,16 +51,25 @@ function loadConfig(): McpConfig {
     if (Array.isArray(raw?.servers)) return raw as McpConfig;
     // Legacy: if it's a flat object (name→config)
     if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      const servers: McpServer[] = Object.entries(raw).map(([name, v]: [string, any]) => ({
-        name,
-        command: v.command ?? '',
-        args: Array.isArray(v.args) ? v.args : [],
-        env: v.env && typeof v.env === 'object' ? v.env : {},
-        enabled: v.enabled !== false,
-        transport: v.transport ?? 'stdio',
-        url: v.url,
-        addedAt: v.addedAt ?? new Date().toISOString(),
-      }));
+      const entries = Object.entries(raw) as Array<[string, LegacyMcpServerEntry]>;
+      const servers: McpServer[] = entries.map(([name, entry]) => {
+        const args = Array.isArray(entry.args)
+          ? entry.args.filter((item): item is string => typeof item === 'string')
+          : [];
+        const env = entry.env && typeof entry.env === 'object'
+          ? entry.env
+          : {};
+        return {
+          name,
+          command: entry.command ?? '',
+          args,
+          env,
+          enabled: entry.enabled !== false,
+          transport: entry.transport ?? 'stdio',
+          url: entry.url,
+          addedAt: entry.addedAt ?? new Date().toISOString(),
+        };
+      });
       return { servers };
     }
     return { servers: [] };

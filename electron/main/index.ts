@@ -3,6 +3,7 @@
  * Manages window creation, system tray, and IPC handlers
  */
 import { app, BrowserWindow, nativeImage, session, shell } from 'electron';
+import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import { join } from 'path';
 import { GatewayManager } from '../gateway/manager';
@@ -79,6 +80,7 @@ let gatewayManager!: GatewayManager;
 let clawHubService!: ClawHubService;
 let hostEventBus!: HostEventBus;
 let hostApiServer: Server | null = null;
+const hostApiSessionToken = randomBytes(24).toString('hex');
 const mainWindowFocusState = createMainWindowFocusState();
 
 /**
@@ -260,13 +262,14 @@ async function initialize(): Promise<void> {
   );
 
   // Register IPC handlers
-  registerIpcHandlers(gatewayManager, clawHubService, window);
+  registerIpcHandlers(gatewayManager, clawHubService, window, hostApiSessionToken);
 
   hostApiServer = startHostApiServer({
     gatewayManager,
     clawHubService,
     eventBus: hostEventBus,
     mainWindow: window,
+    hostApiSessionToken,
   });
 
   // Register update handlers

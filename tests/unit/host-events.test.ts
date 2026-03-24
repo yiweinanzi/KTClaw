@@ -16,7 +16,7 @@ vi.mock('@/lib/host-api', () => ({
 describe('host-events', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    window.localStorage.clear();
+    delete (window.electron as { __ktclawBrowserPreviewShim?: boolean }).__ktclawBrowserPreviewShim;
   });
 
   it('subscribes through IPC for mapped host events', async () => {
@@ -54,21 +54,22 @@ describe('host-events', () => {
     warnSpy.mockRestore();
   });
 
-  it('uses SSE fallback only when explicitly enabled', async () => {
-    window.localStorage.setItem('clawx:allow-sse-fallback', '1');
+  it('uses SSE fallback in browser preview mode', async () => {
+    (window.electron as { __ktclawBrowserPreviewShim?: boolean }).__ktclawBrowserPreviewShim = true;
+    const onMock = vi.mocked(window.electron.ipcRenderer.on);
     const { subscribeHostEvent } = await import('@/lib/host-events');
     const handler = vi.fn();
-    const unsubscribe = subscribeHostEvent('unknown:event', handler);
+    const unsubscribe = subscribeHostEvent('gateway:status', handler);
 
-    expect(createHostEventSourceMock).toHaveBeenCalledTimes(1);
-    expect(addEventListenerMock).toHaveBeenCalledWith('unknown:event', expect.any(Function));
+    expect(onMock).not.toHaveBeenCalled();
+    expect(createHostEventSourceMock).toHaveBeenCalled();
+    expect(addEventListenerMock).toHaveBeenCalledWith('gateway:status', expect.any(Function));
 
-    const listener = addEventListenerMock.mock.calls[0][1] as (event: Event) => void;
-    listener({ data: JSON.stringify({ x: 1 }) } as unknown as Event);
-    expect(handler).toHaveBeenCalledWith({ x: 1 });
+    const listener = addEventListenerMock.mock.calls[0]?.[1] as (event: MessageEvent) => void;
+    listener({ data: JSON.stringify({ state: 'running' }) } as MessageEvent);
+    expect(handler).toHaveBeenCalledWith({ state: 'running' });
 
     unsubscribe();
-    expect(removeEventListenerMock).toHaveBeenCalledWith('unknown:event', expect.any(Function));
+    expect(removeEventListenerMock).toHaveBeenCalledWith('gateway:status', expect.any(Function));
   });
 });
-

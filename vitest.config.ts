@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import { defineConfig, defineProject } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
@@ -12,39 +12,47 @@ const nodeTestInclude = [
   'tests/unit/token-usage*.test.ts',
 ];
 
+const sharedResolve = {
+  alias: {
+    '@': resolve(__dirname, 'src'),
+    '@electron': resolve(__dirname, 'electron'),
+  },
+};
+
+const sharedSetupFiles = ['./tests/setup.ts'];
+
 export default defineConfig({
   plugins: [react()],
+  resolve: sharedResolve,
   test: {
     globals: true,
     projects: [
-      {
+      defineProject({
+        extends: true,
+        resolve: sharedResolve,
         test: {
           name: 'node',
           environment: 'node',
           include: nodeTestInclude,
-          setupFiles: ['./tests/setup.ts'],
+          setupFiles: sharedSetupFiles,
         },
-      },
-      {
+      }),
+      defineProject({
+        extends: true,
+        resolve: sharedResolve,
         test: {
           name: 'jsdom',
           environment: 'jsdom',
           include: ['tests/unit/**/*.{test,spec}.{ts,tsx}'],
           exclude: nodeTestInclude,
-          setupFiles: ['./tests/setup.ts'],
+          setupFiles: sharedSetupFiles,
         },
-      },
+      }),
     ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules/', 'tests/'],
-    },
-  },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-      '@electron': resolve(__dirname, 'electron'),
     },
   },
 });

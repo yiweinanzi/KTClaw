@@ -3,16 +3,14 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { SettingsMigrationPanel } from '@/components/settings-center/settings-migration-panel';
 
 describe('SettingsMigrationPanel', () => {
-  it('renders every migration section and the hero text', () => {
+  it('renders every migration section and action entry point', () => {
     render(<SettingsMigrationPanel onLaunchWizard={vi.fn()} />);
 
-    expect(screen.getByRole('heading', { name: '迁移与备份' })).toBeInTheDocument();
-    expect(
-      screen.getByText('配置同步、回滚、系统迁移，防止关键设置丢失或在设备间错位。'),
-    ).toBeInTheDocument();
-
-    expect(screen.getByRole('heading', { name: '从 OpenClaw 迁移配置' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '快照导出与导入' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '从 OpenClaw 迁移配置 (Migrate from OpenClaw)' })).toBeInTheDocument();
+    expect(screen.getByText(/自动检测本地磁盘上的 OpenClaw 旧版工作区/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '冷备与导出' })).toBeInTheDocument();
+    expect(screen.getByText('备份完整快照包 (Snapshot)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '选择 .ktclaw 导入' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '自动增量备份' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '恢复出厂 (Hard Reset)' })).toBeInTheDocument();
   });

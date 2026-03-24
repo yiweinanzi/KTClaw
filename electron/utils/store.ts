@@ -11,6 +11,21 @@ import { resolveSupportedLanguage } from '../../shared/language';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let settingsStoreInstance: any = null;
 
+export type UpdateChannel = 'stable' | 'beta' | 'dev';
+
+const UPDATE_CHANNELS = new Set<UpdateChannel>(['stable', 'beta', 'dev']);
+
+export function normalizeUpdateChannel(channel: unknown): UpdateChannel {
+  if (typeof channel !== 'string') return 'stable';
+  const normalized = channel.trim().toLowerCase();
+  if (normalized === 'latest') return 'stable';
+  if (normalized === 'alpha') return 'dev';
+  if (UPDATE_CHANNELS.has(normalized as UpdateChannel)) {
+    return normalized as UpdateChannel;
+  }
+  return 'stable';
+}
+
 /**
  * Generate a random token for gateway authentication
  */
@@ -43,7 +58,8 @@ export interface AppSettings {
   proxyBypassRules: string;
 
   // Update
-  updateChannel: 'stable' | 'beta' | 'dev';
+  updateChannel: UpdateChannel;
+  updateChannelExplicit: boolean;
   autoCheckUpdate: boolean;
   autoDownloadUpdate: boolean;
   skippedVersions: string[];
@@ -95,6 +111,7 @@ function createDefaultSettings(): AppSettings {
 
     // Update
     updateChannel: 'stable',
+    updateChannelExplicit: false,
     autoCheckUpdate: true,
     autoDownloadUpdate: false,
     skippedVersions: [],
@@ -129,7 +146,15 @@ async function getSettingsStore() {
  */
 export async function getSetting<K extends keyof AppSettings>(key: K): Promise<AppSettings[K]> {
   const store = await getSettingsStore();
-  return store.get(key);
+  const rawValue = store.get(key);
+  if (key === 'updateChannel') {
+    const normalized = normalizeUpdateChannel(rawValue);
+    if (normalized !== rawValue) {
+      store.set('updateChannel', normalized);
+    }
+    return normalized as AppSettings[K];
+  }
+  return rawValue;
 }
 
 /**
@@ -140,6 +165,15 @@ export async function setSetting<K extends keyof AppSettings>(
   value: AppSettings[K]
 ): Promise<void> {
   const store = await getSettingsStore();
+  if (key === 'updateChannel') {
+    store.set('updateChannel', normalizeUpdateChannel(value));
+    store.set('updateChannelExplicit', true);
+    return;
+  }
+  if (key === 'updateChannelExplicit') {
+    store.set('updateChannelExplicit', Boolean(value));
+    return;
+  }
   store.set(key, value);
 }
 
@@ -148,7 +182,13 @@ export async function setSetting<K extends keyof AppSettings>(
  */
 export async function getAllSettings(): Promise<AppSettings> {
   const store = await getSettingsStore();
-  return store.store;
+  const settings = store.store as AppSettings;
+  const normalizedChannel = normalizeUpdateChannel(settings.updateChannel);
+  if (settings.updateChannel !== normalizedChannel) {
+    store.set('updateChannel', normalizedChannel);
+    settings.updateChannel = normalizedChannel;
+  }
+  return settings;
 }
 
 /**

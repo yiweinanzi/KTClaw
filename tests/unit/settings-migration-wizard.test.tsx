@@ -8,24 +8,23 @@ describe('SettingsMigrationWizard', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('navigates through the steps and enables the start button', () => {
+  it('navigates through the current Chinese flow and enables the start button after acknowledgement', () => {
     const onOpenChange = vi.fn();
     render(<SettingsMigrationWizard open onOpenChange={onOpenChange} />);
 
-    expect(screen.getByRole('heading', { level: 2, name: /Choose scope/ })).toBeInTheDocument();
-    const toggleScope = screen.getByRole('button', { name: /Agents & defaults/ });
-    fireEvent.click(toggleScope);
-    const nextButton = screen.getByRole('button', { name: /Go to Compatibility report/ });
-    expect(nextButton).not.toBeDisabled();
-    fireEvent.click(nextButton);
+    expect(screen.getByRole('heading', { level: 2, name: '迁移兼容性报告' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
-    expect(screen.getByRole('heading', { level: 2, name: /Compatibility report/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Go to Confirm & execute/ }));
+    expect(screen.getByRole('heading', { level: 2, name: '选择迁移范围' })).toBeInTheDocument();
+    expect(screen.getByText('7/7')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Channels \(IM 通道配置\)/ }));
+    expect(screen.getByText('6/7')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /下一步/ }));
 
-    expect(screen.getByRole('heading', { level: 2, name: /Confirm & execute/ })).toBeInTheDocument();
-    const startButton = screen.getByRole('button', { name: /Start migration/ });
+    expect(screen.getByRole('heading', { level: 2, name: '确认执行迁移' })).toBeInTheDocument();
+    const startButton = screen.getByRole('button', { name: /开始迁移/ });
     expect(startButton).toBeDisabled();
-    fireEvent.click(screen.getByLabelText(/I understand the migration plan/));
+    fireEvent.click(screen.getByRole('button', { name: /我已了解迁移风险，确认执行/ }));
     expect(startButton).not.toBeDisabled();
     fireEvent.click(startButton);
     expect(onOpenChange).toHaveBeenCalledWith(false);

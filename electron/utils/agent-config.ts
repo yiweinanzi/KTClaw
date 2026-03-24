@@ -1,7 +1,7 @@
 import { access, copyFile, mkdir, readdir, rm } from 'fs/promises';
 import { constants } from 'fs';
 import { join, normalize } from 'path';
-import { deleteAgentChannelAccounts, listConfiguredChannels, readOpenClawConfig, writeOpenClawConfig } from './channel-config';
+import { listConfiguredChannels, readOpenClawConfig, writeOpenClawConfig } from './channel-config';
 import { withConfigLock } from './config-mutex';
 import { expandPath, getOpenClawConfigDir } from './paths';
 import * as logger from './logger';
@@ -38,6 +38,7 @@ interface AgentDefaultsConfig {
 interface AgentListEntry extends Record<string, unknown> {
   id: string;
   name?: string;
+  persona?: string;
   default?: boolean;
   workspace?: string;
   agentDir?: string;
@@ -78,6 +79,7 @@ interface AgentConfigDocument extends Record<string, unknown> {
 export interface AgentSummary {
   id: string;
   name: string;
+  persona: string;
   isDefault: boolean;
   modelDisplay: string;
   inheritedModel: boolean;
@@ -114,6 +116,10 @@ function formatModelLabel(model: unknown): string | null {
 
 function normalizeAgentName(name: string): string {
   return name.trim() || 'Agent';
+}
+
+function normalizeAgentPersona(persona?: string): string {
+  return typeof persona === 'string' ? persona.trim() : '';
 }
 
 function slugifyAgentId(name: string): string {
@@ -471,6 +477,7 @@ async function buildSnapshotFromConfig(config: AgentConfigDocument): Promise<Age
     return {
       id: entry.id,
       name: entry.name || (entry.id === MAIN_AGENT_ID ? MAIN_AGENT_NAME : entry.id),
+      persona: normalizeAgentPersona(entry.persona),
       isDefault: entry.id === defaultAgentId,
       modelDisplay: modelLabel,
       inheritedModel,
@@ -501,7 +508,7 @@ export async function listConfiguredAgentIds(): Promise<string[]> {
   return ids.length > 0 ? ids : [MAIN_AGENT_ID];
 }
 
-export async function createAgent(name: string): Promise<AgentsSnapshot> {
+export async function createAgent(name: string, persona?: string): Promise<AgentsSnapshot> {
   return withConfigLock(async () => {
     const config = await readOpenClawConfig() as AgentConfigDocument;
     const { agentsConfig, entries, syntheticMain } = normalizeAgentsConfig(config);
@@ -520,6 +527,7 @@ export async function createAgent(name: string): Promise<AgentsSnapshot> {
     const newAgent: AgentListEntry = {
       id: nextId,
       name: normalizedName,
+      persona: normalizeAgentPersona(persona),
       workspace: `~/.openclaw/workspace-${nextId}`,
       agentDir: getDefaultAgentDirPath(nextId),
     };
@@ -541,19 +549,30 @@ export async function createAgent(name: string): Promise<AgentsSnapshot> {
   });
 }
 
-export async function updateAgentName(agentId: string, name: string): Promise<AgentsSnapshot> {
+export async function updateAgentProfile(
+  agentId: string,
+  updates: { name?: string; persona?: string },
+): Promise<AgentsSnapshot> {
   return withConfigLock(async () => {
     const config = await readOpenClawConfig() as AgentConfigDocument;
     const { agentsConfig, entries } = normalizeAgentsConfig(config);
-    const normalizedName = normalizeAgentName(name);
     const index = entries.findIndex((entry) => entry.id === agentId);
     if (index === -1) {
       throw new Error(`Agent "${agentId}" not found`);
     }
 
+    const currentEntry = entries[index];
+    const normalizedName = updates.name !== undefined
+      ? normalizeAgentName(updates.name)
+      : (currentEntry.name || (currentEntry.id === MAIN_AGENT_ID ? MAIN_AGENT_NAME : currentEntry.id));
+    const normalizedPersona = updates.persona !== undefined
+      ? normalizeAgentPersona(updates.persona)
+      : normalizeAgentPersona(currentEntry.persona);
+
     entries[index] = {
-      ...entries[index],
+      ...currentEntry,
       name: normalizedName,
+      persona: normalizedPersona,
     };
 
     config.agents = {
@@ -562,9 +581,13 @@ export async function updateAgentName(agentId: string, name: string): Promise<Ag
     };
 
     await writeOpenClawConfig(config);
-    logger.info('Updated agent name', { agentId, name: normalizedName });
+    logger.info('Updated agent profile', { agentId, name: normalizedName, persona: normalizedPersona });
     return buildSnapshotFromConfig(config);
   });
+}
+
+export async function updateAgentName(agentId: string, name: string): Promise<AgentsSnapshot> {
+  return updateAgentProfile(agentId, { name });
 }
 
 export async function deleteAgentConfig(agentId: string): Promise<{ snapshot: AgentsSnapshot; removedEntry: AgentListEntry }> {
@@ -597,17 +620,17 @@ export async function deleteAgentConfig(agentId: string): Promise<{ snapshot: Ag
     }
 
     await writeOpenClawConfig(config);
-    await deleteAgentChannelAccounts(agentId);
-    await removeAgentRuntimeDirectory(agentId);
-    // NOTE: workspace directory is NOT deleted here intentionally.
-    // The caller (route handler) defers workspace removal until after
-    // the Gateway process has fully restarted, so that any in-flight
-    // process.chdir(workspace) calls complete before the directory
-    // disappears (otherwise process.cwd() throws ENOENT for the rest
-    // of the Gateway's lifetime).
+    // NOTE: Destructive side effects (channel account deletion, runtime removal,
+    // and workspace cleanup) are intentionally handled outside this helper.
+    // The caller (route handler) coordinates those steps so we can roll back
+    // cleanly when a Gateway restart fails.
     logger.info('Deleted agent config entry', { agentId });
     return { snapshot: await buildSnapshotFromConfig(config), removedEntry };
   });
+}
+
+export async function finalizeAgentDeletion(agentId: string): Promise<void> {
+  await removeAgentRuntimeDirectory(agentId);
 }
 
 export async function assignChannelToAgent(agentId: string, channelType: string): Promise<AgentsSnapshot> {

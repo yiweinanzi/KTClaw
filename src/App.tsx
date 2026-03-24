@@ -27,7 +27,6 @@ const Costs = lazy(() => import('./pages/Costs').then((m) => ({ default: m.Costs
 const Setup = lazy(() => import('./pages/Setup').then((m) => ({ default: m.Setup })));
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
-import { applyGatewayTransportPreference } from './lib/api-client';
 import { isBrowserPreviewMode } from './lib/browser-preview';
 import { wireGatewayNotifications } from './stores/notifications';
 
@@ -176,10 +175,6 @@ function App() {
       root.classList.add(theme);
     }
   }, [theme]);
-
-  useEffect(() => {
-    applyGatewayTransportPreference();
-  }, []);
 
   useEffect(() => {
     return wireGatewayNotifications(useGatewayStore);

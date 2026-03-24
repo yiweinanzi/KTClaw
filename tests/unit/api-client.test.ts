@@ -18,7 +18,6 @@ import {
 describe('api-client', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    window.localStorage.removeItem('clawx:gateway-ws-diagnostic');
     configureApiClient({
       enabled: { ws: false, http: false },
       rules: [{ matcher: /.*/, order: ['ipc'] }],
@@ -49,6 +48,16 @@ describe('api-client', () => {
     invoke.mockRejectedValueOnce(new Error('Gateway Timeout'));
 
     await expect(invokeIpc('gateway:status')).rejects.toMatchObject({ code: 'TIMEOUT' });
+  });
+
+  it('skips unified app:request for provider:getApiKey', async () => {
+    const invoke = vi.mocked(window.electron.ipcRenderer.invoke);
+    invoke.mockResolvedValueOnce('secret-value');
+
+    const result = await invokeIpc<string>('provider:getApiKey', { providerId: 'openai' });
+
+    expect(result).toBe('secret-value');
+    expect(invoke).toHaveBeenCalledWith('provider:getApiKey', { providerId: 'openai' });
   });
 
   it('retries once for retryable errors', async () => {
@@ -175,14 +184,14 @@ describe('api-client', () => {
     expect(config.rules[0]).toEqual({ matcher: /^gateway:rpc$/, order: ['ipc'] });
   });
 
-  it('enables ws->http->ipc order when ws diagnostic is on', () => {
+  it('ignores renderer-side diagnostic transport toggles and keeps ipc-only order', () => {
     setGatewayWsDiagnosticEnabled(true);
-    expect(getGatewayWsDiagnosticEnabled()).toBe(true);
+    expect(getGatewayWsDiagnosticEnabled()).toBe(false);
 
     const config = getApiClientConfig();
-    expect(config.enabled.ws).toBe(true);
-    expect(config.enabled.http).toBe(true);
-    expect(config.rules[0]).toEqual({ matcher: /^gateway:rpc$/, order: ['ws', 'http', 'ipc'] });
+    expect(config.enabled.ws).toBe(false);
+    expect(config.enabled.http).toBe(false);
+    expect(config.rules[0]).toEqual({ matcher: /^gateway:rpc$/, order: ['ipc'] });
   });
 
   it('parses gateway:httpProxy unified envelope response', async () => {

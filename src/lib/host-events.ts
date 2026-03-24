@@ -1,6 +1,5 @@
 import { createHostEventSource } from './host-api';
-
-let eventSource: EventSource | null = null;
+import { isBrowserPreviewMode } from './browser-preview';
 
 const HOST_EVENT_TO_IPC_CHANNEL: Record<string, string> = {
   'gateway:status': 'gateway:status-changed',
@@ -17,25 +16,34 @@ const HOST_EVENT_TO_IPC_CHANNEL: Record<string, string> = {
   'channel:whatsapp-error': 'channel:whatsapp-error',
 };
 
-function getEventSource(): EventSource {
-  if (!eventSource) {
-    eventSource = createHostEventSource();
+function parseBrowserPreviewEvent(event: MessageEvent): unknown {
+  const data = event?.data;
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data) as unknown;
+    } catch {
+      return data;
+    }
   }
-  return eventSource;
-}
-
-function allowSseFallback(): boolean {
-  try {
-    return window.localStorage.getItem('clawx:allow-sse-fallback') === '1';
-  } catch {
-    return false;
-  }
+  return data;
 }
 
 export function subscribeHostEvent<T = unknown>(
   eventName: string,
   handler: (payload: T) => void,
 ): () => void {
+  if (isBrowserPreviewMode()) {
+    const source = createHostEventSource();
+    const listener = (event: MessageEvent) => {
+      handler(parseBrowserPreviewEvent(event) as T);
+    };
+    source.addEventListener(eventName, listener as EventListener);
+    return () => {
+      source.removeEventListener(eventName, listener as EventListener);
+      source.close?.();
+    };
+  }
+
   const ipc = window.electron?.ipcRenderer;
   const ipcChannel = HOST_EVENT_TO_IPC_CHANNEL[eventName];
   if (ipcChannel && ipc?.on && ipc?.off) {
@@ -48,18 +56,6 @@ export function subscribeHostEvent<T = unknown>(
     };
   }
 
-  if (!allowSseFallback()) {
-    console.warn(`[host-events] no IPC mapping for event "${eventName}", SSE fallback disabled`);
-    return () => {};
-  }
-
-  const source = getEventSource();
-  const listener = (event: Event) => {
-    const payload = JSON.parse((event as MessageEvent).data) as T;
-    handler(payload);
-  };
-  source.addEventListener(eventName, listener);
-  return () => {
-    source.removeEventListener(eventName, listener);
-  };
+  console.warn(`[host-events] no IPC mapping for event "${eventName}", SSE fallback disabled`);
+  return () => {};
 }

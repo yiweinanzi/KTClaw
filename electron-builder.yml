@@ -47,15 +47,14 @@ asarUnpack:
 npmRebuild: false
 
 # Auto-update configuration
-# Primary: Alibaba Cloud OSS (fast for Chinese users, used for auto-update)
-# Fallback: GitHub Releases (backup, used when OSS is unavailable)
+# Runtime channel/feed selection is main-owned in electron/main/updater.ts.
+# Auto-update checks use the OSS generic feed only; GitHub release publication is
+# handled separately by .github/workflows/release.yml and is not used as a runtime
+# autoUpdater fallback.
 publish:
   - provider: generic
     url: https://oss.intelli-spectrum.com/latest
     useMultipleRangeRequest: false
-  - provider: github
-    owner: ValueCell-ai
-    repo: KTClaw
 
 # macOS Configuration
 mac:

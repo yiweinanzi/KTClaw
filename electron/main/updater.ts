@@ -3,17 +3,23 @@
  * Handles automatic application updates using electron-updater
  *
  * Update providers are configured in electron-builder.yml (OSS primary, GitHub fallback).
- * For prerelease channels (alpha, beta), the feed URL is overridden at runtime
- * to point at the channel-specific OSS directory (e.g. /alpha/, /beta/).
  */
 import { autoUpdater, UpdateInfo, ProgressInfo, UpdateDownloadedEvent } from 'electron-updater';
 import { BrowserWindow, app, ipcMain } from 'electron';
 import { logger } from '../utils/logger';
 import { EventEmitter } from 'events';
 import { setQuitting } from './app-state';
+import { getSetting, normalizeUpdateChannel, setSetting, type UpdateChannel } from '../utils/store';
 
 /** Base CDN URL (without trailing channel path) */
 const OSS_BASE_URL = 'https://oss.intelli-spectrum.com';
+type FeedChannel = 'latest' | 'beta' | 'alpha';
+
+const FEED_CHANNEL_BY_UPDATE_CHANNEL: Record<UpdateChannel, FeedChannel> = {
+  stable: 'latest',
+  beta: 'beta',
+  dev: 'alpha',
+};
 
 export interface UpdateStatus {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
@@ -33,12 +39,24 @@ export interface UpdaterEvents {
 }
 
 /**
- * Detect the update channel from a semver version string.
- * e.g. "0.1.8-alpha.0" → "alpha", "1.0.0-beta.1" → "beta", "1.0.0" → "latest"
+ * Detect update channel from app version.
+ * e.g. "1.0.0-beta.1" -> beta, "1.0.0-alpha.1" -> dev, "1.0.0" -> stable
  */
-function detectChannel(version: string): string {
+function detectChannel(version: string): UpdateChannel {
   const match = version.match(/-([a-zA-Z]+)/);
-  return match ? match[1] : 'latest';
+  if (!match) return 'stable';
+  const prerelease = match[1].toLowerCase();
+  if (prerelease === 'beta') return 'beta';
+  if (prerelease === 'stable' || prerelease === 'latest') return 'stable';
+  return 'dev';
+}
+
+function getFeedChannel(channel: UpdateChannel): FeedChannel {
+  return FEED_CHANNEL_BY_UPDATE_CHANNEL[channel];
+}
+
+function getFeedUrl(channel: UpdateChannel): string {
+  return `${OSS_BASE_URL}/${getFeedChannel(channel)}`;
 }
 
 export class AppUpdater extends EventEmitter {
@@ -58,10 +76,10 @@ export class AppUpdater extends EventEmitter {
     this.on('error', (error: Error) => {
       logger.error('[Updater] AppUpdater emitted error:', error);
     });
-    
+
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
-    
+
     autoUpdater.logger = {
       info: (msg: string) => logger.info('[Updater]', msg),
       warn: (msg: string) => logger.warn('[Updater]', msg),
@@ -69,25 +87,46 @@ export class AppUpdater extends EventEmitter {
       debug: (msg: string) => logger.debug('[Updater]', msg),
     };
 
-    // Override feed URL for prerelease channels so that
-    // alpha -> /alpha/alpha-mac.yml, beta -> /beta/beta-mac.yml, etc.
     const version = app.getVersion();
-    const channel = detectChannel(version);
-    const feedUrl = `${OSS_BASE_URL}/${channel}`;
+    const derivedChannel = detectChannel(version);
+    this.applyChannel(derivedChannel, false);
+    logger.info(
+      `[Updater] Version: ${version}, channel: ${derivedChannel}, feedChannel: ${getFeedChannel(derivedChannel)}, feedUrl: ${getFeedUrl(derivedChannel)}`
+    );
 
-    logger.info(`[Updater] Version: ${version}, channel: ${channel}, feedUrl: ${feedUrl}`);
+    // Replay persisted update channel so runtime behavior matches Settings.
+    void this.bootstrapChannelFromSettings();
 
-    // Set channel so electron-updater requests the correct yml filename.
-    // e.g. channel "alpha" → requests alpha-mac.yml, channel "latest" → requests latest-mac.yml
-    autoUpdater.channel = channel;
+    this.setupListeners();
+  }
 
+  private applyChannel(channel: UpdateChannel, persist: boolean): void {
+    const normalized = normalizeUpdateChannel(channel);
+    const feedChannel = getFeedChannel(normalized);
+    autoUpdater.channel = feedChannel;
     autoUpdater.setFeedURL({
       provider: 'generic',
-      url: feedUrl,
+      url: getFeedUrl(normalized),
       useMultipleRangeRequest: false,
     });
 
-    this.setupListeners();
+    if (!persist) return;
+    void setSetting('updateChannel', normalized).catch((error) => {
+      logger.warn('[Updater] Failed to persist update channel:', error);
+    });
+  }
+
+  private async bootstrapChannelFromSettings(): Promise<void> {
+    try {
+      const explicit = await getSetting('updateChannelExplicit');
+      if (!explicit) {
+        return;
+      }
+      const persisted = await getSetting('updateChannel');
+      this.applyChannel(persisted, false);
+    } catch (error) {
+      logger.warn('[Updater] Failed to load persisted update channel:', error);
+    }
   }
 
   /**
@@ -183,7 +222,7 @@ export class AppUpdater extends EventEmitter {
       if (result == null) {
         this.updateStatus({
           status: 'error',
-          error: 'Update check skipped (dev mode – app is not packaged)',
+          error: 'Update check skipped (dev mode - app is not packaged)',
         });
         return null;
       }
@@ -266,7 +305,7 @@ export class AppUpdater extends EventEmitter {
    * Set update channel (stable, beta, dev)
    */
   setChannel(channel: 'stable' | 'beta' | 'dev'): void {
-    autoUpdater.channel = channel;
+    this.applyChannel(channel, true);
   }
 
   /**
@@ -303,7 +342,7 @@ export function registerUpdateHandlers(
     return updater.getCurrentVersion();
   });
 
-  // Check for updates – always return final status so the renderer
+  // Check for updates - always return final status so the renderer
   // never gets stuck in 'checking' waiting for a push event.
   ipcMain.handle('update:check', async () => {
     try {
@@ -347,7 +386,6 @@ export function registerUpdateHandlers(
     updater.cancelAutoInstall();
     return { success: true };
   });
-
 }
 
 // Export singleton instance

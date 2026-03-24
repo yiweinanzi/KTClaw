@@ -41,6 +41,18 @@ vi.mock('@/lib/api-client', () => ({
   invokeIpc: vi.fn(),
 }));
 
+vi.mock('@/pages/Chat/FolderSelectorPopover', () => ({
+  FolderSelectorPopover: ({
+    onSelectFolder,
+  }: {
+    onSelectFolder: (path: string) => void;
+  }) => (
+    <button type="button" onClick={() => onSelectFolder('C:/Users/22688/Desktop/ClawX-main')}>
+      mock-select-folder
+    </button>
+  ),
+}));
+
 function translate(key: string, vars?: Record<string, unknown>): string {
   switch (key) {
     case 'composer.attachFiles':
@@ -198,5 +210,35 @@ describe('ChatInput agent targeting', () => {
     render(<ChatInput onSend={vi.fn()} />);
 
     expect(screen.getByTestId('chat-composer-model-pill')).toHaveTextContent('gpt-5.2');
+  });
+
+  it('passes selected workingDirectory as the 4th onSend argument', () => {
+    const onSend = vi.fn();
+    agentsState.agents = [
+      {
+        id: 'main',
+        name: 'Main',
+        isDefault: true,
+        modelDisplay: 'MiniMax',
+        inheritedModel: true,
+        workspace: '~/.openclaw/workspace',
+        agentDir: '~/.openclaw/agents/main/agent',
+        mainSessionKey: 'agent:main:main',
+        channelTypes: [],
+      },
+    ];
+
+    render(<ChatInput onSend={onSend} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'mock-select-folder' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Run in selected dir' } });
+    fireEvent.click(screen.getByTitle('Send'));
+
+    expect(onSend).toHaveBeenCalledWith(
+      'Run in selected dir',
+      undefined,
+      null,
+      'C:/Users/22688/Desktop/ClawX-main',
+    );
   });
 });

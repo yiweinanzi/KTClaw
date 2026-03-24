@@ -5,8 +5,8 @@
  * account-based provider storage and a dedicated secret-store abstraction.
  */
 
-import { BUILTIN_PROVIDER_TYPES, type ProviderType } from './provider-registry';
-import { getActiveOpenClawProviders } from './openclaw-auth';
+import { type ProviderType } from './provider-registry';
+import { logger } from './logger';
 import {
   deleteProviderAccount,
   getProviderAccount,
@@ -23,7 +23,6 @@ import {
   getProviderSecret,
   setProviderSecret,
 } from '../services/secrets/secret-store';
-import { getOpenClawProviderKeyForType } from './provider-keys';
 
 /**
  * Provider configuration
@@ -42,6 +41,47 @@ export interface ProviderConfig {
   updatedAt: string;
 }
 
+type StoredProviderSecret = Awaited<ReturnType<typeof getProviderSecret>>;
+
+function getApiKeyFromSecret(secret: StoredProviderSecret): string | null {
+  if (!secret) {
+    return null;
+  }
+
+  if (secret.type === 'api_key') {
+    return secret.apiKey;
+  }
+
+  if (secret.type === 'local') {
+    return secret.apiKey ?? null;
+  }
+
+  return null;
+}
+
+function secretContainsApiKey(secret: StoredProviderSecret): boolean {
+  if (!secret) {
+    return false;
+  }
+
+  if (secret.type === 'api_key') {
+    return true;
+  }
+
+  return secret.type === 'local' && typeof secret.apiKey !== 'undefined';
+}
+
+async function clearLegacyApiKey(providerId: string): Promise<void> {
+  const s = await getKTClawProviderStore();
+  const keys = (s.get('apiKeys') || {}) as Record<string, string>;
+  if (!(providerId in keys)) {
+    return;
+  }
+
+  delete keys[providerId];
+  s.set('apiKeys', keys);
+}
+
 // ==================== API Key Storage ====================
 
 /**
@@ -50,18 +90,15 @@ export interface ProviderConfig {
 export async function storeApiKey(providerId: string, apiKey: string): Promise<boolean> {
   try {
     await ensureProviderStoreMigrated();
-    const s = await getKTClawProviderStore();
-    const keys = (s.get('apiKeys') || {}) as Record<string, string>;
-    keys[providerId] = apiKey;
-    s.set('apiKeys', keys);
     await setProviderSecret({
       type: 'api_key',
       accountId: providerId,
       apiKey,
     });
+    await clearLegacyApiKey(providerId);
     return true;
   } catch (error) {
-    console.error('Failed to store API key:', error);
+    logger.error('Failed to store API key:', error);
     return false;
   }
 }
@@ -73,18 +110,28 @@ export async function getApiKey(providerId: string): Promise<string | null> {
   try {
     await ensureProviderStoreMigrated();
     const secret = await getProviderSecret(providerId);
-    if (secret?.type === 'api_key') {
-      return secret.apiKey;
-    }
-    if (secret?.type === 'local') {
-      return secret.apiKey ?? null;
+    const apiKey = getApiKeyFromSecret(secret);
+    if (apiKey !== null) {
+      return apiKey;
     }
 
     const s = await getKTClawProviderStore();
     const keys = (s.get('apiKeys') || {}) as Record<string, string>;
-    return keys[providerId] || null;
+    const legacyApiKey = keys[providerId];
+    if (!legacyApiKey) {
+      return null;
+    }
+
+    await setProviderSecret({
+      type: 'api_key',
+      accountId: providerId,
+      apiKey: legacyApiKey,
+    });
+    delete keys[providerId];
+    s.set('apiKeys', keys);
+    return legacyApiKey;
   } catch (error) {
-    console.error('Failed to retrieve API key:', error);
+    logger.error('Failed to retrieve API key:', error);
     return null;
   }
 }
@@ -95,14 +142,11 @@ export async function getApiKey(providerId: string): Promise<string | null> {
 export async function deleteApiKey(providerId: string): Promise<boolean> {
   try {
     await ensureProviderStoreMigrated();
-    const s = await getKTClawProviderStore();
-    const keys = (s.get('apiKeys') || {}) as Record<string, string>;
-    delete keys[providerId];
-    s.set('apiKeys', keys);
     await deleteProviderSecret(providerId);
+    await clearLegacyApiKey(providerId);
     return true;
   } catch (error) {
-    console.error('Failed to delete API key:', error);
+    logger.error('Failed to delete API key:', error);
     return false;
   }
 }
@@ -113,13 +157,24 @@ export async function deleteApiKey(providerId: string): Promise<boolean> {
 export async function hasApiKey(providerId: string): Promise<boolean> {
   await ensureProviderStoreMigrated();
   const secret = await getProviderSecret(providerId);
-  if (secret?.type === 'api_key') {
+  if (secretContainsApiKey(secret)) {
     return true;
   }
 
   const s = await getKTClawProviderStore();
   const keys = (s.get('apiKeys') || {}) as Record<string, string>;
-  return providerId in keys;
+  if (!(providerId in keys)) {
+    return false;
+  }
+
+  await setProviderSecret({
+    type: 'api_key',
+    accountId: providerId,
+    apiKey: keys[providerId],
+  });
+  delete keys[providerId];
+  s.set('apiKeys', keys);
+  return true;
 }
 
 /**
@@ -128,8 +183,34 @@ export async function hasApiKey(providerId: string): Promise<boolean> {
 export async function listStoredKeyIds(): Promise<string[]> {
   await ensureProviderStoreMigrated();
   const s = await getKTClawProviderStore();
+  const providerSecrets = (s.get('providerSecrets') || {}) as Record<string, unknown>;
   const keys = (s.get('apiKeys') || {}) as Record<string, string>;
-  return Object.keys(keys);
+  const ids = new Set([...Object.keys(providerSecrets), ...Object.keys(keys)]);
+  const keyIds: string[] = [];
+
+  for (const id of ids) {
+    const secret = await getProviderSecret(id);
+    if (secretContainsApiKey(secret)) {
+      keyIds.push(id);
+      continue;
+    }
+
+    if (id in keys) {
+      const legacyApiKey = keys[id];
+      if (legacyApiKey) {
+        await setProviderSecret({
+          type: 'api_key',
+          accountId: id,
+          apiKey: legacyApiKey,
+        });
+        delete keys[id];
+        s.set('apiKeys', keys);
+      }
+      keyIds.push(id);
+    }
+  }
+
+  return keyIds;
 }
 
 // ==================== Provider Configuration ====================
@@ -205,7 +286,7 @@ export async function deleteProvider(providerId: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('Failed to delete provider:', error);
+    logger.error('Failed to delete provider:', error);
     return false;
   }
 }
@@ -259,32 +340,15 @@ export async function getProviderWithKeyInfo(
 
 /**
  * Get all providers with key info (for UI display)
- * Also synchronizes KTClaw local provider list with OpenClaw's actual config.
+ * Read-only helper that must not mutate provider configs.
  */
 export async function getAllProvidersWithKeyInfo(): Promise<
   Array<ProviderConfig & { hasKey: boolean; keyMasked: string | null }>
 > {
   const providers = await getAllProviders();
   const results: Array<ProviderConfig & { hasKey: boolean; keyMasked: string | null }> = [];
-  const activeOpenClawProviders = await getActiveOpenClawProviders();
 
   for (const provider of providers) {
-    // Sync check: If it's a custom/OAuth provider and it no longer exists in OpenClaw config
-    // (e.g. wiped by Gateway due to missing plugin, or manually deleted by user)
-    // we should remove it from KTClaw UI to stay consistent.
-    const isBuiltin = (BUILTIN_PROVIDER_TYPES as readonly ProviderType[]).includes(provider.type);
-    // For custom/ollama providers, the OpenClaw config key is derived as
-    // "<type>-<suffix>" where suffix = first 8 chars of providerId with hyphens stripped.
-    // e.g. provider.id "custom-a1b2c3d4-..." → strip hyphens → "customa1b2c3d4..." → slice(0,8) → "customa1"
-    // → openClawKey = "custom-customa1"
-    // This must match getOpenClawProviderKey() in ipc-handlers.ts exactly.
-    const openClawKey = getOpenClawProviderKeyForType(provider.type, provider.id);
-    if (!isBuiltin && !activeOpenClawProviders.has(provider.type) && !activeOpenClawProviders.has(provider.id) && !activeOpenClawProviders.has(openClawKey)) {
-      console.log(`[Sync] Provider ${provider.id} (${provider.type}) missing from OpenClaw, dropping from KTClaw UI`);
-      await deleteProvider(provider.id);
-      continue;
-    }
-
     const apiKey = await getApiKey(provider.id);
     let keyMasked: string | null = null;
 

@@ -25,6 +25,14 @@ import { logger } from '../../utils/logger';
 
 const legacyProviderRoutesWarned = new Set<string>();
 
+function maskSecret(secret: string | null): string | null {
+  if (!secret) return null;
+  if (secret.length > 12) {
+    return `${secret.substring(0, 4)}${'*'.repeat(secret.length - 8)}${secret.substring(secret.length - 4)}`;
+  }
+  return '*'.repeat(secret.length);
+}
+
 function hasObjectChanges<T extends Record<string, unknown>>(
   existing: T,
   patch: Partial<T> | undefined,
@@ -195,7 +203,11 @@ export async function handleProviderRoutes(
       const registryBaseUrl = getProviderConfig(providerType)?.baseUrl;
       const resolvedBaseUrl = body.options?.baseUrl || provider?.baseUrl || registryBaseUrl;
       const resolvedProtocol = body.options?.apiProtocol || provider?.apiProtocol;
-      sendJson(res, 200, await validateApiKeyWithProvider(providerType, body.apiKey, { baseUrl: resolvedBaseUrl, apiProtocol: resolvedProtocol as any }));
+      const validationOptions: { baseUrl?: string; apiProtocol?: string } = {
+        baseUrl: resolvedBaseUrl,
+      };
+      if (resolvedProtocol) validationOptions.apiProtocol = resolvedProtocol;
+      sendJson(res, 200, await validateApiKeyWithProvider(providerType, body.apiKey, validationOptions));
     } catch (error) {
       sendJson(res, 500, { valid: false, error: String(error) });
     }
@@ -283,7 +295,12 @@ export async function handleProviderRoutes(
     const providerId = decodeURIComponent(url.pathname.slice('/api/providers/'.length));
     if (providerId.endsWith('/api-key')) {
       const actualId = providerId.slice(0, -('/api-key'.length));
-      sendJson(res, 200, { apiKey: await providerService.getLegacyProviderApiKey(actualId) });
+      const apiKey = await providerService.getLegacyProviderApiKey(actualId);
+      sendJson(res, 200, {
+        apiKey: null,
+        hasKey: Boolean(apiKey),
+        keyMasked: maskSecret(apiKey),
+      });
       return true;
     }
     if (providerId.endsWith('/has-api-key')) {

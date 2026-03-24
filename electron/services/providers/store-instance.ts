@@ -11,7 +11,9 @@ export async function getKTClawProviderStore() {
         schemaVersion: 0,
         providers: {} as Record<string, unknown>,
         providerAccounts: {} as Record<string, unknown>,
+        // Legacy plaintext key cache. New writes should go through providerSecrets only.
         apiKeys: {} as Record<string, string>,
+        // Main secret payloads, wrapped by electron safeStorage in secret-store.
         providerSecrets: {} as Record<string, unknown>,
         defaultProvider: null as string | null,
         defaultProviderAccountId: null as string | null,

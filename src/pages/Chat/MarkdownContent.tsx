@@ -6,17 +6,15 @@
  * Adapted from LobsterAI MarkdownContent for ClawX color system.
  */
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import type { JSX } from 'react';
+import type { Components, ExtraProps } from 'react-markdown';
 import ReactMarkdown from 'react-markdown';
-// @ts-ignore
+
 import remarkGfm from 'remark-gfm';
-// @ts-ignore
 import remarkMath from 'remark-math';
-// @ts-ignore
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-// @ts-ignore
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-// @ts-ignore
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check, File, Folder } from 'lucide-react';
 
@@ -131,16 +129,29 @@ const encodeFileUrlsInMarkdown = (content: string): string => {
   return result;
 };
 
+type MarkdownComponentProps<Tag extends keyof JSX.IntrinsicElements> =
+  JSX.IntrinsicElements[Tag] & ExtraProps;
+
+type MarkdownCodeProps = MarkdownComponentProps<'code'> & { inline?: boolean };
+
 // ── Code Block ───────────────────────────────────────────────────
 
-const CodeBlock: React.FC<any> = ({ node, className, children, ...props }) => {
+const CodeBlock: React.FC<MarkdownCodeProps> = ({
+  node,
+  className,
+  children,
+  inline,
+  ...props
+}) => {
   const normalizedClassName = Array.isArray(className) ? className.join(' ') : className || '';
   const match = /language-([\w-]+)/.exec(normalizedClassName);
-  const hasPosition = node?.position?.start?.line != null && node?.position?.end?.line != null;
-  const isInline = typeof props.inline === 'boolean'
-    ? props.inline
+  const startLine = node?.position?.start?.line;
+  const endLine = node?.position?.end?.line;
+  const hasPosition = startLine != null && endLine != null;
+  const isInline = typeof inline === 'boolean'
+    ? inline
     : hasPosition
-      ? node.position.start.line === node.position.end.line
+      ? startLine === endLine
       : !match;
   const codeText = Array.isArray(children) ? children.join('') : String(children);
   const trimmedCode = codeText.replace(/\n$/, '');
@@ -223,142 +234,193 @@ const CodeBlock: React.FC<any> = ({ node, className, children, ...props }) => {
 
 // ── Markdown components factory ──────────────────────────────────
 
-const createComponents = (resolveLocalFilePath?: (href: string, text: string) => string | null) => ({
-  p: ({ children, ...props }: any) => (
-    <p className="my-1 first:mt-0 last:mb-0 leading-6 text-[14px]" {...props}>{children}</p>
-  ),
-  strong: ({ children, ...props }: any) => (
-    <strong className="font-semibold" {...props}>{children}</strong>
-  ),
-  h1: ({ children, ...props }: any) => (
-    <h1 className="text-xl font-semibold mt-5 mb-2" {...props}>{children}</h1>
-  ),
-  h2: ({ children, ...props }: any) => (
-    <h2 className="text-lg font-semibold mt-4 mb-2" {...props}>{children}</h2>
-  ),
-  h3: ({ children, ...props }: any) => (
-    <h3 className="text-base font-semibold mt-3 mb-1.5" {...props}>{children}</h3>
-  ),
-  ul: ({ children, ...props }: any) => (
-    <ul className="list-disc pl-5 my-1.5" {...props}>{children}</ul>
-  ),
-  ol: ({ children, ...props }: any) => (
-    <ol className="list-decimal pl-6 my-1.5" {...props}>{children}</ol>
-  ),
-  li: ({ children, ...props }: any) => (
-    <li className="my-0.5 leading-6" {...props}>{children}</li>
-  ),
-  blockquote: ({ children, ...props }: any) => (
-    <blockquote className="border-l-4 border-clawx-ac pl-4 py-1 my-2 bg-clawx-ac/5 rounded-r-lg" {...props}>
-      {children}
-    </blockquote>
-  ),
-  code: CodeBlock,
-  table: ({ children, ...props }: any) => (
-    <div className="my-3 overflow-x-auto rounded-xl border border-black/10">
-      <table className="border-collapse w-full" {...props}>{children}</table>
-    </div>
-  ),
-  thead: ({ children, ...props }: any) => (
-    <thead className="bg-[#f2f2f7]" {...props}>{children}</thead>
-  ),
-  tbody: ({ children, ...props }: any) => (
-    <tbody className="divide-y divide-black/[0.06]" {...props}>{children}</tbody>
-  ),
-  tr: ({ children, ...props }: any) => (
-    <tr className="divide-x divide-black/[0.06]" {...props}>{children}</tr>
-  ),
-  th: ({ children, ...props }: any) => (
-    <th className="px-4 py-2 text-left font-semibold text-[13px]" {...props}>{children}</th>
-  ),
-  td: ({ children, ...props }: any) => (
-    <td className="px-4 py-2 text-[13px]" {...props}>{children}</td>
-  ),
-  img: ({ src, alt, ...props }: any) => {
-    const resolvedSrc = typeof src === 'string' && src.startsWith('file://')
-      ? src.replace(/^file:\/\//, 'localfile://')
-      : src;
-    return <img className="max-w-full h-auto rounded-xl my-3" src={resolvedSrc} alt={alt} {...props} />;
-  },
-  hr: ({ ...props }: any) => (
-    <hr className="my-4 border-black/10" {...props} />
-  ),
-  a: ({ href, children, ...props }: any) => {
-    if (typeof href === 'string' && href.startsWith('#artifact-')) return null;
-    const hrefValue = typeof href === 'string' ? href.trim() : '';
-    const isExternal = !!hrefValue && isExternalHref(hrefValue);
-    const linkText = Array.isArray(children) ? children.join('') : String(children ?? '');
-    const resolvedPath = hrefValue && !isExternal && resolveLocalFilePath
-      ? resolveLocalFilePath(hrefValue, linkText) : null;
-    const isLocalFile = !!hrefValue && !isExternal && (resolvedPath || isLikelyLocalFilePath(hrefValue));
-
-    if (isLocalFile) {
-      const rawPath = resolvedPath ?? stripFileProtocol(stripHashAndQuery(hrefValue));
-      const filePath = safeDecodeURIComponent(rawPath) || rawPath;
-
-      const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
-        e.preventDefault();
-        try {
-          const result = await (window as any).electron?.shell?.openPath(filePath);
-          if (!result?.success) {
-            console.error('Failed to open file:', filePath, result?.error);
-          }
-        } catch (err) {
-          console.error('Failed to open file:', filePath, err);
-        }
-      };
-
+const createComponents = (resolveLocalFilePath?: (href: string, text: string) => string | null) => {
+  const components: Partial<Components> = {
+    p: ({ children, node, ...props }: MarkdownComponentProps<'p'>) => {
+      void node;
       return (
-        <a
-          href={toFileHref(filePath)}
-          onClick={handleClick}
-          className="text-clawx-ac hover:text-clawx-ac/80 underline decoration-clawx-ac/40 hover:decoration-clawx-ac transition-colors cursor-pointer inline-flex items-center gap-1"
-          title={filePath}
-          {...props}
-        >
-          {children}
-          {looksLikeDirectory(filePath)
-            ? <Folder className="h-3.5 w-3.5 inline" />
-            : <File className="h-3.5 w-3.5 inline" />}
-        </a>
+        <p className="my-1 first:mt-0 last:mb-0 leading-6 text-[14px]" {...props}>{children}</p>
       );
-    }
+    },
+    strong: ({ children, node, ...props }: MarkdownComponentProps<'strong'>) => {
+      void node;
+      return <strong className="font-semibold" {...props}>{children}</strong>;
+    },
+    h1: ({ children, node, ...props }: MarkdownComponentProps<'h1'>) => {
+      void node;
+      return (
+        <h1 className="text-xl font-semibold mt-5 mb-2" {...props}>{children}</h1>
+      );
+    },
+    h2: ({ children, node, ...props }: MarkdownComponentProps<'h2'>) => {
+      void node;
+      return (
+        <h2 className="text-lg font-semibold mt-4 mb-2" {...props}>{children}</h2>
+      );
+    },
+    h3: ({ children, node, ...props }: MarkdownComponentProps<'h3'>) => {
+      void node;
+      return (
+        <h3 className="text-base font-semibold mt-3 mb-1.5" {...props}>{children}</h3>
+      );
+    },
+    ul: ({ children, node, ...props }: MarkdownComponentProps<'ul'>) => {
+      void node;
+      return (
+        <ul className="list-disc pl-5 my-1.5" {...props}>{children}</ul>
+      );
+    },
+    ol: ({ children, node, ...props }: MarkdownComponentProps<'ol'>) => {
+      void node;
+      return (
+        <ol className="list-decimal pl-6 my-1.5" {...props}>{children}</ol>
+      );
+    },
+    li: ({ children, node, ...props }: MarkdownComponentProps<'li'>) => {
+      void node;
+      return (
+        <li className="my-0.5 leading-6" {...props}>{children}</li>
+      );
+    },
+    blockquote: ({ children, node, ...props }: MarkdownComponentProps<'blockquote'>) => {
+      void node;
+      return (
+        <blockquote className="border-l-4 border-clawx-ac pl-4 py-1 my-2 bg-clawx-ac/5 rounded-r-lg" {...props}>
+          {children}
+        </blockquote>
+      );
+    },
+    code: CodeBlock,
+    table: ({ children, node, ...props }: MarkdownComponentProps<'table'>) => {
+      void node;
+      return (
+        <div className="my-3 overflow-x-auto rounded-xl border border-black/10">
+          <table className="border-collapse w-full" {...props}>{children}</table>
+        </div>
+      );
+    },
+    thead: ({ children, node, ...props }: MarkdownComponentProps<'thead'>) => {
+      void node;
+      return (
+        <thead className="bg-[#f2f2f7]" {...props}>{children}</thead>
+      );
+    },
+    tbody: ({ children, node, ...props }: MarkdownComponentProps<'tbody'>) => {
+      void node;
+      return (
+        <tbody className="divide-y divide-black/[0.06]" {...props}>{children}</tbody>
+      );
+    },
+    tr: ({ children, node, ...props }: MarkdownComponentProps<'tr'>) => {
+      void node;
+      return (
+        <tr className="divide-x divide-black/[0.06]" {...props}>{children}</tr>
+      );
+    },
+    th: ({ children, node, ...props }: MarkdownComponentProps<'th'>) => {
+      void node;
+      return (
+        <th className="px-4 py-2 text-left font-semibold text-[13px]" {...props}>{children}</th>
+      );
+    },
+    td: ({ children, node, ...props }: MarkdownComponentProps<'td'>) => {
+      void node;
+      return (
+        <td className="px-4 py-2 text-[13px]" {...props}>{children}</td>
+      );
+    },
+    img: ({ src, alt, node, ...props }: MarkdownComponentProps<'img'>) => {
+      void node;
+      const resolvedSrc = typeof src === 'string' && src.startsWith('file://')
+        ? src.replace(/^file:\/\//, 'localfile://')
+        : src;
+      return <img className="max-w-full h-auto rounded-xl my-3" src={resolvedSrc} alt={alt} {...props} />;
+    },
+    hr: ({ node, ...props }: MarkdownComponentProps<'hr'>) => {
+      void node;
+      return <hr className="my-4 border-black/10" {...props} />;
+    },
+    a: ({ href, children, node, ...props }: MarkdownComponentProps<'a'>) => {
+      void node;
+      if (typeof href === 'string' && href.startsWith('#artifact-')) return null;
+      const hrefValue = typeof href === 'string' ? href.trim() : '';
+      const isExternal = !!hrefValue && isExternalHref(hrefValue);
+      const linkText = Array.isArray(children) ? children.join('') : String(children ?? '');
+      const resolvedPath = hrefValue && !isExternal && resolveLocalFilePath
+        ? resolveLocalFilePath(hrefValue, linkText) : null;
+      const isLocalFile = !!hrefValue && !isExternal && (resolvedPath || isLikelyLocalFilePath(hrefValue));
 
-    if (isExternal) {
-      const handleExternal = async (e: React.MouseEvent<HTMLAnchorElement>) => {
-        const openExternal = (window as any)?.electron?.shell?.openExternal;
-        if (typeof openExternal === 'function') {
+      if (isLocalFile) {
+        const rawPath = resolvedPath ?? stripFileProtocol(stripHashAndQuery(hrefValue));
+        const filePath = safeDecodeURIComponent(rawPath) || rawPath;
+
+        const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+          const ipc = window.electron?.ipcRenderer;
+          if (!ipc) return;
+          e.preventDefault();
+          try {
+            const result = await ipc.invoke('shell:openPath', filePath);
+            if (typeof result === 'string' && result) {
+              console.error('Failed to open file:', filePath, result);
+            }
+          } catch (err) {
+            console.error('Failed to open file:', filePath, err);
+          }
+        };
+
+        return (
+          <a
+            href={toFileHref(filePath)}
+            onClick={handleClick}
+            className="text-clawx-ac hover:text-clawx-ac/80 underline decoration-clawx-ac/40 hover:decoration-clawx-ac transition-colors cursor-pointer inline-flex items-center gap-1"
+            title={filePath}
+            {...props}
+          >
+            {children}
+            {looksLikeDirectory(filePath)
+              ? <Folder className="h-3.5 w-3.5 inline" />
+              : <File className="h-3.5 w-3.5 inline" />}
+          </a>
+        );
+      }
+
+      if (isExternal) {
+        const handleExternal = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+          const openExternal = window.electron?.openExternal;
+          if (!openExternal) return;
           e.preventDefault();
           try { await openExternal(hrefValue); } catch { /* fall through */ }
-        }
-      };
+        };
+        return (
+          <a
+            href={hrefValue}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleExternal}
+            className="text-clawx-ac hover:text-clawx-ac/80 underline decoration-clawx-ac/40 hover:decoration-clawx-ac transition-colors"
+            {...props}
+          >
+            {children}
+          </a>
+        );
+      }
+
       return (
         <a
           href={hrefValue}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={handleExternal}
-          className="text-clawx-ac hover:text-clawx-ac/80 underline decoration-clawx-ac/40 hover:decoration-clawx-ac transition-colors"
+          className="text-clawx-ac hover:text-[#0056cc] underline decoration-clawx-ac/40 hover:decoration-clawx-ac transition-colors"
           {...props}
         >
           {children}
         </a>
       );
-    }
+    },
+  };
 
-    return (
-      <a
-        href={hrefValue}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-clawx-ac hover:text-[#0056cc] underline decoration-clawx-ac/40 hover:decoration-clawx-ac transition-colors"
-        {...props}
-      >
-        {children}
-      </a>
-    );
-  },
-});
+  return components;
+};
 
 // ── Public API ───────────────────────────────────────────────────
 

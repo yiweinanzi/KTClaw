@@ -9,7 +9,7 @@ vi.mock('@/lib/api-client', () => ({
 describe('host-api', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    window.localStorage.removeItem('clawx:allow-localhost-fallback');
+    delete (window.electron as { __ktclawBrowserPreviewShim?: boolean }).__ktclawBrowserPreviewShim;
   });
 
   it('uses IPC proxy and returns unified envelope json', async () => {
@@ -45,14 +45,13 @@ describe('host-api', () => {
     expect(result.ok).toBe(1);
   });
 
-  it('falls back to browser fetch when hostapi handler is not registered', async () => {
+  it('does not fall back to browser fetch when hostapi handler is not registered in Electron mode', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({ fallback: true }),
     });
     vi.stubGlobal('fetch', fetchMock);
-    window.localStorage.setItem('clawx:allow-localhost-fallback', '1');
 
     invokeIpcMock.mockResolvedValueOnce({
       ok: false,
@@ -60,13 +59,8 @@ describe('host-api', () => {
     });
 
     const { hostApiFetch } = await import('@/lib/host-api');
-    const result = await hostApiFetch<{ fallback: boolean }>('/api/test');
-
-    expect(result.fallback).toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://127.0.0.1:3210/api/test',
-      expect.objectContaining({ headers: expect.any(Object) }),
-    );
+    await expect(hostApiFetch('/api/test')).rejects.toThrow('No handler registered for hostapi:fetch');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('throws message from legacy non-ok envelope', async () => {
@@ -81,28 +75,7 @@ describe('host-api', () => {
     await expect(hostApiFetch('/api/test')).rejects.toThrow('Invalid Authentication');
   });
 
-  it('falls back to browser fetch only when IPC channel is unavailable', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ fallback: true }),
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    window.localStorage.setItem('clawx:allow-localhost-fallback', '1');
-
-    invokeIpcMock.mockRejectedValueOnce(new Error('Invalid IPC channel: hostapi:fetch'));
-
-    const { hostApiFetch } = await import('@/lib/host-api');
-    const result = await hostApiFetch<{ fallback: boolean }>('/api/test');
-
-    expect(result.fallback).toBe(true);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://127.0.0.1:3210/api/test',
-      expect.objectContaining({ headers: expect.any(Object) }),
-    );
-  });
-
-  it('does not use localhost fallback when policy flag is disabled', async () => {
+  it('does not fall back to browser fetch when IPC channel is unavailable in Electron mode', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -115,5 +88,55 @@ describe('host-api', () => {
     const { hostApiFetch } = await import('@/lib/host-api');
     await expect(hostApiFetch('/api/test')).rejects.toThrow('Invalid IPC channel: hostapi:fetch');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('falls back to browser fetch when the browser preview shim flag is present', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ fallback: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    (window.electron as { __ktclawBrowserPreviewShim?: boolean }).__ktclawBrowserPreviewShim = true;
+
+    const { hostApiFetch } = await import('@/lib/host-api');
+    const result = await hostApiFetch<{ fallback: boolean }>('/api/test');
+
+    expect(result).toEqual({ fallback: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:3210/api/test',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(invokeIpcMock).not.toHaveBeenCalled();
+  });
+
+  it('adds JSON content-type for browser preview mutation requests with string bodies', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ success: true }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    (window.electron as { __ktclawBrowserPreviewShim?: boolean }).__ktclawBrowserPreviewShim = true;
+
+    const { hostApiFetch } = await import('@/lib/host-api');
+    await hostApiFetch('/api/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ foo: 'bar' }),
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:3210/api/settings',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ foo: 'bar' }),
+        headers: expect.any(Headers),
+      }),
+    );
+
+    const headers = fetchMock.mock.calls[0][1]?.headers as Headers;
+    expect(headers.get('content-type')).toBe('application/json');
   });
 });

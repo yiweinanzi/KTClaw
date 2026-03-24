@@ -2,11 +2,14 @@ import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { testHome, testUserData } = vi.hoisted(() => {
+const { testHome, testUserData, mockLoggerInfo, mockLoggerWarn, mockLoggerError } = vi.hoisted(() => {
   const suffix = Math.random().toString(36).slice(2);
   return {
     testHome: `/tmp/clawx-openclaw-auth-${suffix}`,
     testUserData: `/tmp/clawx-openclaw-auth-user-data-${suffix}`,
+    mockLoggerInfo: vi.fn(),
+    mockLoggerWarn: vi.fn(),
+    mockLoggerError: vi.fn(),
   };
 });
 
@@ -30,6 +33,19 @@ vi.mock('electron', () => ({
   },
 }));
 
+vi.mock('@electron/utils/logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: mockLoggerInfo,
+    warn: mockLoggerWarn,
+    error: mockLoggerError,
+  },
+  debug: vi.fn(),
+  info: mockLoggerInfo,
+  warn: mockLoggerWarn,
+  error: mockLoggerError,
+}));
+
 async function writeOpenClawJson(config: unknown): Promise<void> {
   const openclawDir = join(testHome, '.openclaw');
   await mkdir(openclawDir, { recursive: true });
@@ -44,7 +60,7 @@ async function readAuthProfiles(agentId: string): Promise<Record<string, unknown
 describe('saveProviderKeyToOpenClaw', () => {
   beforeEach(async () => {
     vi.resetModules();
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
     await rm(testHome, { recursive: true, force: true });
     await rm(testUserData, { recursive: true, force: true });
   });
@@ -86,7 +102,6 @@ describe('saveProviderKeyToOpenClaw', () => {
       'utf8',
     );
 
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     const { saveProviderKeyToOpenClaw } = await import('@electron/utils/openclaw-auth');
 
     await saveProviderKeyToOpenClaw('openrouter', 'sk-test');
@@ -104,10 +119,8 @@ describe('saveProviderKeyToOpenClaw', () => {
         key: 'legacy-key',
       },
     });
-    expect(logSpy).toHaveBeenCalledWith(
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
       'Saved API key for provider "openrouter" to OpenClaw auth-profiles (agents: main, test3)',
     );
-
-    logSpy.mockRestore();
   });
 });

@@ -50,6 +50,12 @@ export function WorkbenchEmptyState(_props: WorkbenchEmptyStateProps) {
 
       <h2 className="mb-4 text-[26px] font-medium text-foreground">有什么我可以帮你的？</h2>
 
+      {!isGatewayRunning && (
+        <div className="mb-5 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-[12px] text-amber-700">
+          Gateway disconnected. Start the Gateway to enable actions.
+        </div>
+      )}
+
       {/* Quick Action Pills */}
       <div className="flex flex-wrap items-center justify-center gap-2 mb-6 max-w-[640px]">
         {quickActions.map((action) => (
@@ -68,20 +74,23 @@ export function WorkbenchEmptyState(_props: WorkbenchEmptyStateProps) {
       {/* Suggestion Cards */}
       <div className="grid w-full max-w-[640px] grid-cols-2 gap-4 text-left">
         {suggestions.map((suggestion) => (
-          <article
+          <button
             key={suggestion.title}
-            role="button"
-            tabIndex={0}
+            type="button"
             onClick={() => isGatewayRunning && sendMessage(suggestion.description)}
-            onKeyDown={(e) => e.key === 'Enter' && isGatewayRunning && sendMessage(suggestion.description)}
-            className="flex cursor-pointer flex-col gap-[6px] rounded-xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:border-black/[0.15] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-white/[0.04]"
+            disabled={!isGatewayRunning}
+            className={`flex flex-col gap-[6px] rounded-xl border border-black/[0.06] bg-white p-4 text-left shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-all dark:border-white/10 dark:bg-white/[0.04] ${
+              isGatewayRunning
+                ? 'cursor-pointer hover:-translate-y-0.5 hover:border-black/[0.15] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]'
+                : 'cursor-not-allowed opacity-50'
+            }`}
           >
             <div className="flex items-center gap-2">
               <span className="text-[18px]">{suggestion.icon}</span>
               <span className="text-[15px] font-semibold text-foreground">{suggestion.title}</span>
             </div>
             <p className="text-[13px] leading-[1.4] text-[#3c3c43]">{suggestion.description}</p>
-          </article>
+          </button>
         ))}
       </div>
     </div>

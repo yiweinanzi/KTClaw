@@ -7,7 +7,7 @@ import { getUvMirrorEnv } from './uv-env';
 
 const OPENCLAW_DOCTOR_TIMEOUT_MS = 60_000;
 const MAX_DOCTOR_OUTPUT_BYTES = 10 * 1024 * 1024;
-const OPENCLAW_DOCTOR_ARGS = ['doctor'];
+const OPENCLAW_DOCTOR_ARGS = ['doctor', '--json'];
 const OPENCLAW_DOCTOR_FIX_ARGS = ['doctor', '--fix', '--yes', '--non-interactive'];
 
 export type OpenClawDoctorMode = 'diagnose' | 'fix';

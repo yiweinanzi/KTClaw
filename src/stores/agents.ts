@@ -11,8 +11,8 @@ interface AgentsState {
   loading: boolean;
   error: string | null;
   fetchAgents: () => Promise<void>;
-  createAgent: (name: string) => Promise<void>;
-  updateAgent: (agentId: string, name: string) => Promise<void>;
+  createAgent: (name: string, persona?: string) => Promise<void>;
+  updateAgent: (agentId: string, updates: { name?: string; persona?: string }) => Promise<void>;
   deleteAgent: (agentId: string) => Promise<void>;
   assignChannel: (agentId: string, channelType: ChannelType) => Promise<void>;
   removeChannel: (agentId: string, channelType: ChannelType) => Promise<void>;
@@ -49,12 +49,12 @@ export const useAgentsStore = create<AgentsState>((set) => ({
     }
   },
 
-  createAgent: async (name: string) => {
+  createAgent: async (name: string, persona?: string) => {
     set({ error: null });
     try {
       const snapshot = await hostApiFetch<AgentsSnapshot & { success?: boolean }>('/api/agents', {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, ...(persona !== undefined ? { persona } : {}) }),
       });
       set(applySnapshot(snapshot));
     } catch (error) {
@@ -63,14 +63,14 @@ export const useAgentsStore = create<AgentsState>((set) => ({
     }
   },
 
-  updateAgent: async (agentId: string, name: string) => {
+  updateAgent: async (agentId: string, updates: { name?: string; persona?: string }) => {
     set({ error: null });
     try {
       const snapshot = await hostApiFetch<AgentsSnapshot & { success?: boolean }>(
         `/api/agents/${encodeURIComponent(agentId)}`,
         {
           method: 'PUT',
-          body: JSON.stringify({ name }),
+          body: JSON.stringify(updates),
         }
       );
       set(applySnapshot(snapshot));

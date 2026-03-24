@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { PORTS } from '../../utils/config';
 import { buildOpenClawControlUiUrl } from '../../utils/openclaw-control-ui';
-import { getSetting } from '../../utils/store';
+import { isOutboundMediaPath } from '../../utils/outbound-media';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
 
@@ -13,11 +13,9 @@ export async function handleGatewayRoutes(
 ): Promise<boolean> {
   if (url.pathname === '/api/app/gateway-info' && req.method === 'GET') {
     const status = ctx.gatewayManager.getStatus();
-    const token = await getSetting('gatewayToken');
     const port = status.port || PORTS.OPENCLAW_GATEWAY;
     sendJson(res, 200, {
       wsUrl: `ws://127.0.0.1:${port}/ws`,
-      token,
       port,
     });
     return true;
@@ -67,10 +65,9 @@ export async function handleGatewayRoutes(
   if (url.pathname === '/api/gateway/control-ui' && req.method === 'GET') {
     try {
       const status = ctx.gatewayManager.getStatus();
-      const token = await getSetting('gatewayToken');
       const port = status.port || PORTS.OPENCLAW_GATEWAY;
-      const urlValue = buildOpenClawControlUiUrl(port, token);
-      sendJson(res, 200, { success: true, url: urlValue, token, port });
+      const urlValue = buildOpenClawControlUiUrl(port, '').split('#')[0];
+      sendJson(res, 200, { success: true, url: urlValue, port });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
     }
@@ -93,6 +90,11 @@ export async function handleGatewayRoutes(
       const imageAttachments: Array<{ content: string; mimeType: string; fileName: string }> = [];
       const fileReferences: string[] = [];
       if (body.media && body.media.length > 0) {
+        const invalidMedia = body.media.find((m) => !isOutboundMediaPath(m.filePath));
+        if (invalidMedia) {
+          sendJson(res, 400, { success: false, error: 'MEDIA_PATH_NOT_STAGED', filePath: invalidMedia.filePath });
+          return true;
+        }
         const fsP = await import('node:fs/promises');
         for (const m of body.media) {
           fileReferences.push(`[media attached: ${m.filePath} (${m.mimeType}) | ${m.filePath}]`);

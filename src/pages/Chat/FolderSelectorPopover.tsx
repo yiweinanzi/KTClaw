@@ -2,7 +2,7 @@
  * FolderSelectorPopover — 工作目录选择器
  * 点击弹出，提供"选择文件夹"和"最近文件夹"两个入口。
  */
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { FolderPlus, Clock, Folder, ChevronRight } from 'lucide-react';
 import { invokeIpc } from '@/lib/api-client';
 
@@ -45,19 +45,16 @@ export function FolderSelectorPopover({
   anchorRef,
 }: FolderSelectorPopoverProps) {
   const [showRecent, setShowRecent] = useState(false);
-  const [recent, setRecent] = useState<string[]>([]);
   const popoverRef = useRef<HTMLDivElement>(null);
   const recentRef = useRef<HTMLDivElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
   const submenuCloseTimer = useRef<number | null>(null);
+  const handleClose = useCallback(() => {
+    setShowRecent(false);
+    onClose();
+  }, [onClose]);
 
-  useEffect(() => {
-    if (isOpen) {
-      setRecent(loadRecent());
-    } else {
-      setShowRecent(false);
-    }
-  }, [isOpen]);
+  const recentFolders = useMemo(() => (showRecent ? loadRecent() : []), [showRecent]);
 
   // Click-outside closes the popover
   useEffect(() => {
@@ -69,25 +66,25 @@ export function FolderSelectorPopover({
         !submenuRef.current?.contains(target) &&
         !anchorRef.current?.contains(target)
       ) {
-        onClose();
+        handleClose();
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [isOpen, onClose, anchorRef]);
+  }, [isOpen, handleClose, anchorRef]);
 
   // Escape closes
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleClose();
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
 
   const handleAddFolder = useCallback(async () => {
-    onClose();
+    handleClose();
     try {
       const result = await invokeIpc('dialog:open', {
         properties: ['openDirectory'],
@@ -100,14 +97,14 @@ export function FolderSelectorPopover({
     } catch (err) {
       console.error('[FolderSelector] dialog failed:', err);
     }
-  }, [onClose, onSelectFolder]);
+  }, [handleClose, onSelectFolder]);
 
   const handleSelectRecent = useCallback((path: string) => {
     if (isWindowsDriveRoot(path)) return;
     saveRecent(path);
     onSelectFolder(path);
-    onClose();
-  }, [onSelectFolder, onClose]);
+    handleClose();
+  }, [handleClose, onSelectFolder]);
 
   const handleSubmenuEnter = useCallback(() => {
     if (submenuCloseTimer.current) {
@@ -172,10 +169,10 @@ export function FolderSelectorPopover({
               onMouseEnter={handleSubmenuEnter}
               onMouseLeave={handleSubmenuLeave}
             >
-              {recent.length === 0 ? (
+              {recentFolders.length === 0 ? (
                 <div className="px-3 py-2.5 text-[13px] text-[#8e8e93]">暂无最近文件夹</div>
               ) : (
-                recent.map((folder) => (
+                recentFolders.map((folder) => (
                   <button
                     key={folder}
                     type="button"

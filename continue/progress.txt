@@ -1123,3 +1123,72 @@ Focus: 清除所有静态假数据，接入真实 store/API
 2. #8 删除 API key 误删整个 provider runtime 配置
 3. #9 provider 列表读取副作用（getAllProvidersWithKeyInfo 删除 non-builtin）
 4. #20 Settings 剩余死按钮（添加路由规则/路径白名单/编辑黑名单/添加工具许可）
+
+---
+## 2026-03-24 Session-6 / Review-Rounds
+
+### 完成内容
+1. **完成 4 轮前后端全仓审计**：每轮都通过多个 subagent 进行前后端分域 review，并将 findings / 修复结果同步写回 `Prompt.md`。
+2. **收敛 Session-6 backlog**：Settings Run Doctor、删除 API key 仅清 auth material、provider list 读副作用、Settings 剩余死按钮/死控件，均已完成并通过回归验证。
+3. **P0 / P1 安全与正确性补齐**：
+   - unified IPC `app:request` 脱敏并阻断 `provider:getApiKey`
+   - `/api/memory/file` 绝对路径逃逸修复
+   - secret-store 改为 fail-closed 且不再读路径擦除凭据
+   - agent 删除失败时回滚 config，且不再提前删除 runtime/channel side effects
+   - media send 两条链路都限制为 staged outbound-media 路径
+4. **前端与交互补齐**：
+   - `MarkdownContent` 类型回归与错误 preload API 修复
+   - browser-preview 下 `hostApiFetch` / `host-events` fallback 恢复，preview mutation 自动补 JSON `Content-Type`
+   - Settings memory browser 改为用稳定 `path` 身份，basename 冲突不再读写错文件
+   - workbench empty-state 在 gateway down 时明确禁用建议卡片
+   - Settings 新增控件接入主进程 settings API，且只在真实持久化成功后提示“已保存”
+   - Settings 可访问性补齐：switch/select/input/inline editor 均有程序化 label；误导性的账号/注销假 UI 改为说明卡
+5. **发布/更新链路对齐**：
+   - updater canonical channel 保持 `stable|beta|dev`
+   - feed 目录显式映射为 `latest|beta|alpha`
+   - fresh prerelease install 不再在首启时掉回 stable
+   - `electron-builder.yml` 说明与运行时 autoUpdater 行为对齐
+6. **测试与验证基线抬升**：
+   - 新增 / 更新安全与回归测试：`app-request-security`、`preload-security`、`gateway-routes-security`、`openclaw-memory-file-route`、`openclaw-memory-status`、`openclaw-updater`、`openclaw-agents-route`、`settings-memory-browser`、`settings-center`
+   - 全量单测通过数提升到 `72/72` 文件、`324/324` 用例
+
+### 关键验证
+- pnpm exec vitest run tests/unit/host-api.test.ts tests/unit/settings-center.test.tsx tests/unit/app-request-security.test.ts tests/unit/gateway-routes-security.test.ts
+- pnpm test → 72/72 files, 324/324 tests passed
+- pnpm run typecheck → 通过
+- pnpm exec tsc -p tsconfig.node.json --noEmit → 通过
+- pnpm run lint → 通过
+- pnpm run build:vite → 通过
+- pnpm run comms:replay → 通过
+- pnpm run comms:compare → 通过
+
+### 结论
+- 当前工作区对应的 Session-6 / review-rounds backlog 已清空。
+- `Prompt.md` 已同步记录 Round 1-4 的 findings、处理结果与验证结论。
+- 下一步若继续开发，应从新的功能需求或新的 review comment 开始，而不是继续沿用旧的 session-6 待办。
+
+---
+## 2026-03-24 Session-6 Feature Assurance Addendum
+
+### 补充完成内容
+1. **业务功能核对补强**：
+   - 新增 `tests/unit/costs-page.test.tsx`，直接验证费用量页面的 recent usage / dashboard / agent breakdown 渲染。
+   - Agent 配置新增 `persona` 字段，创建与编辑分身支持 name + persona 持久化；`tests/unit/agent-config.test.ts` 已覆盖创建/更新 persona。
+2. **最终验证刷新**：
+   - `pnpm test` → `72/72` files, `326/326` tests passed
+   - `pnpm run typecheck` → 通过
+   - `pnpm exec tsc -p tsconfig.node.json --noEmit` → 通过
+   - `pnpm run lint` → 通过
+   - `pnpm run build:vite` → 通过
+
+### 面向用户关心功能的状态
+- 对话功能 / 模型配置：已验证（chat input / target routing / provider config / provider validation / staged media security）
+- 创建分身 / 编辑分身名称与 persona：已验证
+- 费用量展示：已验证
+- 迁移功能：已验证
+- 安全基础版本设置：已验证
+- 知识库：已验证
+
+### 最新全量结果
+- `pnpm test` → `73/73` files, `326/326` tests passed
+- `Prompt.md` 已追加“功能验证快照”，按用户点名的 6 个功能域列出状态与证据

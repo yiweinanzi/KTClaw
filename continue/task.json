@@ -2,8 +2,8 @@
   "project": "ClawX Control Plane",
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "in_progress",
-  "current_focus": "session-6-backend-correctness",
-  "last_updated": "2026-03-23T00:00:00+08:00",
+  "current_focus": "session-6-feature-assurance-complete",
+  "last_updated": "2026-03-24T03:20:30+08:00",
   "tasks": [
     {
       "id": "SESSION-4-001",
@@ -65,7 +65,7 @@
       "id": "SESSION-6-001",
       "title": "Settings Run Doctor fix",
       "type": "bugfix",
-      "status": "pending",
+      "status": "done",
       "priority": "P1",
       "description": "runDoctor() 改为标准 hostApiFetch 调用"
     },
@@ -73,7 +73,7 @@
       "id": "SESSION-6-002",
       "title": "Delete API key should not remove provider runtime",
       "type": "bugfix",
-      "status": "pending",
+      "status": "done",
       "priority": "P1",
       "description": "syncDeletedProviderApiKeyToRuntime 改为仅删 key"
     },
@@ -81,7 +81,7 @@
       "id": "SESSION-6-003",
       "title": "Provider list read side-effect fix",
       "type": "bugfix",
-      "status": "pending",
+      "status": "done",
       "priority": "P1",
       "description": "getAllProvidersWithKeyInfo 不应在读取阶段删除 non-builtin provider"
     },
@@ -89,7 +89,7 @@
       "id": "SESSION-6-004",
       "title": "Settings remaining dead buttons",
       "type": "feature",
-      "status": "pending",
+      "status": "done",
       "priority": "P1",
       "description": "添加路由规则/路径白名单/编辑黑名单/添加工具许可 接线"
     }

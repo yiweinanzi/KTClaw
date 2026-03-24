@@ -24,7 +24,6 @@ const electronAPI = {
         'gateway:httpProxy',
         'hostapi:fetch',
         'gateway:health',
-        'gateway:getControlUiUrl',
         // OpenClaw
         'openclaw:status',
         'openclaw:isReady',
@@ -78,7 +77,6 @@ const electronAPI = {
         'provider:updateWithKey',
         'provider:deleteApiKey',
         'provider:hasApiKey',
-        'provider:getApiKey',
         'provider:setDefault',
         'provider:getDefault',
         'provider:validateKey',

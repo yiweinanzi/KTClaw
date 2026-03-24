@@ -4,7 +4,7 @@ import type { RawMessage } from '@/stores/chat';
 import { ChatMessage } from '@/pages/Chat/ChatMessage';
 
 describe('ChatMessage', () => {
-  it('renders user bubble with clearer separated styling', () => {
+  it('renders user bubble with the current accent-token styling', () => {
     const message: RawMessage = {
       role: 'user',
       content: '用户消息',
@@ -17,8 +17,8 @@ describe('ChatMessage', () => {
     const bubble = screen.getByTestId('chat-bubble-user');
 
     expect(text).toBeInTheDocument();
-    expect(bubble).toHaveClass('bg-[#0a84ff]');
-    expect(bubble).toHaveClass('ring-1');
+    expect(bubble).toHaveClass('bg-clawx-ac');
+    expect(bubble).toHaveClass('text-white');
   });
 
   it('renders assistant tool card and allows expanding tool input', () => {
@@ -41,7 +41,7 @@ describe('ChatMessage', () => {
     expect(screen.getByText(/"range": "24h"/)).toBeInTheDocument();
   });
 
-  it('renders assistant markdown text with inline code in lighter assistant surface', () => {
+  it('renders assistant markdown text with inline code in the current neutral assistant surface', () => {
     const message: RawMessage = {
       role: 'assistant',
       content: '结果包含 **重点** 和 `trace_id`。',
@@ -56,6 +56,7 @@ describe('ChatMessage', () => {
 
     expect(strong.tagName.toLowerCase()).toBe('strong');
     expect(code.tagName.toLowerCase()).toBe('code');
-    expect(bubble).toHaveClass('bg-white/95');
+    expect(bubble).toHaveClass('bg-white');
+    expect(bubble).toHaveClass('text-black');
   });
 });

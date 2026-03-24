@@ -1,6 +1,7 @@
 export interface AgentSummary {
   id: string;
   name: string;
+  persona: string;
   isDefault: boolean;
   modelDisplay: string;
   inheritedModel: boolean;

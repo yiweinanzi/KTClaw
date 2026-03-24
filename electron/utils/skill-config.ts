@@ -71,7 +71,7 @@ async function readConfig(): Promise<OpenClawConfig> {
         const raw = await readFile(OPENCLAW_CONFIG_PATH, 'utf-8');
         return JSON.parse(raw);
     } catch (err) {
-        console.error('Failed to read openclaw config:', err);
+        logger.error('Failed to read openclaw config:', err);
         return {};
     }
 }
@@ -173,7 +173,7 @@ export async function updateSkillConfig(
             return { success: true };
         });
     } catch (err) {
-        console.error('Failed to update skill config:', err);
+        logger.error('Failed to update skill config:', err);
         return { success: false, error: String(err) };
     }
 }

@@ -13,6 +13,7 @@ import {
   validateChannelCredentials,
 } from '../../utils/channel-config';
 import { assignChannelToAgent, clearAllBindingsForChannel } from '../../utils/agent-config';
+import { logger } from '../../utils/logger';
 import { whatsAppLoginManager } from '../../utils/whatsapp-login';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
@@ -78,7 +79,7 @@ function ensurePluginInstalled(
       return { installed: true }; // same version or unable to compare
     }
     // Version differs — fall through to overwrite install
-    console.log(
+    logger.info(
       `[plugin] Upgrading ${pluginLabel} plugin: ${installedVersion} → ${sourceVersion}`,
     );
   }

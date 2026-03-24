@@ -8,10 +8,10 @@ import { access, mkdir, readFile, writeFile, readdir, stat, rm } from 'fs/promis
 import { constants } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { getOpenClawResolvedDir } from './paths';
 import * as logger from './logger';
 import { proxyAwareFetch } from './proxy-fetch';
 import { withConfigLock } from './config-mutex';
+import { runOpenClawDoctor } from './openclaw-doctor';
 
 const OPENCLAW_DIR = join(homedir(), '.openclaw');
 const CONFIG_FILE = join(OPENCLAW_DIR, 'openclaw.json');
@@ -94,7 +94,6 @@ export async function readOpenClawConfig(): Promise<OpenClawConfig> {
         return JSON.parse(content) as OpenClawConfig;
     } catch (error) {
         logger.error('Failed to read OpenClaw config', error);
-        console.error('Failed to read OpenClaw config:', error);
         return {};
     }
 }
@@ -114,7 +113,6 @@ export async function writeOpenClawConfig(config: OpenClawConfig): Promise<void>
         await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
     } catch (error) {
         logger.error('Failed to write OpenClaw config', error);
-        console.error('Failed to write OpenClaw config:', error);
         throw error;
     }
 }
@@ -339,6 +337,23 @@ function migrateLegacyChannelConfigToAccounts(
     }
 }
 
+function clearTopLevelChannelMirror(channelSection: ChannelConfigData): void {
+    for (const key of Object.keys(channelSection)) {
+        if (CHANNEL_TOP_LEVEL_KEYS_TO_KEEP.has(key)) continue;
+        delete channelSection[key];
+    }
+}
+
+function remirrorDefaultAccountToTopLevel(channelSection: ChannelConfigData): void {
+    clearTopLevelChannelMirror(channelSection);
+    const accounts = channelSection.accounts as Record<string, ChannelConfigData> | undefined;
+    const defaultAccountData = accounts?.[DEFAULT_ACCOUNT_ID];
+    if (!defaultAccountData) return;
+    for (const [key, value] of Object.entries(defaultAccountData)) {
+        channelSection[key] = value;
+    }
+}
+
 /**
  * Throws if the unique credential (e.g. appId for Feishu) in `config` is
  * already registered under a *different* account in the same channel section.
@@ -413,7 +428,6 @@ export async function saveChannelConfig(
                 configFile: CONFIG_FILE,
                 path: `plugins.entries.${channelType}`,
             });
-            console.log(`Saved plugin channel config for ${channelType}`);
             return;
         }
 
@@ -470,12 +484,7 @@ export async function saveChannelConfig(
         // credential keys on every invocation.  Without this, saving a non-default
         // account (e.g. a sub-agent's Feishu bot) leaves the top-level credentials
         // missing, breaking plugins that only read from the top level.
-        const defaultAccountData = accounts[DEFAULT_ACCOUNT_ID];
-        if (defaultAccountData) {
-            for (const [key, value] of Object.entries(defaultAccountData)) {
-                channelSection[key] = value;
-            }
-        }
+        remirrorDefaultAccountToTopLevel(channelSection);
 
         await writeOpenClawConfig(currentConfig);
         logger.info('Channel config saved', {
@@ -485,7 +494,6 @@ export async function saveChannelConfig(
             rawKeys: Object.keys(config),
             transformedKeys: Object.keys(transformedConfig),
         });
-        console.log(`Saved channel config for ${channelType} account ${resolvedAccountId}`);
     });
 }
 
@@ -573,19 +581,13 @@ export async function deleteChannelAccountConfig(channelType: string, accountId:
         if (Object.keys(accounts).length === 0) {
             delete currentConfig.channels![channelType];
         } else {
-            // Re-mirror default account credentials to top level after migration
-            // stripped them (same rationale as saveChannelConfig).
-            const defaultAccountData = accounts[DEFAULT_ACCOUNT_ID];
-            if (defaultAccountData) {
-                for (const [key, value] of Object.entries(defaultAccountData)) {
-                    channelSection[key] = value;
-                }
-            }
+            // Keep top-level mirror in sync. If default was deleted, stale
+            // mirrored credentials must be removed explicitly.
+            remirrorDefaultAccountToTopLevel(channelSection);
         }
 
         await writeOpenClawConfig(currentConfig);
         logger.info('Deleted channel account config', { channelType, accountId });
-        console.log(`Deleted channel account config for ${channelType}/${accountId}`);
     });
 }
 
@@ -596,7 +598,7 @@ export async function deleteChannelConfig(channelType: string): Promise<void> {
         if (currentConfig.channels?.[channelType]) {
             delete currentConfig.channels[channelType];
             await writeOpenClawConfig(currentConfig);
-            console.log(`Deleted channel config for ${channelType}`);
+            logger.info('Deleted channel config', { channelType });
         } else if (PLUGIN_CHANNELS.includes(channelType)) {
             if (currentConfig.plugins?.entries?.[channelType]) {
                 delete currentConfig.plugins.entries[channelType];
@@ -607,7 +609,7 @@ export async function deleteChannelConfig(channelType: string): Promise<void> {
                     delete currentConfig.plugins;
                 }
                 await writeOpenClawConfig(currentConfig);
-                console.log(`Deleted plugin channel config for ${channelType}`);
+                logger.info('Deleted plugin channel config', { channelType });
             }
         }
 
@@ -616,10 +618,10 @@ export async function deleteChannelConfig(channelType: string): Promise<void> {
                 const whatsappDir = join(homedir(), '.openclaw', 'credentials', 'whatsapp');
                 if (await fileExists(whatsappDir)) {
                     await rm(whatsappDir, { recursive: true, force: true });
-                    console.log('Deleted WhatsApp credentials directory');
+                    logger.info('Deleted WhatsApp credentials directory');
                 }
             } catch (error) {
-                console.error('Failed to delete WhatsApp credentials:', error);
+                logger.error('Failed to delete WhatsApp credentials', error);
             }
         }
     });
@@ -690,14 +692,9 @@ export async function deleteAgentChannelAccounts(agentId: string): Promise<void>
             if (Object.keys(accounts).length === 0) {
                 delete currentConfig.channels[channelType];
             } else {
-                // Re-mirror default account credentials to top level after migration
-                // stripped them (same rationale as saveChannelConfig).
-                const defaultAccountData = accounts[DEFAULT_ACCOUNT_ID];
-                if (defaultAccountData) {
-                    for (const [key, value] of Object.entries(defaultAccountData)) {
-                        section[key] = value;
-                    }
-                }
+                // Keep top-level mirror in sync. If default was deleted, stale
+                // mirrored credentials must be removed explicitly.
+                remirrorDefaultAccountToTopLevel(section);
             }
             modified = true;
         }
@@ -719,7 +716,7 @@ export async function setChannelEnabled(channelType: string, enabled: boolean): 
             if (!currentConfig.plugins.entries[channelType]) currentConfig.plugins.entries[channelType] = {};
             currentConfig.plugins.entries[channelType].enabled = enabled;
             await writeOpenClawConfig(currentConfig);
-            console.log(`Set plugin channel ${channelType} enabled: ${enabled}`);
+            logger.info('Set plugin channel enabled', { channelType, enabled });
             return;
         }
 
@@ -727,7 +724,7 @@ export async function setChannelEnabled(channelType: string, enabled: boolean): 
         if (!currentConfig.channels[channelType]) currentConfig.channels[channelType] = {};
         currentConfig.channels[channelType].enabled = enabled;
         await writeOpenClawConfig(currentConfig);
-        console.log(`Set channel ${channelType} enabled: ${enabled}`);
+        logger.info('Set channel enabled', { channelType, enabled });
     });
 }
 
@@ -748,6 +745,59 @@ type DoctorValidationParseResult = {
     undetermined: boolean;
 };
 
+function collectDoctorJsonSignalLines(
+    channelType: string,
+    value: unknown,
+    lines: Set<string>,
+): void {
+    const normalizedChannelType = channelType.toLowerCase();
+
+    if (Array.isArray(value)) {
+        for (const entry of value) {
+            collectDoctorJsonSignalLines(channelType, entry, lines);
+        }
+        return;
+    }
+
+    if (!value || typeof value !== 'object') {
+        return;
+    }
+
+    const record = value as Record<string, unknown>;
+    const channelHint = [
+        record.channel,
+        record.channelType,
+        record.id,
+        record.name,
+        record.path,
+    ].find((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+    const messageHint = [
+        record.message,
+        record.description,
+        record.error,
+        record.warning,
+    ].find((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+    const severityHint = [
+        record.severity,
+        record.level,
+        record.kind,
+        record.type,
+    ].find((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+
+    if (
+        typeof channelHint === 'string'
+        && channelHint.toLowerCase().includes(normalizedChannelType)
+        && typeof messageHint === 'string'
+    ) {
+        const severity = (severityHint || (typeof record.warning === 'string' ? 'warning' : 'error')).trim().toLowerCase();
+        lines.add(`${channelHint.trim()} ${severity}: ${messageHint.trim()}`);
+    }
+
+    for (const nested of Object.values(record)) {
+        collectDoctorJsonSignalLines(channelType, nested, lines);
+    }
+}
+
 export function parseDoctorValidationOutput(channelType: string, output: string): DoctorValidationParseResult {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -760,6 +810,19 @@ export function parseDoctorValidationOutput(channelType: string, output: string)
             warnings: [DOCTOR_PARSER_FALLBACK_HINT],
             undetermined: true,
         };
+    }
+
+    if (normalizedOutput.startsWith('{') || normalizedOutput.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(normalizedOutput) as unknown;
+            const signalLines = new Set<string>();
+            collectDoctorJsonSignalLines(channelType, parsed, signalLines);
+            if (signalLines.size > 0) {
+                return parseDoctorValidationOutput(channelType, [...signalLines].join('\n'));
+            }
+        } catch {
+            // Fall through to the legacy text parser for non-JSON output.
+        }
     }
 
     const lines = output
@@ -926,38 +989,20 @@ async function validateTelegramCredentials(
 }
 
 export async function validateChannelConfig(channelType: string): Promise<ValidationResult> {
-    const { exec } = await import('child_process');
-
     const result: ValidationResult = { valid: true, errors: [], warnings: [] };
 
     try {
-        const openclawPath = getOpenClawResolvedDir();
+        const doctorResult = await runOpenClawDoctor();
+        const output = `${doctorResult.stdout || ''}${doctorResult.stderr || ''}`;
 
-        // Run openclaw doctor command to validate config (async to avoid
-        // blocking the main thread).
-        const runDoctor = async (command: string): Promise<string> =>
-            await new Promise<string>((resolve, reject) => {
-                exec(
-                    command,
-                    {
-                        cwd: openclawPath,
-                        encoding: 'utf-8',
-                        timeout: 30000,
-                        windowsHide: true,
-                    },
-                    (err, stdout, stderr) => {
-                        const combined = `${stdout || ''}${stderr || ''}`;
-                        if (err) {
-                            const next = new Error(combined || err.message);
-                            reject(next);
-                            return;
-                        }
-                        resolve(combined);
-                    },
-                );
-            });
-
-        const output = await runDoctor(`node openclaw.mjs doctor 2>&1`);
+        if (!doctorResult.success) {
+            const doctorFailureMessage = doctorResult.error
+                || output.trim()
+                || `openclaw doctor exited with code ${doctorResult.exitCode ?? 'null'}`;
+            result.errors.push(`OpenClaw doctor failed: ${doctorFailureMessage}`);
+            result.valid = false;
+            return result;
+        }
 
         const parsedDoctor = parseDoctorValidationOutput(channelType, output);
         result.errors.push(...parsedDoctor.errors);
@@ -1006,23 +1051,8 @@ export async function validateChannelConfig(channelType: string): Promise<Valida
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
-
-        if (errorMessage.includes('Unrecognized key') || errorMessage.includes('invalid config')) {
-            result.errors.push(errorMessage);
-            result.valid = false;
-        } else if (errorMessage.includes('ENOENT')) {
-            result.errors.push('OpenClaw not found. Please ensure OpenClaw is installed.');
-            result.valid = false;
-        } else {
-            console.warn('Doctor command failed:', errorMessage);
-            const config = await readOpenClawConfig();
-            if (config.channels?.[channelType]) {
-                result.valid = true;
-            } else {
-                result.errors.push(`Channel ${channelType} is not configured`);
-                result.valid = false;
-            }
-        }
+        result.errors.push(`OpenClaw doctor failed: ${errorMessage}`);
+        result.valid = false;
     }
 
     return result;

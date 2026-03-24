@@ -60,7 +60,7 @@ export function SettingsMemoryBrowser() {
     setFileLoading(true);
     try {
       const data = await hostApiFetch<{ content: string }>(
-        `/api/memory/file?name=${encodeURIComponent(file.name)}`,
+        `/api/memory/file?name=${encodeURIComponent(file.path)}`,
       );
       setFileContent(data.content);
       setDraft(data.content);
@@ -79,7 +79,7 @@ export function SettingsMemoryBrowser() {
       await hostApiFetch('/api/memory/file', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: selectedFile.name, content: draft }),
+        body: JSON.stringify({ relativePath: selectedFile.path, content: draft }),
       });
       setFileContent(draft);
       setEditing(false);
@@ -95,13 +95,18 @@ export function SettingsMemoryBrowser() {
   return (
     <div className="flex min-h-[540px] gap-0 overflow-hidden rounded-xl border border-black/[0.08]">
       {/* Left panel */}
-      <div className="flex w-[220px] shrink-0 flex-col border-r border-black/[0.06] bg-white">
+      <section
+        role="region"
+        aria-label="记忆文件列表"
+        className="flex w-[220px] shrink-0 flex-col border-r border-black/[0.06] bg-white"
+      >
         <div className="flex items-center justify-between border-b border-black/[0.06] px-3 py-2.5">
           <span className="text-[11px] font-semibold uppercase tracking-[0.5px] text-[#8e8e93]">
             文件 ({files.length})
           </span>
           <button
             type="button"
+            aria-label="刷新记忆文件列表"
             onClick={() => void fetchFiles()}
             disabled={loading}
             className="flex h-5 w-5 items-center justify-center rounded text-[#8e8e93] hover:text-[#000000] disabled:opacity-40"
@@ -119,12 +124,12 @@ export function SettingsMemoryBrowser() {
           )}
           {files.map((file) => (
             <button
-              key={file.name}
+              key={file.path}
               type="button"
               onClick={() => void openFile(file)}
               className={cn(
                 'flex flex-col items-start gap-0.5 border-b border-black/[0.04] px-3 py-3 text-left transition-colors',
-                selectedFile?.name === file.name ? 'bg-[#e8f1ff]' : 'hover:bg-[#f2f2f7]',
+                selectedFile?.path === file.path ? 'bg-[#e8f1ff]' : 'hover:bg-[#f2f2f7]',
               )}
             >
               <div className="flex w-full items-center gap-1.5">
@@ -137,10 +142,14 @@ export function SettingsMemoryBrowser() {
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
       {/* Right panel */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-white">
+      <section
+        role="region"
+        aria-label="记忆预览"
+        className="flex flex-1 flex-col overflow-hidden bg-white"
+      >
         {!selectedFile ? (
           <div className="flex flex-1 items-center justify-center text-[13px] text-[#8e8e93]">
             选择左侧文件查看内容
@@ -205,7 +214,7 @@ export function SettingsMemoryBrowser() {
             </div>
           </>
         )}
-      </div>
+      </section>
     </div>
   );
 }

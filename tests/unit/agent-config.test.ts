@@ -102,7 +102,7 @@ describe('agent config lifecycle', () => {
     );
   });
 
-  it('deletes the config entry, bindings, runtime directory, and managed workspace for a removed agent', async () => {
+  it('deletes the config entry and bindings for a removed agent, deferring destructive side effects', async () => {
     await writeOpenClawJson({
       agents: {
         defaults: {
@@ -174,7 +174,7 @@ describe('agent config lifecycle', () => {
       'test3',
     ]);
     expect(config.bindings).toEqual([]);
-    await expect(access(test2RuntimeDir)).rejects.toThrow();
+    await expect(access(test2RuntimeDir)).resolves.toBeUndefined();
     // Workspace deletion is intentionally deferred by `deleteAgentConfig` to avoid
     // ENOENT errors during Gateway restart, so it should still exist here.
     await expect(access(test2WorkspaceDir)).resolves.toBeUndefined();
@@ -219,5 +219,53 @@ describe('agent config lifecycle', () => {
 
     warnSpy.mockRestore();
     infoSpy.mockRestore();
+  });
+
+  it('persists persona when creating and updating an agent profile', async () => {
+    await writeOpenClawJson({
+      agents: {
+        list: [
+          {
+            id: 'main',
+            name: 'Main',
+            default: true,
+            workspace: '~/.openclaw/workspace',
+            agentDir: '~/.openclaw/agents/main/agent',
+          },
+        ],
+      },
+    });
+
+    await mkdir(join(testHome, '.openclaw', 'agents', 'main', 'agent'), { recursive: true });
+    await mkdir(join(testHome, '.openclaw', 'workspace'), { recursive: true });
+    await writeFile(join(testHome, '.openclaw', 'workspace', 'AGENTS.md'), '# Main', 'utf8');
+
+    const { createAgent, listAgentsSnapshot, updateAgentProfile } = await import('@electron/utils/agent-config');
+
+    await createAgent('Research Helper', 'Review code with a skeptical senior-engineer mindset.');
+    await updateAgentProfile('research-helper', {
+      persona: 'Coordinate release readiness and keep reviews strict.',
+    });
+
+    const snapshot = await listAgentsSnapshot();
+    expect(snapshot.agents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'research-helper',
+          name: 'Research Helper',
+          persona: 'Coordinate release readiness and keep reviews strict.',
+        }),
+      ]),
+    );
+
+    const config = await readOpenClawJson();
+    expect((config.agents as { list: Array<{ id: string; persona?: string }> }).list).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'research-helper',
+          persona: 'Coordinate release readiness and keep reviews strict.',
+        }),
+      ]),
+    );
   });
 });

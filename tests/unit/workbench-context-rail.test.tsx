@@ -5,30 +5,30 @@ import { useSettingsStore } from '@/stores/settings';
 
 describe('ContextRail', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ contextRailCollapsed: false });
+    useSettingsStore.setState({ rightPanelMode: 'agent' });
   });
 
   it('renders agent inspector drawer in expanded mode', () => {
     render(<ContextRail />);
 
     expect(screen.getByText('Agent 检查器')).toBeInTheDocument();
-    expect(screen.getByText('关于与基础设置')).toBeInTheDocument();
+    expect(screen.getByText('基础设定（关于我）')).toBeInTheDocument();
     expect(screen.getByText('能力与工具')).toBeInTheDocument();
-    expect(screen.getByText('上下文与用户画像')).toBeInTheDocument();
+    expect(screen.getByText('我眼中的你')).toBeInTheDocument();
     expect(screen.getByText('工作记忆')).toBeInTheDocument();
   });
 
-  it('renders collapsed handle and expands when clicked', () => {
-    useSettingsStore.getState().setContextRailCollapsed(true);
+  it('renders files mode and closes via the close button', () => {
+    useSettingsStore.getState().setRightPanelMode('files');
     render(<ContextRail />);
 
-    expect(screen.queryByText('Agent 检查器')).not.toBeInTheDocument();
+    expect(screen.getByText('会话文件')).toBeInTheDocument();
+    expect(screen.getByText('当前会话暂无文件')).toBeInTheDocument();
 
-    const expandButton = screen.getByRole('button', { name: '展开上下文栏 Expand context rail' });
-    expect(expandButton).toBeInTheDocument();
-    fireEvent.click(expandButton);
+    const closeButton = screen.getByRole('button', { name: '关闭文件面板' });
+    fireEvent.click(closeButton);
 
-    expect(useSettingsStore.getState().contextRailCollapsed).toBe(false);
-    expect(screen.getByText('Agent 检查器')).toBeInTheDocument();
+    expect(useSettingsStore.getState().rightPanelMode).toBe(null);
+    expect(screen.queryByText('会话文件')).not.toBeInTheDocument();
   });
 });

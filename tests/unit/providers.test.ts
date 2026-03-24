@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   PROVIDER_TYPES,
   PROVIDER_TYPE_INFO,
@@ -139,5 +139,280 @@ describe('provider metadata', () => {
     expect(resolveProviderApiKeyForSave('ollama', 'real-key')).toBe('real-key');
     expect(resolveProviderApiKeyForSave('openai', '')).toBeUndefined();
     expect(resolveProviderApiKeyForSave('openai', ' sk-test ')).toBe('sk-test');
+  });
+});
+
+describe('secure-storage api key persistence', () => {
+  it('stores keys through secret-store without persisting plaintext apiKeys', async () => {
+    vi.resetModules();
+
+    const legacyStoreData: Record<string, unknown> = {
+      providers: {},
+      apiKeys: {},
+      providerSecrets: {},
+    };
+    const setProviderSecret = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('@electron/services/providers/provider-migration', () => ({
+      ensureProviderStoreMigrated: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/providers/store-instance', () => ({
+      getKTClawProviderStore: vi.fn().mockResolvedValue({
+        get: (key: string) => legacyStoreData[key],
+        set: (key: string, value: unknown) => {
+          legacyStoreData[key] = value;
+        },
+        delete: (key: string) => {
+          delete legacyStoreData[key];
+        },
+      }),
+    }));
+    vi.doMock('@electron/services/providers/provider-store', () => ({
+      deleteProviderAccount: vi.fn().mockResolvedValue(undefined),
+      getProviderAccount: vi.fn().mockResolvedValue(undefined),
+      listProviderAccounts: vi.fn().mockResolvedValue([]),
+      providerAccountToConfig: vi.fn(),
+      providerConfigToAccount: vi.fn(),
+      saveProviderAccount: vi.fn().mockResolvedValue(undefined),
+      setDefaultProviderAccount: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/secrets/secret-store', () => ({
+      deleteProviderSecret: vi.fn().mockResolvedValue(undefined),
+      getProviderSecret: vi.fn().mockResolvedValue(null),
+      setProviderSecret,
+    }));
+
+    const { storeApiKey } = await import('@electron/utils/secure-storage');
+    const stored = await storeApiKey('openai', 'sk-openai-test');
+
+    expect(stored).toBe(true);
+    expect(setProviderSecret).toHaveBeenCalledWith({
+      type: 'api_key',
+      accountId: 'openai',
+      apiKey: 'sk-openai-test',
+    });
+    expect(legacyStoreData.apiKeys).toEqual({});
+  });
+
+  it('migrates legacy plaintext apiKeys on read and clears the legacy entry', async () => {
+    vi.resetModules();
+
+    const legacyStoreData: Record<string, unknown> = {
+      providers: {},
+      apiKeys: {
+        openai: 'sk-legacy-openai',
+      },
+      providerSecrets: {},
+    };
+    const setProviderSecret = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('@electron/services/providers/provider-migration', () => ({
+      ensureProviderStoreMigrated: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/providers/store-instance', () => ({
+      getKTClawProviderStore: vi.fn().mockResolvedValue({
+        get: (key: string) => legacyStoreData[key],
+        set: (key: string, value: unknown) => {
+          legacyStoreData[key] = value;
+        },
+        delete: (key: string) => {
+          delete legacyStoreData[key];
+        },
+      }),
+    }));
+    vi.doMock('@electron/services/providers/provider-store', () => ({
+      deleteProviderAccount: vi.fn().mockResolvedValue(undefined),
+      getProviderAccount: vi.fn().mockResolvedValue(undefined),
+      listProviderAccounts: vi.fn().mockResolvedValue([]),
+      providerAccountToConfig: vi.fn(),
+      providerConfigToAccount: vi.fn(),
+      saveProviderAccount: vi.fn().mockResolvedValue(undefined),
+      setDefaultProviderAccount: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/secrets/secret-store', () => ({
+      deleteProviderSecret: vi.fn().mockResolvedValue(undefined),
+      getProviderSecret: vi.fn().mockResolvedValue(null),
+      setProviderSecret,
+    }));
+
+    const { getApiKey } = await import('@electron/utils/secure-storage');
+    const apiKey = await getApiKey('openai');
+
+    expect(apiKey).toBe('sk-legacy-openai');
+    expect(setProviderSecret).toHaveBeenCalledWith({
+      type: 'api_key',
+      accountId: 'openai',
+      apiKey: 'sk-legacy-openai',
+    });
+    expect(legacyStoreData.apiKeys).toEqual({});
+  });
+
+  it('lists stored key ids from secret-store backed ids in providerSecrets', async () => {
+    vi.resetModules();
+
+    const legacyStoreData: Record<string, unknown> = {
+      providers: {},
+      apiKeys: {},
+      providerSecrets: {
+        openai: { wrapped: true },
+        anthropic: { wrapped: true },
+        local: { wrapped: true },
+      },
+    };
+
+    vi.doMock('@electron/services/providers/provider-migration', () => ({
+      ensureProviderStoreMigrated: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/providers/store-instance', () => ({
+      getKTClawProviderStore: vi.fn().mockResolvedValue({
+        get: (key: string) => legacyStoreData[key],
+        set: (key: string, value: unknown) => {
+          legacyStoreData[key] = value;
+        },
+        delete: (key: string) => {
+          delete legacyStoreData[key];
+        },
+      }),
+    }));
+    vi.doMock('@electron/services/providers/provider-store', () => ({
+      deleteProviderAccount: vi.fn().mockResolvedValue(undefined),
+      getProviderAccount: vi.fn().mockResolvedValue(undefined),
+      listProviderAccounts: vi.fn().mockResolvedValue([]),
+      providerAccountToConfig: vi.fn(),
+      providerConfigToAccount: vi.fn(),
+      saveProviderAccount: vi.fn().mockResolvedValue(undefined),
+      setDefaultProviderAccount: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/secrets/secret-store', () => ({
+      deleteProviderSecret: vi.fn().mockResolvedValue(undefined),
+      getProviderSecret: vi.fn((accountId: string) => {
+        if (accountId === 'openai') {
+          return Promise.resolve({
+            type: 'api_key' as const,
+            accountId,
+            apiKey: 'sk-openai',
+          });
+        }
+        if (accountId === 'anthropic') {
+          return Promise.resolve({
+            type: 'local' as const,
+            accountId,
+            apiKey: 'local-key',
+          });
+        }
+        if (accountId === 'local') {
+          return Promise.resolve({
+            type: 'local' as const,
+            accountId,
+          });
+        }
+        return Promise.resolve(null);
+      }),
+      setProviderSecret: vi.fn().mockResolvedValue(undefined),
+    }));
+
+    const { listStoredKeyIds } = await import('@electron/utils/secure-storage');
+    const keyIds = await listStoredKeyIds();
+
+    expect(keyIds).toEqual(['openai', 'anthropic']);
+  });
+});
+
+describe('secure-storage provider listing', () => {
+  it('does not delete provider configs as a side effect of reads', async () => {
+    vi.resetModules();
+
+    const legacyStoreData: Record<string, unknown> = {
+      providers: {},
+      apiKeys: {
+        'custom-provider': 'sk-custom-provider',
+      },
+    };
+
+    const providerAccount = {
+      id: 'custom-provider',
+      vendorId: 'custom',
+      label: 'Custom Provider',
+      baseUrl: 'https://example.com/v1',
+      model: 'custom-model',
+      fallbackModels: [],
+      fallbackAccountIds: [],
+      enabled: true,
+      createdAt: '2026-03-23T00:00:00.000Z',
+      updatedAt: '2026-03-23T00:00:00.000Z',
+    };
+
+    const deleteProviderAccount = vi.fn();
+
+    vi.doMock('@electron/services/providers/provider-migration', () => ({
+      ensureProviderStoreMigrated: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/providers/store-instance', () => ({
+      getKTClawProviderStore: vi.fn().mockResolvedValue({
+        get: (key: string) => legacyStoreData[key],
+        set: (key: string, value: unknown) => {
+          legacyStoreData[key] = value;
+        },
+        delete: (key: string) => {
+          delete legacyStoreData[key];
+        },
+      }),
+    }));
+    vi.doMock('@electron/services/providers/provider-store', () => ({
+      deleteProviderAccount,
+      getProviderAccount: vi.fn().mockResolvedValue(providerAccount),
+      listProviderAccounts: vi.fn().mockResolvedValue([providerAccount]),
+      providerAccountToConfig: vi.fn((account: typeof providerAccount) => ({
+        id: account.id,
+        name: account.label,
+        type: account.vendorId,
+        baseUrl: account.baseUrl,
+        model: account.model,
+        fallbackModels: account.fallbackModels,
+        fallbackProviderIds: account.fallbackAccountIds,
+        enabled: account.enabled,
+        createdAt: account.createdAt,
+        updatedAt: account.updatedAt,
+      })),
+      providerConfigToAccount: vi.fn((config: {
+        id: string;
+        name: string;
+        type: string;
+        baseUrl?: string;
+        model?: string;
+        fallbackModels?: string[];
+        fallbackProviderIds?: string[];
+        enabled: boolean;
+        createdAt: string;
+        updatedAt: string;
+      }) => ({
+        id: config.id,
+        vendorId: config.type,
+        label: config.name,
+        baseUrl: config.baseUrl,
+        model: config.model,
+        fallbackModels: config.fallbackModels ?? [],
+        fallbackAccountIds: config.fallbackProviderIds ?? [],
+        enabled: config.enabled,
+        createdAt: config.createdAt,
+        updatedAt: config.updatedAt,
+      })),
+      saveProviderAccount: vi.fn().mockResolvedValue(undefined),
+      setDefaultProviderAccount: vi.fn().mockResolvedValue(undefined),
+    }));
+    vi.doMock('@electron/services/secrets/secret-store', () => ({
+      deleteProviderSecret: vi.fn().mockResolvedValue(undefined),
+      getProviderSecret: vi.fn().mockResolvedValue(undefined),
+      setProviderSecret: vi.fn().mockResolvedValue(undefined),
+    }));
+    const { getAllProvidersWithKeyInfo } = await import('@electron/utils/secure-storage');
+    const providers = await getAllProvidersWithKeyInfo();
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]).toMatchObject({
+      id: 'custom-provider',
+      hasKey: true,
+    });
+    expect(deleteProviderAccount).not.toHaveBeenCalled();
   });
 });

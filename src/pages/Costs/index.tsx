@@ -509,13 +509,17 @@ function UsageTab({ agentRows }: { agentRows: AgentSummary[] }) {
   }
 
   const COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6', '#0ea5e9', '#64748b'];
-  let cumPct = 0;
-  const gradientStops = agentRows.slice(0, 10).map((a, i) => {
-    const pct = totalTokens > 0 ? (a.totalTokens / totalTokens) * 100 : 0;
-    const stop = `${COLORS[i % COLORS.length]} ${cumPct.toFixed(1)}% ${(cumPct + pct).toFixed(1)}%`;
-    cumPct += pct;
-    return stop;
-  });
+  const gradientStops = agentRows.slice(0, 10).reduce(
+    (acc, a, i) => {
+      const pct = totalTokens > 0 ? (a.totalTokens / totalTokens) * 100 : 0;
+      const stop = `${COLORS[i % COLORS.length]} ${acc.cumPct.toFixed(1)}% ${(acc.cumPct + pct).toFixed(1)}%`;
+      return {
+        stops: [...acc.stops, stop],
+        cumPct: acc.cumPct + pct,
+      };
+    },
+    { stops: [] as string[], cumPct: 0 },
+  ).stops;
 
   return (
     <div className="rounded-xl border border-[#c6c6c8] bg-white p-6">

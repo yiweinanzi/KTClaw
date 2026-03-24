@@ -128,8 +128,8 @@ export function Agents() {
       {showAddDialog && (
         <AddAgentDialog
           onClose={() => setShowAddDialog(false)}
-          onCreate={async (name) => {
-            await createAgent(name);
+          onCreate={async (name, persona) => {
+            await createAgent(name, persona);
             setShowAddDialog(false);
             toast.success(t('toast.agentCreated'));
           }}
@@ -241,6 +241,11 @@ function AgentCard({
             suffix: agent.inheritedModel ? ` (${t('inherited')})` : '',
           })}
         </p>
+        {agent.persona ? (
+          <p className="text-[13.5px] text-muted-foreground line-clamp-2 leading-[1.5]">
+            {agent.persona}
+          </p>
+        ) : null}
         <p className="text-[13.5px] text-muted-foreground line-clamp-2 leading-[1.5]">
           {t('channelsLine', { channels: channelsText })}
         </p>
@@ -278,17 +283,18 @@ function AddAgentDialog({
   onCreate,
 }: {
   onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string, persona?: string) => Promise<void>;
 }) {
   const { t } = useTranslation('agents');
   const [name, setName] = useState('');
+  const [persona, setPersona] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await onCreate(name.trim());
+      await onCreate(name.trim(), persona.trim() || undefined);
     } catch (error) {
       toast.error(t('toast.agentCreateFailed', { error: String(error) }));
       setSaving(false);
@@ -317,6 +323,18 @@ function AddAgentDialog({
               onChange={(event) => setName(event.target.value)}
               placeholder={t('createDialog.namePlaceholder')}
               className={inputClasses}
+            />
+          </div>
+          <div className="space-y-2.5">
+            <Label htmlFor="agent-persona" className={labelClasses}>
+              {t('settingsDialog.personaLabel', { defaultValue: 'Persona / Role' })}
+            </Label>
+            <textarea
+              id="agent-persona"
+              value={persona}
+              onChange={(event) => setPersona(event.target.value)}
+              placeholder={t('settingsDialog.personaPlaceholder', { defaultValue: 'Describe the clone persona, specialty, or tone' })}
+              className="min-h-[104px] w-full rounded-xl border border-black/10 bg-[#eeece3] px-3 py-2 text-[13px] text-foreground outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:border-white/10 dark:bg-muted"
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -361,13 +379,15 @@ function AgentSettingsModal({
   const { updateAgent, assignChannel, removeChannel } = useAgentsStore();
   const { fetchChannels } = useChannelsStore();
   const [name, setName] = useState(agent.name);
+  const [persona, setPersona] = useState(agent.persona);
   const [savingName, setSavingName] = useState(false);
   const [showChannelModal, setShowChannelModal] = useState(false);
   const [channelToRemove, setChannelToRemove] = useState<ChannelType | null>(null);
 
   useEffect(() => {
     setName(agent.name);
-  }, [agent.name]);
+    setPersona(agent.persona);
+  }, [agent.name, agent.persona]);
 
   const runtimeChannelsByType = useMemo(
     () => Object.fromEntries(channels.map((channel) => [channel.type, channel])),
@@ -375,10 +395,14 @@ function AgentSettingsModal({
   );
 
   const handleSaveName = async () => {
-    if (!name.trim() || name.trim() === agent.name) return;
+    if (!name.trim()) return;
+    if (name.trim() === agent.name && persona.trim() === agent.persona) return;
     setSavingName(true);
     try {
-      await updateAgent(agent.id, name.trim());
+      await updateAgent(agent.id, {
+        name: name.trim(),
+        persona: persona.trim(),
+      });
       toast.success(t('toast.agentUpdated'));
     } catch (error) {
       toast.error(t('toast.agentUpdateFailed', { error: String(error) }));
@@ -456,6 +480,22 @@ function AgentSettingsModal({
                   </Button>
                 )}
               </div>
+            </div>
+            <div className="space-y-2.5">
+              <Label htmlFor="agent-settings-persona" className={labelClasses}>
+                {t('settingsDialog.personaLabel', { defaultValue: 'Persona / Role' })}
+              </Label>
+              <textarea
+                id="agent-settings-persona"
+                value={persona}
+                onChange={(event) => setPersona(event.target.value)}
+                readOnly={agent.isDefault}
+                placeholder={t('settingsDialog.personaPlaceholder', { defaultValue: 'Describe the clone persona, specialty, or tone' })}
+                className="min-h-[120px] w-full rounded-xl border border-black/10 bg-[#eeece3] px-3 py-2 text-[13px] text-foreground outline-none focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:border-white/10 dark:bg-muted"
+              />
+              <p className="text-[12px] text-foreground/60">
+                {t('settingsDialog.personaHelp', { defaultValue: 'Used to capture the clone’s role, working style, or personality notes.' })}
+              </p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

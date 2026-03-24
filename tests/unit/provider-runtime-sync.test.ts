@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getProvider: vi.fn(),
   getProviderConfig: vi.fn(),
   getProviderDefaultModel: vi.fn(),
+  removeProviderKeyFromOpenClaw: vi.fn(),
   removeProviderFromOpenClaw: vi.fn(),
   saveOAuthTokenToOpenClaw: vi.fn(),
   saveProviderKeyToOpenClaw: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock('@electron/utils/provider-registry', () => ({
 }));
 
 vi.mock('@electron/utils/openclaw-auth', () => ({
+  removeProviderKeyFromOpenClaw: mocks.removeProviderKeyFromOpenClaw,
   removeProviderFromOpenClaw: mocks.removeProviderFromOpenClaw,
   saveOAuthTokenToOpenClaw: mocks.saveOAuthTokenToOpenClaw,
   saveProviderKeyToOpenClaw: mocks.saveProviderKeyToOpenClaw,
@@ -63,6 +65,7 @@ vi.mock('@electron/utils/logger', () => ({
 
 import {
   syncDefaultProviderToRuntime,
+  syncDeletedProviderApiKeyToRuntime,
   syncDeletedProviderToRuntime,
   syncSavedProviderToRuntime,
 } from '@electron/services/providers/provider-runtime-sync';
@@ -103,6 +106,7 @@ describe('provider-runtime-sync refresh strategy', () => {
       baseUrl: 'https://api.moonshot.cn/v1',
       apiKeyEnv: 'MOONSHOT_API_KEY',
     });
+    mocks.removeProviderKeyFromOpenClaw.mockResolvedValue(undefined);
     mocks.syncProviderConfigToOpenClaw.mockResolvedValue(undefined);
     mocks.setOpenClawDefaultModel.mockResolvedValue(undefined);
     mocks.setOpenClawDefaultModelWithOverride.mockResolvedValue(undefined);
@@ -125,6 +129,13 @@ describe('provider-runtime-sync refresh strategy', () => {
 
     expect(gateway.debouncedRestart).toHaveBeenCalledTimes(1);
     expect(gateway.debouncedReload).not.toHaveBeenCalled();
+  });
+
+  it('removes only provider auth profile material when deleting API key', async () => {
+    await syncDeletedProviderApiKeyToRuntime(createProvider(), 'moonshot');
+
+    expect(mocks.removeProviderKeyFromOpenClaw).toHaveBeenCalledWith('moonshot');
+    expect(mocks.removeProviderFromOpenClaw).not.toHaveBeenCalled();
   });
 
   it('uses debouncedReload after switching default provider when gateway is running', async () => {

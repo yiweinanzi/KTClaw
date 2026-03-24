@@ -1,5 +1,6 @@
 import { proxyAwareFetch } from '../../utils/proxy-fetch';
 import { getProviderConfig } from '../../utils/provider-registry';
+import { logger } from '../../utils/logger';
 
 type ValidationProfile =
   | 'openai-completions'
@@ -12,7 +13,7 @@ type ValidationProfile =
 type ValidationResult = { valid: boolean; error?: string; status?: number };
 
 function logValidationStatus(provider: string, status: number): void {
-  console.log(`[clawx-validate] ${provider} HTTP ${status}`);
+  logger.info(`[clawx-validate] ${provider} HTTP ${status}`);
 }
 
 function maskSecret(secret: string): string {
@@ -80,7 +81,7 @@ function logValidationRequest(
   url: string,
   headers: Record<string, string>,
 ): void {
-  console.log(
+  logger.info(
     `[clawx-validate] ${provider} request ${method} ${sanitizeValidationUrl(url)} headers=${JSON.stringify(sanitizeHeaders(headers))}`,
   );
 }
@@ -163,7 +164,7 @@ async function validateOpenAiCompatibleKey(
   const modelsResult = await performProviderValidationRequest(providerType, modelsUrl, headers);
 
   if (modelsResult.status === 404) {
-    console.log(
+    logger.info(
       `[clawx-validate] ${providerType} /models returned 404, falling back to ${apiProtocol} probe`,
     );
     if (apiProtocol === 'openai-responses') {
@@ -320,7 +321,7 @@ async function validateAnthropicHeaderKey(
     modelsResult.error?.includes('API error: 404') ||
     modelsResult.error?.includes('API error: 400')
   ) {
-    console.log(
+    logger.info(
       `[clawx-validate] ${providerType} /models returned error, falling back to /messages probe`,
     );
     const messagesUrl = `${base}/messages`;

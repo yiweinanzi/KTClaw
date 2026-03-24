@@ -278,7 +278,7 @@ Chain multiple skills together to create sophisticated automation pipelines. Pro
 ### Prerequisites
 
 - **Node.js**: 22+ (LTS recommended)
-- **Package Manager**: pnpm 9+ (recommended) or npm
+- **Package Manager**: `pnpm@10.31.0` via Corepack (`corepack enable && corepack prepare pnpm@10.31.0 --activate`)
 
 ### Project Structure
 
@@ -315,11 +315,14 @@ pnpm run init             # Install dependencies + download uv
 pnpm dev                  # Start with hot reload
 
 # Quality
-pnpm lint                 # Run ESLint
+pnpm run lint             # Run ESLint checks
+pnpm run lint:fix         # Run ESLint with auto-fix
 pnpm typecheck            # TypeScript validation
 
 # Testing
 pnpm test                 # Run unit tests
+pnpm run test:e2e         # Run Playwright E2E tests
+pnpm run test:e2e:headed  # Run Playwright E2E tests in headed mode
 pnpm run comms:replay     # Compute communication replay metrics
 pnpm run comms:baseline   # Refresh communication baseline snapshot
 pnpm run comms:compare    # Compare replay metrics against baseline thresholds

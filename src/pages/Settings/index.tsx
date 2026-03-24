@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -495,13 +495,20 @@ function ToggleRow({
   checked: boolean;
   onCheckedChange: (v: boolean) => void;
 }) {
+  const labelId = useId();
+  const descriptionId = useId();
   return (
     <div className="flex items-center justify-between gap-6 py-3">
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-[#000000]">{label}</p>
-        {desc && <p className="mt-0.5 text-[12px] text-[#8e8e93]">{desc}</p>}
+        <p id={labelId} className="text-[13px] font-medium text-[#000000]">{label}</p>
+        {desc && <p id={descriptionId} className="mt-0.5 text-[12px] text-[#8e8e93]">{desc}</p>}
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        aria-labelledby={labelId}
+        aria-describedby={desc ? descriptionId : undefined}
+      />
     </div>
   );
 }
@@ -515,10 +522,14 @@ function InputField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const inputId = useId();
   return (
     <div className="py-3">
-      <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{label}</p>
+      <label htmlFor={inputId} className="mb-1.5 block text-[13px] font-medium text-[#000000]">
+        {label}
+      </label>
       <input
+        id={inputId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac focus:ring-1 focus:ring-clawx-ac/20"
@@ -536,35 +547,27 @@ function GeneralSection() {
     showToolCalls, setShowToolCalls, emojiAvatar, setEmojiAvatar,
     hideAvatarBg, setHideAvatarBg, minimizeToTray, setMinimizeToTray,
   } = useSettingsStore();
+  const languageSelectId = useId();
+  const accentCustomColorId = useId();
 
   return (
     <>
       {/* 账号与安全 */}
       <SettingsCard title="账号与安全">
-        <SettingsRow
-          label="手机号"
-          right={<span className="text-[13px] text-[#8e8e93]">177****7838</span>}
-        />
-        <SettingsRow
-          label="注销账号"
-          desc="注销账号将删除您的账户和所有数据"
-          right={
-            <button
-              type="button"
-              className="rounded-lg border border-[#ef4444] px-3.5 py-1.5 text-[13px] text-[#ef4444] transition-colors hover:bg-[#fef2f2]"
-            >
-              注销
-            </button>
-          }
-        />
+        <div className="rounded-lg border border-dashed border-[#c6c6c8] bg-[#f9fafb] px-4 py-3 text-[13px] text-[#3c3c43]">
+          桌面端暂不提供账号管理或注销入口，请在其他官方入口完成账户相关操作。
+        </div>
       </SettingsCard>
 
       {/* 外观与行为 */}
       <SettingsCard title="外观与行为">
         {/* Language dropdown */}
         <div className="py-3">
-          <p className="mb-2 text-[13px] font-medium text-[#000000]">界面语言</p>
+          <label htmlFor={languageSelectId} className="mb-2 block text-[13px] font-medium text-[#000000]">
+            界面语言
+          </label>
           <select
+            id={languageSelectId}
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
             className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
@@ -637,7 +640,7 @@ function GeneralSection() {
                 <button
                   key={color}
                   type="button"
-                  title={label}
+                  aria-label={`主题色 ${label}`}
                   onClick={() => setAccentColor(color)}
                   className={cn(
                     'h-7 w-7 rounded-full border-2 transition-all hover:scale-110',
@@ -647,11 +650,12 @@ function GeneralSection() {
                 />
               ))}
               <input
+                id={accentCustomColorId}
                 type="color"
                 value={accentColor || '#007aff'}
                 onChange={(e) => setAccentColor(e.target.value)}
                 className="h-7 w-7 cursor-pointer rounded-full border border-black/10"
-                title="自定义颜色"
+                aria-label="自定义颜色"
               />
             </div>
           }
@@ -731,14 +735,20 @@ function ModelProviderSection({
   const { gatewayPort, setGatewayPort, defaultModel, setDefaultModel, contextLimit, setContextLimit } = useSettingsStore();
   const [portDraft, setPortDraft] = useState(String(gatewayPort));
   const [savingPort, setSavingPort] = useState(false);
+  const defaultModelSelectId = useId();
+  const contextLimitId = useId();
+  const gatewayPortId = useId();
 
   return (
     <>
       {/* 默认路由与偏好 */}
       <SettingsCard title="默认路由与偏好">
         <div className="py-3">
-          <p className="mb-2 text-[13px] font-medium text-[#000000]">全局默认模型</p>
+          <label htmlFor={defaultModelSelectId} className="mb-2 block text-[13px] font-medium text-[#000000]">
+            全局默认模型
+          </label>
           <select
+            id={defaultModelSelectId}
             value={defaultModel}
             onChange={(e) => setDefaultModel(e.target.value)}
             className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
@@ -749,8 +759,11 @@ function ModelProviderSection({
           </select>
         </div>
         <div className="py-3">
-          <p className="mb-3 text-[13px] font-medium text-[#000000]">对话上下文压缩阈值</p>
+          <label htmlFor={contextLimitId} className="mb-3 block text-[13px] font-medium text-[#000000]">
+            对话上下文压缩阈值
+          </label>
           <input
+            id={contextLimitId}
             type="range"
             min={8000}
             max={128000}
@@ -807,13 +820,16 @@ function ModelProviderSection({
         <div className="divide-y divide-black/[0.04]">
           <div className="flex items-center justify-between gap-4 py-3">
             <div>
-              <p className="text-[13px] font-medium text-[#000000]">端口 (Port)</p>
+              <label htmlFor={gatewayPortId} className="text-[13px] font-medium text-[#000000]">
+                端口 (Port)
+              </label>
               <p className="mt-0.5 text-[12px] text-[#8e8e93]">
                 修改端口后 Gateway 将自动重启，请确保目标端口未被其他程序占用。
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <input
+                id={gatewayPortId}
                 type="number"
                 value={portDraft}
                 onChange={(e) => setPortDraft(e.target.value)}
@@ -891,7 +907,12 @@ function TeamRoleSection() {
       <SettingsCard title="组织运行模板">
         <div className="py-3">
           <p className="mb-2 text-[13px] font-medium text-[#000000]">当前默认架构方案</p>
-          <select value={orgTemplate} onChange={(e) => setOrgTemplate(e.target.value)} className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac">
+          <select
+            value={orgTemplate}
+            onChange={(e) => setOrgTemplate(e.target.value)}
+            aria-label="当前默认架构方案"
+            className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
+          >
             <option value="three-six">三省六部制（主脑调度，专业分身执行）</option>
             <option value="single-brain">单脑独立（主脑全权处理所有任务）</option>
             <option value="flat">扁平协作（所有 Agent 平级并行）</option>
@@ -934,7 +955,37 @@ function TeamRoleSection() {
 /* ─── Section: Channel Advanced Config (08.2) ─── */
 
 function ChannelAdvancedSection() {
-  const { groupRate, setGroupRate, groupChatMode, setGroupChatMode } = useSettingsStore();
+  const {
+    groupRate,
+    setGroupRate,
+    groupChatMode,
+    setGroupChatMode,
+    channelRouteRules,
+    addChannelRouteRule,
+    removeChannelRouteRule,
+  } = useSettingsStore();
+  const [routeEditorOpen, setRouteEditorOpen] = useState(false);
+  const [routeDraft, setRouteDraft] = useState('');
+
+  const handleAddRouteRule = async () => {
+    const normalized = routeDraft.trim();
+    if (!normalized) {
+      return;
+    }
+    if (channelRouteRules.includes(normalized)) {
+      toast.error('该路由规则已存在');
+      return;
+    }
+    try {
+      const added = await addChannelRouteRule(normalized);
+      if (!added) return;
+      setRouteDraft('');
+      setRouteEditorOpen(false);
+      toast.success('已添加路由规则');
+    } catch {
+      toast.error('保存路由规则失败');
+    }
+  };
 
   return (
     <>
@@ -942,7 +993,12 @@ function ChannelAdvancedSection() {
       <SettingsCard title="群聊发言默认策略">
         <div className="py-3">
           <p className="mb-2 text-[13px] font-medium text-[#000000]">默认群聊行为模式</p>
-          <select value={groupChatMode} onChange={(e) => setGroupChatMode(e.target.value)} className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac">
+          <select
+            value={groupChatMode}
+            onChange={(e) => setGroupChatMode(e.target.value)}
+            aria-label="默认群聊行为模式"
+            className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
+          >
             <option value="at-trigger">@触发（仅被 @ 时回复）</option>
             <option value="all-listen">全量监听（所有消息都响应）</option>
             <option value="silent">静默（不主动发言）</option>
@@ -952,16 +1008,34 @@ function ChannelAdvancedSection() {
 
       {/* 路由分发矩阵 */}
       <SettingsCard title="路由分发矩阵">
-        <div className="py-6 text-center text-[13px] text-[#8e8e93]">
-          暂无路由规则，请先在「频道」页面配置频道后添加
-        </div>
+        <EditableChipList
+          items={channelRouteRules}
+          emptyLabel="暂无路由规则，请先在「频道」页面配置频道后添加"
+          listLabel="已配置路由规则"
+          onRemove={removeChannelRouteRule}
+        />
         <div className="py-2">
           <button
             type="button"
+            onClick={() => setRouteEditorOpen((open) => !open)}
             className="w-full rounded-lg border border-dashed border-black/10 py-2 text-[13px] text-[#8e8e93] transition-colors hover:bg-[#f2f2f7]"
           >
             + 添加路由规则
           </button>
+          {routeEditorOpen ? (
+            <InlineListComposer
+              label="新增路由规则"
+              placeholder="例如：support-* -> planner-agent"
+              value={routeDraft}
+              onChange={setRouteDraft}
+              onSubmit={handleAddRouteRule}
+              onCancel={() => {
+                setRouteDraft('');
+                setRouteEditorOpen(false);
+              }}
+              submitLabel="保存规则"
+            />
+          ) : null}
         </div>
       </SettingsCard>
 
@@ -973,6 +1047,7 @@ function ChannelAdvancedSection() {
             type="number"
             value={groupRate}
             onChange={(e) => setGroupRate(e.target.value)}
+            aria-label="群聊每分钟发言上限"
             className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
           />
           <p className="mt-1.5 text-[12px] text-[#8e8e93]">超出后进入 5 分钟的静默冷却。</p>
@@ -1006,6 +1081,7 @@ function AutomationDefaultsSection() {
           <select
             value={workerSlots}
             onChange={(e) => setWorkerSlots(e.target.value)}
+            aria-label="并行 Worker 槽位"
             className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
             style={selectStyle}
           >
@@ -1021,6 +1097,7 @@ function AutomationDefaultsSection() {
             type="number"
             value={maxDailyRuns}
             onChange={(e) => setMaxDailyRuns(e.target.value)}
+            aria-label="单日最大自动化运行次数"
             className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
           />
           <p className="mt-1.5 text-[12px] text-[#8e8e93]">防止死循环剧烈消耗配额。</p>
@@ -1168,7 +1245,7 @@ function SkillsMcpSection() {
           skills.map((skill) => (
             <div key={skill.id} className="flex items-center justify-between gap-4 py-3">
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] font-medium text-[#000000]">
+                <p id={`skill-${skill.id}`} className="text-[13px] font-medium text-[#000000]">
                   {skill.icon && <span className="mr-1.5">{skill.icon}</span>}
                   {skill.name}
                   {skill.version && <span className="ml-1.5 text-[11px] font-normal text-[#c6c6c8]">v{skill.version}</span>}
@@ -1180,6 +1257,7 @@ function SkillsMcpSection() {
                 checked={skill.enabled}
                 disabled={skill.isCore}
                 onCheckedChange={(v) => void handleSkillToggle(skill.id, v)}
+                aria-labelledby={`skill-${skill.id}`}
               />
             </div>
           ))
@@ -1269,16 +1347,19 @@ function SkillsMcpSection() {
             <div className="mb-3">
               <p className="mb-1 text-[13px] font-medium text-[#000000]">服务名称</p>
               <input value={addMcpName} onChange={(e) => setAddMcpName(e.target.value)} placeholder="如：My GitHub MCP"
+                aria-label="服务名称"
                 className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac" />
             </div>
             <div className="mb-3">
               <p className="mb-1 text-[13px] font-medium text-[#000000]">命令 (Command)</p>
               <input value={addMcpCmd} onChange={(e) => setAddMcpCmd(e.target.value)} placeholder="npx"
+                aria-label="命令 (Command)"
                 className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] font-mono outline-none focus:border-clawx-ac" />
             </div>
             <div className="mb-5">
               <p className="mb-1 text-[13px] font-medium text-[#000000]">参数 (Args，空格分隔)</p>
               <input value={addMcpArgs} onChange={(e) => setAddMcpArgs(e.target.value)} placeholder="-y @modelcontextprotocol/server-github"
+                aria-label="参数 (Args，空格分隔)"
                 className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] font-mono outline-none focus:border-clawx-ac" />
             </div>
             <div className="flex gap-2">
@@ -1299,13 +1380,76 @@ function SkillsMcpSection() {
 /* ─── Section: Tool Permissions (09.3) ─── */
 
 function ToolPermissionsSection() {
-  const { fileAcl, setFileAcl, terminalAcl, setTerminalAcl, networkAcl, setNetworkAcl } = useSettingsStore();
+  const {
+    globalRiskLevel,
+    setGlobalRiskLevel,
+    fileAcl,
+    setFileAcl,
+    terminalAcl,
+    setTerminalAcl,
+    networkAcl,
+    setNetworkAcl,
+    filePathAllowlist,
+    addFilePathAllowlistEntry,
+    removeFilePathAllowlistEntry,
+    terminalCommandBlocklist,
+    addTerminalCommandBlocklistEntry,
+    removeTerminalCommandBlocklistEntry,
+    customToolGrants,
+    addCustomToolGrant,
+    removeCustomToolGrant,
+  } = useSettingsStore();
+  const [whitelistEditorOpen, setWhitelistEditorOpen] = useState(false);
+  const [whitelistDraft, setWhitelistDraft] = useState('');
+  const [blacklistEditorOpen, setBlacklistEditorOpen] = useState(false);
+  const [blacklistDraft, setBlacklistDraft] = useState('');
+  const [grantEditorOpen, setGrantEditorOpen] = useState(false);
+  const [grantDraft, setGrantDraft] = useState('');
 
   const selectStyle = {
     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238e8e93' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
     backgroundRepeat: 'no-repeat' as const,
     backgroundPosition: 'right 12px center',
     paddingRight: '32px',
+  };
+
+  const handleAppendUniqueItem = (
+    value: string,
+    existingItems: string[],
+    addItem: (item: string) => Promise<boolean>,
+    successMessage: string,
+    duplicateMessage: string,
+    reset: () => void,
+  ) => {
+    const normalized = value.trim();
+    if (!normalized) {
+      return;
+    }
+    if (existingItems.includes(normalized)) {
+      toast.error(duplicateMessage);
+      return;
+    }
+    void (async () => {
+      try {
+        const added = await addItem(normalized);
+        if (!added) return;
+        reset();
+        toast.success(successMessage);
+      } catch {
+        toast.error('保存失败，请稍后重试');
+      }
+    })();
+  };
+
+  const handleQuickGrant = (template: string) => {
+    handleAppendUniqueItem(
+      template,
+      customToolGrants,
+      addCustomToolGrant,
+      `已添加工具许可：${template}`,
+      `工具许可已存在：${template}`,
+      () => undefined,
+    );
   };
 
   return (
@@ -1321,10 +1465,15 @@ function ToolPermissionsSection() {
           <select
             className="w-[260px] shrink-0 appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[12px] text-[#3c3c43] outline-none focus:border-clawx-ac"
             style={selectStyle}
+            value={globalRiskLevel}
+            aria-label="全局风险级别设定 (Global Risk Level)"
+            onChange={(event) =>
+              setGlobalRiskLevel(event.target.value as 'standard' | 'strict' | 'permissive')
+            }
           >
-            <option>Standard 防御模式 (读受控区、写必审批)</option>
-            <option>Strict 锁定模式 (只读)</option>
-            <option>Permissive 宽松模式 (全量访问)</option>
+            <option value="standard">Standard 防御模式 (读受控区、写必审批)</option>
+            <option value="strict">Strict 锁定模式 (只读)</option>
+            <option value="permissive">Permissive 宽松模式 (全量访问)</option>
           </select>
         </div>
 
@@ -1338,13 +1487,46 @@ function ToolPermissionsSection() {
           <div className="flex shrink-0 items-center gap-3">
             <button
               type="button"
+              onClick={() => setWhitelistEditorOpen((open) => !open)}
               className="rounded border border-black/10 px-2 py-1 text-[11px] text-[#3c3c43] hover:bg-[#f2f2f7]"
             >
               ◎ 路径白名单
             </button>
-            <Switch checked={fileAcl} onCheckedChange={setFileAcl} />
+            <Switch checked={fileAcl} onCheckedChange={setFileAcl} aria-label="本地文件操作 (File I/O ACL)" />
           </div>
         </div>
+        <EditableChipList
+          items={filePathAllowlist}
+          emptyLabel="暂无路径白名单，默认仅允许当前 Workspace。"
+          listLabel="路径白名单"
+          onRemove={removeFilePathAllowlistEntry}
+        />
+        {whitelistEditorOpen ? (
+          <InlineListComposer
+            label="新增允许访问路径"
+            placeholder="例如：C:\\Projects\\KTClaw"
+            value={whitelistDraft}
+            onChange={setWhitelistDraft}
+            onSubmit={() =>
+              handleAppendUniqueItem(
+                whitelistDraft,
+                filePathAllowlist,
+                addFilePathAllowlistEntry,
+                '已添加路径白名单',
+                '该路径已在白名单中',
+                () => {
+                  setWhitelistDraft('');
+                  setWhitelistEditorOpen(false);
+                },
+              )
+            }
+            onCancel={() => {
+              setWhitelistDraft('');
+              setWhitelistEditorOpen(false);
+            }}
+            submitLabel="保存路径"
+          />
+        ) : null}
 
         <div className="flex items-center justify-between gap-4 py-3">
           <div className="min-w-0 flex-1">
@@ -1356,13 +1538,46 @@ function ToolPermissionsSection() {
           <div className="flex shrink-0 items-center gap-3">
             <button
               type="button"
+              onClick={() => setBlacklistEditorOpen((open) => !open)}
               className="rounded border border-black/10 px-2 py-1 text-[11px] text-[#3c3c43] hover:bg-[#f2f2f7]"
             >
               ◎ 编辑黑名单
             </button>
-            <Switch checked={terminalAcl} onCheckedChange={setTerminalAcl} />
+            <Switch checked={terminalAcl} onCheckedChange={setTerminalAcl} aria-label="终端命令执行 (Terminal ACL)" />
           </div>
         </div>
+        <EditableChipList
+          items={terminalCommandBlocklist}
+          emptyLabel="暂无终端命令黑名单。"
+          listLabel="终端命令黑名单"
+          onRemove={removeTerminalCommandBlocklistEntry}
+        />
+        {blacklistEditorOpen ? (
+          <InlineListComposer
+            label="新增命令黑名单"
+            placeholder="例如：rm -rf /"
+            value={blacklistDraft}
+            onChange={setBlacklistDraft}
+            onSubmit={() =>
+              handleAppendUniqueItem(
+                blacklistDraft,
+                terminalCommandBlocklist,
+                addTerminalCommandBlocklistEntry,
+                '已添加命令黑名单',
+                '该命令已在黑名单中',
+                () => {
+                  setBlacklistDraft('');
+                  setBlacklistEditorOpen(false);
+                },
+              )
+            }
+            onCancel={() => {
+              setBlacklistDraft('');
+              setBlacklistEditorOpen(false);
+            }}
+            submitLabel="保存黑名单"
+          />
+        ) : null}
 
         <div className="flex items-center justify-between gap-4 py-3">
           <div className="min-w-0 flex-1">
@@ -1373,7 +1588,7 @@ function ToolPermissionsSection() {
               允许 wget、curl、pip、pnpm 进系统的副作用操作
             </p>
           </div>
-          <Switch checked={networkAcl} onCheckedChange={setNetworkAcl} />
+          <Switch checked={networkAcl} onCheckedChange={setNetworkAcl} aria-label="网络与依赖下载 (Network & Package Managers)" />
         </div>
       </SettingsCard>
 
@@ -1382,6 +1597,7 @@ function ToolPermissionsSection() {
         headerRight={
           <button
             type="button"
+            onClick={() => setGrantEditorOpen((open) => !open)}
             className="rounded-lg bg-[#111] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#333]"
           >
             + 添加工具许可
@@ -1395,6 +1611,7 @@ function ToolPermissionsSection() {
               <button
                 key={t}
                 type="button"
+                onClick={() => handleQuickGrant(t)}
                 className="rounded-full border border-black/10 px-3 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
               >
                 + {t}
@@ -1403,11 +1620,127 @@ function ToolPermissionsSection() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-dashed border-black/10 py-8 text-center text-[13px] text-[#8e8e93]">
-          暂无自定义工具授权
-        </div>
+        <EditableChipList
+          items={customToolGrants}
+          emptyLabel="暂无自定义工具授权"
+          listLabel="自定义工具授权"
+          onRemove={removeCustomToolGrant}
+        />
+        {grantEditorOpen ? (
+          <InlineListComposer
+            label="新增工具许可"
+            placeholder="例如：github-cli --repo anthropics/claude-code"
+            value={grantDraft}
+            onChange={setGrantDraft}
+            onSubmit={() =>
+              handleAppendUniqueItem(
+                grantDraft,
+                customToolGrants,
+                addCustomToolGrant,
+                '已添加工具许可',
+                '该工具许可已存在',
+                () => {
+                  setGrantDraft('');
+                  setGrantEditorOpen(false);
+                },
+              )
+            }
+            onCancel={() => {
+              setGrantDraft('');
+              setGrantEditorOpen(false);
+            }}
+            submitLabel="保存许可"
+          />
+        ) : null}
       </SettingsCard>
     </>
+  );
+}
+
+type EditableChipListProps = {
+  items: string[];
+  emptyLabel: string;
+  listLabel: string;
+  onRemove: (item: string) => void;
+};
+
+function EditableChipList({ items, emptyLabel, listLabel, onRemove }: EditableChipListProps) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-black/10 py-6 text-center text-[13px] text-[#8e8e93]">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <ul aria-label={listLabel} className="flex flex-wrap gap-2 py-3">
+      {items.map((item) => (
+        <li key={item}>
+          <span className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[#f8f8fb] px-3 py-1.5 text-[12px] text-[#3c3c43]">
+            <span>{item}</span>
+            <button
+              type="button"
+              onClick={() => onRemove(item)}
+              className="rounded-full px-1 text-[#8e8e93] transition-colors hover:bg-[#e5e5ea] hover:text-[#000000]"
+              aria-label={`移除 ${item}`}
+            >
+              ×
+            </button>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+type InlineListComposerProps = {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  submitLabel: string;
+};
+
+function InlineListComposer({
+  label,
+  placeholder,
+  value,
+  onChange,
+  onSubmit,
+  onCancel,
+  submitLabel,
+}: InlineListComposerProps) {
+  const inputId = useId();
+  return (
+    <div className="mt-3 rounded-xl border border-black/[0.08] bg-[#fafafa] p-3">
+      <label htmlFor={inputId} className="mb-2 block text-[12px] font-medium text-[#3c3c43]">{label}</label>
+      <input
+        id={inputId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
+      />
+      <div className="mt-3 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-black/10 px-3 py-1.5 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={onSubmit}
+          className="rounded-lg bg-clawx-ac px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#0056b3]"
+        >
+          {submitLabel}
+        </button>
+      </div>
+    </div>
   );
 }
 

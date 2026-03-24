@@ -156,7 +156,7 @@ describe('openclaw doctor output handling', () => {
     expect(result.stderr).toBe('warn-1\nwarn-2\n');
   });
 
-  it('runs plain doctor command without --json', async () => {
+  it('runs doctor diagnose command with --json', async () => {
     const child = new MockUtilityChild();
     mockFork.mockReturnValue(child);
 
@@ -171,7 +171,7 @@ describe('openclaw doctor output handling', () => {
 
     const result = await resultPromise;
     expect(result.success).toBe(true);
-    expect(result.command).toBe('openclaw doctor');
-    expect(mockFork.mock.calls[0][1]).toEqual(['doctor']);
+    expect(result.command).toBe('openclaw doctor --json');
+    expect(mockFork.mock.calls[0][1]).toEqual(['doctor', '--json']);
   });
 });

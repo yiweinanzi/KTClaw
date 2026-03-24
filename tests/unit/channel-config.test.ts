@@ -1,8 +1,15 @@
-import { readFile, rm } from 'fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { testHome, testUserData, mockLoggerWarn, mockLoggerInfo, mockLoggerError } = vi.hoisted(() => {
+const {
+  testHome,
+  testUserData,
+  mockLoggerWarn,
+  mockLoggerInfo,
+  mockLoggerError,
+  mockRunOpenClawDoctor,
+} = vi.hoisted(() => {
   const suffix = Math.random().toString(36).slice(2);
   return {
     testHome: `/tmp/clawx-channel-config-${suffix}`,
@@ -10,6 +17,7 @@ const { testHome, testUserData, mockLoggerWarn, mockLoggerInfo, mockLoggerError 
     mockLoggerWarn: vi.fn(),
     mockLoggerInfo: vi.fn(),
     mockLoggerError: vi.fn(),
+    mockRunOpenClawDoctor: vi.fn(),
   };
 });
 
@@ -40,15 +48,36 @@ vi.mock('@electron/utils/logger', () => ({
   error: mockLoggerError,
 }));
 
+vi.mock('@electron/utils/openclaw-doctor', () => ({
+  runOpenClawDoctor: mockRunOpenClawDoctor,
+  runOpenClawDoctorFix: vi.fn(),
+}));
+
 async function readOpenClawJson(): Promise<Record<string, unknown>> {
   const content = await readFile(join(testHome, '.openclaw', 'openclaw.json'), 'utf8');
   return JSON.parse(content) as Record<string, unknown>;
+}
+
+async function writeOpenClawJson(config: unknown): Promise<void> {
+  const openclawDir = join(testHome, '.openclaw');
+  await mkdir(openclawDir, { recursive: true });
+  await writeFile(join(openclawDir, 'openclaw.json'), JSON.stringify(config, null, 2), 'utf8');
 }
 
 describe('channel credential normalization and duplicate checks', () => {
   beforeEach(async () => {
     vi.resetAllMocks();
     vi.resetModules();
+    mockRunOpenClawDoctor.mockResolvedValue({
+      mode: 'diagnose',
+      success: true,
+      exitCode: 0,
+      stdout: '',
+      stderr: '',
+      command: 'openclaw doctor --json',
+      cwd: testHome,
+      durationMs: 5,
+    });
     await rm(testHome, { recursive: true, force: true });
     await rm(testUserData, { recursive: true, force: true });
   });
@@ -135,5 +164,105 @@ describe('parseDoctorValidationOutput', () => {
     expect(out.undetermined).toBe(true);
     expect(out.errors).toEqual([]);
     expect(out.warnings.some((w) => w.includes('falling back to local channel config checks'))).toBe(true);
+  });
+
+  it('extracts channel error and warning entries from json output', async () => {
+    const { parseDoctorValidationOutput } = await import('@electron/utils/channel-config');
+
+    const out = parseDoctorValidationOutput(
+      'feishu',
+      JSON.stringify({
+        checks: [
+          { channel: 'feishu', severity: 'error', message: 'token invalid' },
+          { channel: 'feishu', severity: 'warning', message: 'fallback enabled' },
+        ],
+      }),
+    );
+
+    expect(out.undetermined).toBe(false);
+    expect(out.errors).toEqual(['feishu error: token invalid']);
+    expect(out.warnings).toEqual(['feishu warning: fallback enabled']);
+  });
+});
+
+describe('default channel account deletion mirror cleanup', () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    vi.resetModules();
+    await rm(testHome, { recursive: true, force: true });
+    await rm(testUserData, { recursive: true, force: true });
+  });
+
+  it('clears stale top-level mirrored credentials when deleting default account directly', async () => {
+    const { saveChannelConfig, deleteChannelAccountConfig } = await import('@electron/utils/channel-config');
+
+    await saveChannelConfig('feishu', { appId: 'default-bot', appSecret: 'default-secret' }, 'default');
+    await saveChannelConfig('feishu', { appId: 'agent-bot', appSecret: 'agent-secret' }, 'agent-a');
+
+    await deleteChannelAccountConfig('feishu', 'default');
+
+    const config = await readOpenClawJson();
+    const feishu = (config.channels as Record<string, Record<string, unknown>>).feishu;
+    expect((feishu.accounts as Record<string, unknown>).default).toBeUndefined();
+    expect(feishu.appId).toBeUndefined();
+    expect(feishu.appSecret).toBeUndefined();
+  });
+
+  it('clears stale top-level mirrored credentials when deleting main agent channel accounts', async () => {
+    await writeOpenClawJson({
+      channels: {
+        feishu: {
+          enabled: true,
+          defaultAccount: 'default',
+          appId: 'default-bot',
+          appSecret: 'default-secret',
+          accounts: {
+            default: { enabled: true, appId: 'default-bot', appSecret: 'default-secret' },
+            'agent-a': { enabled: true, appId: 'agent-bot', appSecret: 'agent-secret' },
+          },
+        },
+      },
+    });
+
+    const { deleteAgentChannelAccounts } = await import('@electron/utils/channel-config');
+    await deleteAgentChannelAccounts('main');
+
+    const config = await readOpenClawJson();
+    const feishu = (config.channels as Record<string, Record<string, unknown>>).feishu;
+    expect((feishu.accounts as Record<string, unknown>).default).toBeUndefined();
+    expect(feishu.appId).toBeUndefined();
+    expect(feishu.appSecret).toBeUndefined();
+  });
+});
+
+describe('validateChannelConfig doctor integration', () => {
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    vi.resetModules();
+    await rm(testHome, { recursive: true, force: true });
+    await rm(testUserData, { recursive: true, force: true });
+  });
+
+  it('returns invalid when doctor helper fails even if channel config exists', async () => {
+    const { saveChannelConfig, validateChannelConfig } = await import('@electron/utils/channel-config');
+    await saveChannelConfig('feishu', { appId: 'default-bot', appSecret: 'default-secret' }, 'default');
+
+    mockRunOpenClawDoctor.mockResolvedValueOnce({
+      mode: 'diagnose',
+      success: false,
+      exitCode: 1,
+      stdout: 'doctor failed on feishu',
+      stderr: 'fatal',
+      command: 'openclaw doctor --json',
+      cwd: testHome,
+      durationMs: 14,
+      error: 'failed',
+    });
+
+    const result = await validateChannelConfig('feishu');
+
+    expect(mockRunOpenClawDoctor).toHaveBeenCalledTimes(1);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((err) => err.includes('doctor failed') || err.includes('fatal'))).toBe(true);
   });
 });

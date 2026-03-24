@@ -3,17 +3,21 @@ import { describe, expect, it } from 'vitest';
 import { SettingsMemoryStrategy } from '@/components/settings-center/settings-memory-strategy';
 
 describe('SettingsMemoryStrategy', () => {
-  it('renders the static sections for policy, ingest stats, and retrieval', () => {
+  it('renders the strategy sections and local knowledge controls', () => {
     render(<SettingsMemoryStrategy />);
 
-    expect(screen.getByRole('heading', { name: '记忆策略总览' })).toBeInTheDocument();
-    expect(screen.getByText('保留 30 天历史，自动归档冷数据')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '全局长期记忆策略' })).toBeInTheDocument();
+    expect(screen.getByText('Local SQLite + BM25 全文检索 (默认最轻量)')).toBeInTheDocument();
+    expect(screen.getByText('text-embedding-3-small (OpenAI, 高性价比)')).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: '摄取统计' })).toBeInTheDocument();
-    expect(screen.getByText('本周新增记忆 150 条')).toBeInTheDocument();
-    expect(screen.getByText('平均处理延迟 210 ms')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '自动浓缩与总结' })).toBeInTheDocument();
+    expect(screen.getByText(/多轮对话自动滚动压缩/)).toBeInTheDocument();
+    expect(screen.getByText(/每日复盘生成/)).toBeInTheDocument();
+    expect(screen.getAllByRole('switch')).toHaveLength(2);
 
-    expect(screen.getByRole('heading', { name: '检索策略' })).toBeInTheDocument();
-    expect(screen.getByText('优先使用记忆索引 + 上下文缓存')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '挂载本地目录知识' })).toBeInTheDocument();
+    expect(screen.getByText('D:/CompanyDocs/Handbook')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '重做索引' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /\+ 添加本地监控目录集/ })).toBeInTheDocument();
   });
 });

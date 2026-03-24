@@ -1,27 +1,186 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsMemoryBrowser } from '@/components/settings-center/settings-memory-browser';
+import { hostApiFetch } from '@/lib/host-api';
+
+vi.mock('@/lib/host-api', () => ({
+  hostApiFetch: vi.fn(),
+}));
 
 describe('SettingsMemoryBrowser', () => {
-  it('renders the dual-pane layout and updates the preview when selecting another file', () => {
+  beforeEach(() => {
+    vi.mocked(hostApiFetch).mockImplementation(async (path, init) => {
+      if (path === '/api/memory') {
+        return {
+          files: [
+            {
+              name: 'meeting-notes.md',
+              path: 'memory/meeting-notes.md',
+              size: 1024,
+              mtime: Date.now() - 60_000,
+            },
+            {
+              name: 'project-update.md',
+              path: 'memory/project-update.md',
+              size: 315 * 1024,
+              mtime: Date.now() - 120_000,
+            },
+          ],
+        };
+      }
+
+      if (typeof path === 'string' && path.startsWith('/api/memory/file?name=')) {
+        if (path.includes(encodeURIComponent('memory/meeting-notes.md'))) {
+          return { content: 'meeting-notes\n- follow up with QA' };
+        }
+        if (path.includes(encodeURIComponent('memory/project-update.md'))) {
+          return { content: 'project-update\nstatus: stable' };
+        }
+      }
+
+      if (path === '/api/memory/file' && init?.method === 'PUT') {
+        return { success: true };
+      }
+
+      throw new Error(`Unexpected hostApiFetch call: ${String(path)}`);
+    });
+  });
+
+  it('renders the dual-pane layout and loads preview content through hostApiFetch', async () => {
     render(<SettingsMemoryBrowser />);
 
-    const listPanel = screen.getByRole('region', { name: '记忆文件列表' });
-    const previewPanel = screen.getByRole('region', { name: '记忆预览' });
+    const [listPanel, previewPanel] = screen.getAllByRole('region');
 
     expect(listPanel).toBeInTheDocument();
     expect(previewPanel).toBeInTheDocument();
-    expect(screen.getByText('全部记忆')).toBeInTheDocument();
-    expect(screen.getByText('会议要点')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /meeting-notes\.md/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /project-update\.md/ })).toBeInTheDocument();
 
-    const secondFile = screen.getByRole('button', { name: '项目更新日志 (315 KB)' });
-    fireEvent.click(secondFile);
+    fireEvent.click(screen.getByRole('button', { name: /project-update\.md/ }));
 
     const preview = within(previewPanel);
     expect(
-      preview.getByText('追踪事项 · 与架构与 QA 提前确认测试窗口'),
+      await preview.findByText(
+        (content) => content.includes('project-update') && content.includes('status: stable'),
+      ),
     ).toBeInTheDocument();
-    expect(preview.queryByText('会议要点')).not.toBeInTheDocument();
-    expect(preview.getByText('项目状态')).toBeInTheDocument();
+    expect(hostApiFetch).toHaveBeenCalledWith('/api/memory');
+    expect(hostApiFetch).toHaveBeenCalledWith(
+      `/api/memory/file?name=${encodeURIComponent('memory/project-update.md')}`,
+    );
+  });
+
+  it('loads the correct file when duplicate names exist in different paths', async () => {
+    const now = Date.now();
+    vi.mocked(hostApiFetch).mockImplementation(async (path, init) => {
+      if (path === '/api/memory') {
+        return {
+          files: [
+            {
+              name: 'notes.md',
+              path: 'memory/team/notes.md',
+              size: 512,
+              mtime: now - 60_000,
+            },
+            {
+              name: 'notes.md',
+              path: 'memory/personal/notes.md',
+              size: 768,
+              mtime: now - 120_000,
+            },
+          ],
+        };
+      }
+
+      if (typeof path === 'string' && path.startsWith('/api/memory/file?name=')) {
+        if (path.includes(encodeURIComponent('memory/team/notes.md'))) {
+          return { content: 'team-notes' };
+        }
+        if (path.includes(encodeURIComponent('memory/personal/notes.md'))) {
+          return { content: 'personal-notes' };
+        }
+      }
+
+      if (path === '/api/memory/file' && init?.method === 'PUT') {
+        return { success: true };
+      }
+
+      throw new Error(`Unexpected hostApiFetch call: ${String(path)}`);
+    });
+
+    render(<SettingsMemoryBrowser />);
+
+    const fileButtons = await screen.findAllByRole('button', { name: /notes\.md/ });
+    fireEvent.click(fileButtons[1]);
+
+    const previewPanel = screen.getAllByRole('region')[1];
+    expect(await within(previewPanel).findByText('personal-notes')).toBeInTheDocument();
+    expect(hostApiFetch).toHaveBeenCalledWith(
+      `/api/memory/file?name=${encodeURIComponent('memory/personal/notes.md')}`,
+    );
+  });
+
+  it('saves changes using the selected file path when names collide', async () => {
+    const now = Date.now();
+    vi.mocked(hostApiFetch).mockImplementation(async (path, init) => {
+      if (path === '/api/memory') {
+        return {
+          files: [
+            {
+              name: 'notes.md',
+              path: 'memory/team/notes.md',
+              size: 512,
+              mtime: now - 60_000,
+            },
+            {
+              name: 'notes.md',
+              path: 'memory/personal/notes.md',
+              size: 768,
+              mtime: now - 120_000,
+            },
+          ],
+        };
+      }
+
+      if (typeof path === 'string' && path.startsWith('/api/memory/file?name=')) {
+        if (path.includes(encodeURIComponent('memory/personal/notes.md'))) {
+          return { content: 'personal-notes' };
+        }
+      }
+
+      if (path === '/api/memory/file' && init?.method === 'PUT') {
+        return { success: true };
+      }
+
+      throw new Error(`Unexpected hostApiFetch call: ${String(path)}`);
+    });
+
+    render(<SettingsMemoryBrowser />);
+
+    const fileButtons = await screen.findAllByRole('button', { name: /notes\.md/ });
+    fireEvent.click(fileButtons[1]);
+
+    await screen.findByText('personal-notes');
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'updated-notes' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+
+    await waitFor(() => {
+      const putCalls = vi.mocked(hostApiFetch).mock.calls.filter(
+        ([path, init]) => path === '/api/memory/file' && init?.method === 'PUT',
+      );
+      expect(putCalls.length).toBeGreaterThan(0);
+    });
+
+    const putCalls = vi.mocked(hostApiFetch).mock.calls.filter(
+      ([path, init]) => path === '/api/memory/file' && init?.method === 'PUT',
+    );
+    const [, init] = putCalls[putCalls.length - 1];
+    const body = JSON.parse(String(init?.body));
+    expect(body).toEqual({
+      relativePath: 'memory/personal/notes.md',
+      content: 'updated-notes',
+    });
   });
 });

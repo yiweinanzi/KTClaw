@@ -103,7 +103,7 @@ function questionKey(question: WizardQuestion, index: number): string {
   return `${index + 1}. ${title || `Question ${index + 1}`}`;
 }
 
-export function AskUserQuestionWizard({ approval, onRespond, onDismiss }: Props) {
+function AskUserQuestionWizardContent({ approval, onRespond, onDismiss }: Props) {
   const questions = useMemo(() => parsePromptQuestions(approval.prompt), [approval.prompt]);
   const [step, setStep] = useState(0);
   const [singleAnswers, setSingleAnswers] = useState<Record<string, string>>({});
@@ -121,14 +121,6 @@ export function AskUserQuestionWizard({ approval, onRespond, onDismiss }: Props)
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onDismiss]);
-
-  useEffect(() => {
-    setStep(0);
-    setSingleAnswers({});
-    setMultiAnswers({});
-    setOtherAnswers({});
-    setFallbackAnswer('');
-  }, [approval.id]);
 
   const total = Math.max(questions.length, 1);
   const current = questions[step];
@@ -192,7 +184,7 @@ export function AskUserQuestionWizard({ approval, onRespond, onDismiss }: Props)
     onRespond(answers);
   };
 
-  const content = (
+  return (
     <div className="fixed inset-0 z-[120] flex h-screen w-screen flex-col" style={{ background: BG }}>
       <div className="h-1 w-full" style={{ background: SECONDARY_BG }}>
         <div className="h-full transition-all duration-200" style={{ width: `${progress}%`, background: ACCENT }} />
@@ -349,9 +341,14 @@ export function AskUserQuestionWizard({ approval, onRespond, onDismiss }: Props)
       </div>
     </div>
   );
+}
 
+export function AskUserQuestionWizard(props: Props) {
   if (typeof document === 'undefined') return null;
-  return createPortal(content, document.body);
+  return createPortal(
+    <AskUserQuestionWizardContent key={props.approval.id} {...props} />,
+    document.body,
+  );
 }
 
 export default AskUserQuestionWizard;

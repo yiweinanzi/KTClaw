@@ -1,11 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { readFile, readdir, writeFile, stat, mkdir } from 'fs/promises';
 import { existsSync, readFileSync } from 'fs';
-import { join, basename, dirname } from 'path';
+import { join, basename, dirname, resolve, relative, isAbsolute, posix, win32 } from 'path';
 import { homedir } from 'os';
-import { execSync } from 'child_process';
+import { execFile } from 'child_process';
 import type { HostApiContext } from '../context';
 import { sendJson, parseJsonBody } from '../route-utils';
+import { extractMemoryFromMessages, type MemoryGuardLevel } from './memory-extract';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -90,6 +91,25 @@ function getWorkspaceDir(): string {
   const current = join(homedir(), '.openclaw', 'agents', 'main', 'workspace');
   if (existsSync(current)) return current;
   return join(homedir(), '.openclaw', 'workspace');
+}
+
+function isAbsolutePath(target: string): boolean {
+  return isAbsolute(target) || posix.isAbsolute(target) || win32.isAbsolute(target);
+}
+
+function resolveWorkspaceFilePath(workspaceDir: string, requested: string): string | null {
+  const trimmed = requested.trim();
+  if (!trimmed) return null;
+  if (trimmed.includes('\0')) return null;
+  if (isAbsolutePath(trimmed)) return null;
+
+  const workspaceRoot = resolve(workspaceDir);
+  const fullPath = resolve(workspaceRoot, trimmed);
+  const rel = relative(workspaceRoot, fullPath).replace(/[\\/]+/g, '/');
+  if (rel === '' || (!rel.startsWith('../') && rel !== '..')) {
+    return fullPath;
+  }
+  return null;
 }
 
 // ── Daily log helpers ────────────────────────────────────────────
@@ -236,15 +256,32 @@ function getMemoryConfig(workspacePath: string): MemoryConfig {
 
 // ── Status ───────────────────────────────────────────────────────
 
-function getMemoryStatus(): MemoryStatus {
+const OPENCLAW_MAX_BUFFER = 1024 * 1024;
+
+function execOpenclaw(args: string[], timeout: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'openclaw',
+      args,
+      { timeout, encoding: 'utf-8', maxBuffer: OPENCLAW_MAX_BUFFER },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(stdout ?? '');
+      },
+    );
+  });
+}
+
+async function getMemoryStatus(): Promise<MemoryStatus> {
   const defaults: MemoryStatus = {
     indexed: false, lastIndexed: null, totalEntries: null,
     vectorAvailable: null, embeddingProvider: null, raw: 'Memory status unavailable',
   };
   try {
-    const output = execSync('openclaw memory status --deep', {
-      timeout: 8000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
+    const output = (await execOpenclaw(['memory', 'status', '--deep'], 8000)).trim();
     try {
       const data = JSON.parse(output);
       return {
@@ -394,7 +431,7 @@ export async function handleMemoryRoutes(
     const workspaceDir = getWorkspaceDir();
     const files = await getMemoryFiles(workspaceDir);
     const config = getMemoryConfig(workspaceDir);
-    const status = getMemoryStatus();
+    const status = await getMemoryStatus();
     const stats = computeStats(files);
     const health = computeHealth(files, config, status, stats);
     sendJson(res, 200, { files, config, status, stats, health, workspaceDir });
@@ -404,13 +441,13 @@ export async function handleMemoryRoutes(
   // GET /api/memory/file?name=FILENAME — read single file
   if (url.pathname === '/api/memory/file' && req.method === 'GET') {
     const name = url.searchParams.get('name');
-    if (!name || name.includes('..')) {
+    const workspaceDir = getWorkspaceDir();
+    const fullPath = name ? resolveWorkspaceFilePath(workspaceDir, name) : null;
+    if (!name || !fullPath) {
       sendJson(res, 400, { error: 'Invalid file name' });
       return true;
     }
-    const workspaceDir = getWorkspaceDir();
     // Support both root files and memory/ subdirectory
-    const fullPath = name.includes('/') ? join(workspaceDir, name) : join(workspaceDir, name);
     try {
       const content = await readFile(fullPath, 'utf-8');
       sendJson(res, 200, { name, content });
@@ -431,12 +468,16 @@ export async function handleMemoryRoutes(
     }
     const relPath = body.relativePath ?? body.name;
     const { content } = body;
-    if (!relPath || relPath.includes('..') || typeof content !== 'string') {
+    if (!relPath || typeof relPath !== 'string' || typeof content !== 'string') {
       sendJson(res, 400, { error: 'Invalid request' });
       return true;
     }
     const workspaceDir = getWorkspaceDir();
-    const fullPath = join(workspaceDir, relPath);
+    const fullPath = resolveWorkspaceFilePath(workspaceDir, relPath);
+    if (!fullPath) {
+      sendJson(res, 400, { error: 'Invalid request' });
+      return true;
+    }
     try {
       await mkdir(dirname(fullPath), { recursive: true });
       await writeFile(fullPath, content, 'utf-8');
@@ -459,29 +500,51 @@ export async function handleMemoryRoutes(
       const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
       const sessionKey = typeof body?.sessionKey === 'string' ? body.sessionKey.trim() : '';
       const label = typeof body?.label === 'string' ? body.label.trim() : '';
+      const extendedBody = body as typeof body & {
+        guardLevel?: string;
+        judge?: {
+          enabled?: boolean;
+          endpoint?: string;
+          model?: string;
+          apiKey?: string;
+          timeoutMs?: number;
+        };
+      };
+      const guardLevelRaw = typeof extendedBody.guardLevel === 'string' ? extendedBody.guardLevel.trim().toLowerCase() : '';
+      const guardLevel: MemoryGuardLevel = (guardLevelRaw === 'strict' || guardLevelRaw === 'standard' || guardLevelRaw === 'relaxed')
+        ? guardLevelRaw
+        : 'standard';
+      const judgeInput = extendedBody.judge;
 
-      // Need at least a user + assistant exchange
-      const assistantMessages = rawMessages.filter(
-        (m) => m.role === 'assistant' && typeof m.content === 'string' && (m.content as string).length > 80,
-      );
+      const extractedResult = await extractMemoryFromMessages(rawMessages, {
+        guardLevel,
+        judge: {
+          enabled: Boolean(judgeInput?.enabled),
+          endpoint: typeof judgeInput?.endpoint === 'string' ? judgeInput.endpoint : undefined,
+          model: typeof judgeInput?.model === 'string' ? judgeInput.model : undefined,
+          apiKey: typeof judgeInput?.apiKey === 'string' ? judgeInput.apiKey : undefined,
+          timeoutMs: typeof judgeInput?.timeoutMs === 'number' ? judgeInput.timeoutMs : undefined,
+        },
+      });
 
-      if (assistantMessages.length === 0) {
-        sendJson(res, 200, { ok: true, skipped: true, reason: 'no_substantial_content' });
+      if (extractedResult.candidates.length === 0) {
+        sendJson(res, 200, {
+          ok: true,
+          skipped: true,
+          reason: 'no_durable_memory_candidates',
+          judge: extractedResult.judge,
+        });
         return true;
       }
 
-      // Build markdown section
       const now = new Date();
       const dateStr = now.toISOString().slice(0, 10);
       const timeStr = now.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-      const title = label || sessionKey || '对话';
+      const title = label || sessionKey || 'Conversation';
       const lines: string[] = [`## ${dateStr} ${timeStr} | ${title}`, ''];
-
-      // Extract meaningful lines from each assistant turn (up to last 6)
-      for (const msg of assistantMessages.slice(-6)) {
-        const text = (msg.content as string).replace(/```[\s\S]*?```/g, '[代码块]').replace(/\n+/g, ' ').trim();
-        const snippet = text.slice(0, 240) + (text.length > 240 ? '…' : '');
-        if (snippet) lines.push(`- ${snippet}`);
+      for (const candidate of extractedResult.candidates.slice(0, 6)) {
+        const prefix = candidate.action === 'delete' ? '[DELETE] ' : '';
+        lines.push(`- ${prefix}${candidate.text}`);
       }
       lines.push('');
 
@@ -494,11 +557,18 @@ export async function handleMemoryRoutes(
       let existing = '';
       try { existing = await readFile(targetPath, 'utf-8'); } catch { /* new file */ }
       if (!existing.startsWith('# ')) {
-        existing = `# 对话记忆提取 — ${dateStr}\n\n${existing}`;
+        existing = `# Memory Extract - ${dateStr}\n\n${existing}`;
       }
       await writeFile(targetPath, `${existing}${extracted}`, 'utf-8');
 
-      sendJson(res, 200, { ok: true, extracted, filePath: targetPath });
+      sendJson(res, 200, {
+        ok: true,
+        extracted,
+        filePath: targetPath,
+        candidateCount: extractedResult.candidates.length,
+        judge: extractedResult.judge,
+      });
+
     } catch (err) {
       sendJson(res, 500, { error: String(err) });
     }
@@ -508,7 +578,7 @@ export async function handleMemoryRoutes(
   // POST /api/memory/reindex — trigger reindex
   if (url.pathname === '/api/memory/reindex' && req.method === 'POST') {
     try {
-      execSync('openclaw memory reindex', { timeout: 30000, stdio: ['pipe', 'pipe', 'pipe'] });
+      await execOpenclaw(['memory', 'reindex'], 30000);
       sendJson(res, 200, { ok: true });
     } catch (err) {
       sendJson(res, 500, { error: String(err) });

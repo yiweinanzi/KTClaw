@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { Chat } from '@/pages/Chat';
+import { useSettingsStore } from '@/stores/settings';
 
 const chatState = {
   messages: [] as Array<Record<string, unknown>>,
@@ -108,18 +109,21 @@ describe('Chat workbench shell', () => {
     chatState.error = null;
     chatState.showThinking = false;
     gatewayState.status = { state: 'running', port: 18789 };
+    useSettingsStore.setState({ rightPanelMode: null });
   });
 
   it('renders workbench quick actions, premium onboarding cards, and the agent inspector shell', () => {
     render(<Chat />);
 
-    expect(screen.getByText('文件')).toBeInTheDocument();
-    expect(screen.getByText('Agent')).toBeInTheDocument();
-    expect(screen.getByText('快速配置')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /文件/ })).toBeInTheDocument();
+    const agentButton = screen.getByRole('button', { name: /Agent/ });
+    expect(agentButton).toBeInTheDocument();
     expect(screen.getAllByText('KaiTianClaw').length).toBeGreaterThan(0);
-    expect(screen.getByText('从常见工作流开始，几分钟内进入协作状态。')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '有什么我可以帮你的？' })).toBeInTheDocument();
     expect(screen.getByText('代码重构方案')).toBeInTheDocument();
-    expect(screen.getByText('系统健康检查')).toBeInTheDocument();
+    expect(screen.getByText('检查系统健康度')).toBeInTheDocument();
+    expect(screen.queryByText('Agent 检查器')).not.toBeInTheDocument();
+    fireEvent.click(agentButton);
     expect(screen.getByText('Agent 检查器')).toBeInTheDocument();
     expect(screen.getByTestId('chat-input')).toBeInTheDocument();
   });

@@ -20,7 +20,7 @@ import { handleMemoryRoutes } from './routes/memory';
 import { handleMcpRoutes } from './routes/mcp';
 import { handleCostsRoutes } from './routes/costs';
 import { handleAlertsRoutes } from './routes/alerts';
-import { sendJson } from './route-utils';
+import { isAuthorizedHostApiRequest, sendJson, sendNoContent, sendUnauthorized } from './route-utils';
 
 type RouteHandler = (
   req: IncomingMessage,
@@ -54,6 +54,14 @@ export function startHostApiServer(ctx: HostApiContext, port = PORTS.CLAWX_HOST_
   const server = createServer(async (req, res) => {
     try {
       const requestUrl = new URL(req.url || '/', `http://127.0.0.1:${port}`);
+      if (req.method === 'OPTIONS') {
+        sendNoContent(res);
+        return;
+      }
+      if (!isAuthorizedHostApiRequest(req, ctx.hostApiSessionToken)) {
+        sendUnauthorized(res);
+        return;
+      }
       for (const handler of routeHandlers) {
         if (await handler(req, res, requestUrl, ctx)) {
           return;

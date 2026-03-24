@@ -10,6 +10,7 @@ import { resolveSupportedLanguage } from '../../shared/language';
 
 type Theme = 'light' | 'dark' | 'system';
 type UpdateChannel = 'stable' | 'beta' | 'dev';
+type GlobalRiskLevel = 'standard' | 'strict' | 'permissive';
 
 interface SettingsState {
   // General
@@ -77,9 +78,14 @@ interface SettingsState {
   mobileAlert: boolean;
 
   // Tool Permissions
+  globalRiskLevel: GlobalRiskLevel;
   fileAcl: boolean;
   terminalAcl: boolean;
   networkAcl: boolean;
+  channelRouteRules: string[];
+  filePathAllowlist: string[];
+  terminalCommandBlocklist: string[];
+  customToolGrants: string[];
 
   // Setup
   setupComplete: boolean;
@@ -130,11 +136,37 @@ interface SettingsState {
   setAgentSelfHeal: (value: boolean) => void;
   setSuspendOnFail: (value: boolean) => void;
   setMobileAlert: (value: boolean) => void;
+  setGlobalRiskLevel: (value: GlobalRiskLevel) => void;
   setFileAcl: (value: boolean) => void;
   setTerminalAcl: (value: boolean) => void;
   setNetworkAcl: (value: boolean) => void;
+  addChannelRouteRule: (value: string) => Promise<boolean>;
+  removeChannelRouteRule: (value: string) => void;
+  addFilePathAllowlistEntry: (value: string) => Promise<boolean>;
+  removeFilePathAllowlistEntry: (value: string) => void;
+  addTerminalCommandBlocklistEntry: (value: string) => Promise<boolean>;
+  removeTerminalCommandBlocklistEntry: (value: string) => void;
+  addCustomToolGrant: (value: string) => Promise<boolean>;
+  removeCustomToolGrant: (value: string) => void;
   markSetupComplete: () => void;
   resetSettings: () => void;
+}
+
+function normalizeListEntry(value: string): string | null {
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function appendUniqueEntry(entries: string[], value: string): string[] {
+  const normalized = normalizeListEntry(value);
+  if (!normalized || entries.includes(normalized)) {
+    return entries;
+  }
+  return [...entries, normalized];
+}
+
+function removeEntry(entries: string[], value: string): string[] {
+  return entries.filter((entry) => entry !== value);
 }
 
 const defaultSettings = {
@@ -183,14 +215,38 @@ const defaultSettings = {
   agentSelfHeal: true,
   suspendOnFail: true,
   mobileAlert: true,
+  globalRiskLevel: 'standard' as GlobalRiskLevel,
   fileAcl: true,
   terminalAcl: true,
   networkAcl: true,
+  channelRouteRules: [] as string[],
+  filePathAllowlist: [] as string[],
+  terminalCommandBlocklist: [] as string[],
+  customToolGrants: [] as string[],
 };
+
+type SettingsPatch = Partial<typeof defaultSettings>;
+
+function persistSettingsPatch(patch: SettingsPatch): Promise<void> {
+  return hostApiFetch('/api/settings', {
+    method: 'PUT',
+    body: JSON.stringify(patch),
+  }).then(() => undefined);
+}
+
+function persistSettingValue<K extends keyof typeof defaultSettings>(
+  key: K,
+  value: (typeof defaultSettings)[K],
+): Promise<void> {
+  return hostApiFetch(`/api/settings/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value }),
+  }).then(() => undefined);
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...defaultSettings,
 
       init: async () => {
@@ -272,8 +328,14 @@ export const useSettingsStore = create<SettingsState>()(
           body: JSON.stringify({ value: devModeUnlocked }),
         }).catch(() => { });
       },
-      setRemoteRpcEnabled: (remoteRpcEnabled) => set({ remoteRpcEnabled }),
-      setP2pSyncEnabled: (p2pSyncEnabled) => set({ p2pSyncEnabled }),
+      setRemoteRpcEnabled: (remoteRpcEnabled) => {
+        set({ remoteRpcEnabled });
+        void persistSettingValue('remoteRpcEnabled', remoteRpcEnabled).catch(() => { });
+      },
+      setP2pSyncEnabled: (p2pSyncEnabled) => {
+        set({ p2pSyncEnabled });
+        void persistSettingValue('p2pSyncEnabled', p2pSyncEnabled).catch(() => { });
+      },
       markSetupComplete: () => set({ setupComplete: true }),
       setBrandName: (brandName) => set({ brandName }),
       setBrandSubtitle: (brandSubtitle) => set({ brandSubtitle }),
@@ -288,17 +350,112 @@ export const useSettingsStore = create<SettingsState>()(
       setModelInherit: (modelInherit) => set({ modelInherit }),
       setStrictIsolation: (strictIsolation) => set({ strictIsolation }),
       setOrgTemplate: (orgTemplate) => set({ orgTemplate }),
-      setGroupChatMode: (groupChatMode) => set({ groupChatMode }),
-      setGroupRate: (groupRate) => set({ groupRate }),
+      setGroupChatMode: (groupChatMode) => {
+        set({ groupChatMode });
+        void persistSettingValue('groupChatMode', groupChatMode).catch(() => { });
+      },
+      setGroupRate: (groupRate) => {
+        set({ groupRate });
+        void persistSettingValue('groupRate', groupRate).catch(() => { });
+      },
       setWorkerSlots: (workerSlots) => set({ workerSlots }),
       setMaxDailyRuns: (maxDailyRuns) => set({ maxDailyRuns }),
       setExponentialBackoff: (exponentialBackoff) => set({ exponentialBackoff }),
       setAgentSelfHeal: (agentSelfHeal) => set({ agentSelfHeal }),
       setSuspendOnFail: (suspendOnFail) => set({ suspendOnFail }),
       setMobileAlert: (mobileAlert) => set({ mobileAlert }),
-      setFileAcl: (fileAcl) => set({ fileAcl }),
-      setTerminalAcl: (terminalAcl) => set({ terminalAcl }),
-      setNetworkAcl: (networkAcl) => set({ networkAcl }),
+      setGlobalRiskLevel: (globalRiskLevel) => {
+        set({ globalRiskLevel });
+        void persistSettingValue('globalRiskLevel', globalRiskLevel).catch(() => { });
+      },
+      setFileAcl: (fileAcl) => {
+        set({ fileAcl });
+        void persistSettingValue('fileAcl', fileAcl).catch(() => { });
+      },
+      setTerminalAcl: (terminalAcl) => {
+        set({ terminalAcl });
+        void persistSettingValue('terminalAcl', terminalAcl).catch(() => { });
+      },
+      setNetworkAcl: (networkAcl) => {
+        set({ networkAcl });
+        void persistSettingValue('networkAcl', networkAcl).catch(() => { });
+      },
+      addChannelRouteRule: async (value) => {
+        const channelRouteRules = get().channelRouteRules;
+        const updated = appendUniqueEntry(channelRouteRules, value);
+        if (updated.length === channelRouteRules.length) {
+          return false;
+        }
+        await persistSettingsPatch({ channelRouteRules: updated });
+        set({ channelRouteRules: updated });
+        return true;
+      },
+      removeChannelRouteRule: (value) =>
+        set((state) => {
+          const updated = removeEntry(state.channelRouteRules, value);
+          if (updated.length === state.channelRouteRules.length) {
+            return {};
+          }
+          persistSettingsPatch({ channelRouteRules: updated });
+          return { channelRouteRules: updated };
+        }),
+      addFilePathAllowlistEntry: async (value) => {
+        const filePathAllowlist = get().filePathAllowlist;
+        const updated = appendUniqueEntry(filePathAllowlist, value);
+        if (updated.length === filePathAllowlist.length) {
+          return false;
+        }
+        await persistSettingsPatch({ filePathAllowlist: updated });
+        set({ filePathAllowlist: updated });
+        return true;
+      },
+      removeFilePathAllowlistEntry: (value) =>
+        set((state) => {
+          const updated = removeEntry(state.filePathAllowlist, value);
+          if (updated.length === state.filePathAllowlist.length) {
+            return {};
+          }
+          persistSettingsPatch({ filePathAllowlist: updated });
+          return { filePathAllowlist: updated };
+        }),
+      addTerminalCommandBlocklistEntry: async (value) => {
+        const terminalCommandBlocklist = get().terminalCommandBlocklist;
+        const updated = appendUniqueEntry(terminalCommandBlocklist, value);
+        if (updated.length === terminalCommandBlocklist.length) {
+          return false;
+        }
+        await persistSettingsPatch({ terminalCommandBlocklist: updated });
+        set({ terminalCommandBlocklist: updated });
+        return true;
+      },
+      removeTerminalCommandBlocklistEntry: (value) =>
+        set((state) => {
+          const updated = removeEntry(state.terminalCommandBlocklist, value);
+          if (updated.length === state.terminalCommandBlocklist.length) {
+            return {};
+          }
+          persistSettingsPatch({ terminalCommandBlocklist: updated });
+          return { terminalCommandBlocklist: updated };
+        }),
+      addCustomToolGrant: async (value) => {
+        const customToolGrants = get().customToolGrants;
+        const updated = appendUniqueEntry(customToolGrants, value);
+        if (updated.length === customToolGrants.length) {
+          return false;
+        }
+        await persistSettingsPatch({ customToolGrants: updated });
+        set({ customToolGrants: updated });
+        return true;
+      },
+      removeCustomToolGrant: (value) =>
+        set((state) => {
+          const updated = removeEntry(state.customToolGrants, value);
+          if (updated.length === state.customToolGrants.length) {
+            return {};
+          }
+          persistSettingsPatch({ customToolGrants: updated });
+          return { customToolGrants: updated };
+        }),
       resetSettings: () => set(defaultSettings),
     }),
     {

@@ -5,6 +5,7 @@ import type { ProviderConfig } from '../../utils/secure-storage';
 import { getAllProviders, getApiKey, getDefaultProvider, getProvider } from '../../utils/secure-storage';
 import { getProviderConfig, getProviderDefaultModel } from '../../utils/provider-registry';
 import {
+  removeProviderKeyFromOpenClaw,
   removeProviderFromOpenClaw,
   saveOAuthTokenToOpenClaw,
   saveProviderKeyToOpenClaw,
@@ -418,12 +419,13 @@ export async function syncDeletedProviderApiKeyToRuntime(
   providerId: string,
   runtimeProviderKey?: string,
 ): Promise<void> {
-  if (!provider?.type) {
+  const ock = runtimeProviderKey
+    ?? (provider?.type ? await resolveRuntimeProviderKey({ ...provider, id: providerId }) : null);
+  if (!ock) {
     return;
   }
 
-  const ock = runtimeProviderKey ?? await resolveRuntimeProviderKey({ ...provider, id: providerId });
-  await removeProviderFromOpenClaw(ock);
+  await removeProviderKeyFromOpenClaw(ock);
 }
 
 export async function syncDefaultProviderToRuntime(
