@@ -179,12 +179,15 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
   },
 
   deleteChannel: async (channelId) => {
-    // Extract channel type from the channelId (format: "channelType-accountId")
-    const channelType = channelId.split('-')[0];
+    const targetChannel = get().channels.find((channel) => channel.id === channelId);
+    const channelType = targetChannel?.type ?? (channelId.split('-')[0] as ChannelType);
+    const accountId = targetChannel?.accountId;
+    const deletePath = accountId
+      ? `/api/channels/config/${encodeURIComponent(channelType)}?accountId=${encodeURIComponent(accountId)}`
+      : `/api/channels/config/${encodeURIComponent(channelType)}`;
 
     try {
-      // Delete the channel configuration from openclaw.json
-      await hostApiFetch(`/api/channels/config/${encodeURIComponent(channelType)}`, {
+      await hostApiFetch(deletePath, {
         method: 'DELETE',
       });
     } catch (error) {
@@ -192,7 +195,10 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
     }
 
     try {
-      await useGatewayStore.getState().rpc('channels.delete', { channelId: channelType });
+      await useGatewayStore.getState().rpc('channels.delete', {
+        channelId: channelType,
+        ...(accountId ? { accountId } : {}),
+      });
     } catch (error) {
       // Continue with local deletion even if gateway fails
       console.error('Failed to delete channel from gateway:', error);
@@ -206,10 +212,16 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
 
   connectChannel: async (channelId) => {
     const { updateChannel } = get();
+    const targetChannel = get().channels.find((channel) => channel.id === channelId);
+    const rpcChannelId = targetChannel?.type ?? channelId.split('-')[0];
+    const accountId = targetChannel?.accountId;
     updateChannel(channelId, { status: 'connecting', error: undefined });
 
     try {
-      await useGatewayStore.getState().rpc('channels.connect', { channelId });
+      await useGatewayStore.getState().rpc('channels.connect', {
+        channelId: rpcChannelId,
+        ...(accountId ? { accountId } : {}),
+      });
       updateChannel(channelId, { status: 'connected' });
     } catch (error) {
       updateChannel(channelId, { status: 'error', error: String(error) });
@@ -218,9 +230,15 @@ export const useChannelsStore = create<ChannelsState>((set, get) => ({
 
   disconnectChannel: async (channelId) => {
     const { updateChannel } = get();
+    const targetChannel = get().channels.find((channel) => channel.id === channelId);
+    const rpcChannelId = targetChannel?.type ?? channelId.split('-')[0];
+    const accountId = targetChannel?.accountId;
 
     try {
-      await useGatewayStore.getState().rpc('channels.disconnect', { channelId });
+      await useGatewayStore.getState().rpc('channels.disconnect', {
+        channelId: rpcChannelId,
+        ...(accountId ? { accountId } : {}),
+      });
     } catch (error) {
       console.error('Failed to disconnect channel:', error);
     }

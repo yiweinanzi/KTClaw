@@ -2107,3 +2107,55 @@ Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (Wave 2 runtime/kanban deepening, Wave A
 - `pnpm run typecheck` -> pass
 - `pnpm run lint` -> pass
 - `pnpm run build:vite` -> pass
+
+---
+
+[2026-03-25 18:07 +08:00] Session 27: Feishu Integration Foundation
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (Channels first priority, Feishu official plugin integration)
+
+### Completed
+1. `electron/services/feishu-integration.ts`
+   - added a dedicated Feishu integration service that reports OpenClaw version compatibility, bundled/installed plugin versions, recommended plugin version, and current Feishu channel/account state
+   - added install/update action for the bundled official Feishu plugin mirror
+   - added combined Feishu doctor summary (`openclaw doctor` + `validateChannelConfig('feishu')`)
+
+2. `electron/api/routes/feishu.ts` + `electron/api/server.ts`
+   - exposed `/api/feishu/status`
+   - exposed `/api/feishu/install` and `/api/feishu/update`
+   - exposed `/api/feishu/doctor`
+
+3. `src/components/channels/FeishuOnboardingWizard.tsx`
+   - added a dedicated Feishu onboarding wizard entry with environment/plugin/config status cards
+   - added install/update and doctor actions
+   - added explicit handoff into the current “link existing robot” config flow
+
+4. `src/pages/Channels/index.tsx`
+   - Feishu now routes from the add-channel entry into the dedicated onboarding wizard instead of only the generic add path
+   - retained existing `ChannelConfigModal` as the current “link existing robot” fallback flow
+
+5. `src/stores/channels.ts` + `electron/api/routes/channels.ts`
+   - tightened multi-account channel isolation:
+     - delete now works at `channelType + accountId` scope
+     - connect/disconnect now send `channelType + accountId` instead of opaque composite ids
+     - send/test now reject unknown scoped channel ids before proxying to Gateway
+   - channel family tabs on the Channels page are now built dynamically from supported + configured types, so Telegram/Discord/WhatsApp families can appear without hardcoded side tabs
+
+6. Tests
+   - added `tests/unit/openclaw-feishu-integration.test.ts`
+   - added `tests/unit/openclaw-feishu-routes.test.ts`
+   - expanded `tests/unit/channels-store.test.ts`
+   - expanded `tests/unit/channels-routes.test.ts`
+   - expanded `tests/unit/channels-page.test.tsx`
+
+### Verification
+- `pnpm exec vitest run tests/unit/openclaw-feishu-integration.test.ts tests/unit/openclaw-feishu-routes.test.ts tests/unit/channels-page.test.tsx tests/unit/channels-store.test.ts tests/unit/channels-routes.test.ts` -> pass
+- `pnpm run typecheck` -> pass
+- `pnpm run lint` -> pass
+- `pnpm run build:vite` -> pass
+
+### Remaining
+- Feishu wizard currently covers status/install/update/doctor + “link existing robot” handoff
+- still missing the true in-app closed loop for:
+  - new robot creation by scan
+  - in-app completion of user authorization without asking the user to type `/feishu auth`
+  - official-plugin-style onboarding state machine across creation, authorization, and final ready state

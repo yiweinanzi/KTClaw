@@ -85,10 +85,14 @@ tail -30 continue/progress.txt
   - Session 26：avatar 持久化链打通到 agent snapshot / shared types / store / Settings / AgentDetail
   - Session 26：Kanban approval lineage session-key binding + active approval polling + child run detail list
   - Session 26：新增 AgentDetail / Settings / Memory route+page / TaskKanban / TeamOverview / TeamMap 回归测试
+  - Session 27：Feishu integration foundation：host status/install/doctor routes + dedicated onboarding wizard entry
+  - Session 27：Channels 多账号隔离增强：account-scoped delete/connect/disconnect + unknown scoped channel guard
+  - Session 27：Channels 左侧家族列表改为 supported+configured 动态生成，Telegram/Discord/WhatsApp 等不再被四个硬编码 tab 限死
 - 因此下面旧清单里，涉及上述能力的"剩余"描述请以本段为准，不要重复实现已完成部分。
 - 当前真正还缺的重点：
   - P0 i18n：继续清理 Channels / Cron / TaskKanban / AskUserQuestionWizard / Sidebar 等剩余历史硬编码文案
   - Runtime / registry：tool execution path / deeper skill bridge / structured runtime history / runtime tree drill-down
+  - Channels：Feishu 真正的“只扫码”闭环（新建机器人、关联已有机器人、应用权限/用户授权一体化）
   - Channels：multi-user isolation deeper capability runtime
   - Agent detail：cron relation view deeper linkage
   - Wave 5：update / UX / a11y / 工程治理
@@ -216,6 +220,11 @@ tail -30 continue/progress.txt
   - `/api/channels/capabilities`
   - normalized `status / availableActions / capabilityFlags / configSchemaSummary`
   - Channels 详情页展示 runtime capabilities 摘要
+- 已完成：
+  - account-scoped delete/connect/disconnect 基础链路
+  - unknown scoped channel send/test guard
+  - supported+configured 动态频道家族列表
+  - Feishu integration foundation：`/api/feishu/status|install|update|doctor` + dedicated onboarding wizard entry
 - 本地 API auth gate 深化
 - 多用户隔离与 rate limiting
 

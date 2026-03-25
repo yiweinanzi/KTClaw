@@ -5,6 +5,10 @@ const mocks = vi.hoisted(() => ({
   sendJson: vi.fn(),
   parseJsonBody: vi.fn(),
   listConfiguredChannels: vi.fn(async () => ['feishu']),
+  deleteChannelConfig: vi.fn(),
+  deleteChannelAccountConfig: vi.fn(),
+  clearAllBindingsForChannel: vi.fn(),
+  clearChannelBinding: vi.fn(),
 }));
 
 vi.mock('@electron/api/route-utils', () => ({
@@ -14,7 +18,8 @@ vi.mock('@electron/api/route-utils', () => ({
 
 vi.mock('@electron/utils/channel-config', () => ({
   listConfiguredChannels: mocks.listConfiguredChannels,
-  deleteChannelConfig: vi.fn(),
+  deleteChannelConfig: mocks.deleteChannelConfig,
+  deleteChannelAccountConfig: mocks.deleteChannelAccountConfig,
   getChannelFormValues: vi.fn(),
   saveChannelConfig: vi.fn(),
   setChannelEnabled: vi.fn(),
@@ -24,7 +29,8 @@ vi.mock('@electron/utils/channel-config', () => ({
 
 vi.mock('@electron/utils/agent-config', () => ({
   assignChannelToAgent: vi.fn(),
-  clearAllBindingsForChannel: vi.fn(),
+  clearAllBindingsForChannel: mocks.clearAllBindingsForChannel,
+  clearChannelBinding: mocks.clearChannelBinding,
 }));
 
 vi.mock('@electron/utils/whatsapp-login', () => ({
@@ -188,5 +194,80 @@ describe('channels routes', () => {
     });
     const lastCall = mocks.sendJson.mock.calls[mocks.sendJson.mock.calls.length - 1];
     expect(lastCall[2].retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it('deletes only the targeted account binding when accountId is provided', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('DELETE'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/config/feishu?accountId=agent-a'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.deleteChannelAccountConfig).toHaveBeenCalledWith('feishu', 'agent-a');
+    expect(mocks.clearChannelBinding).toHaveBeenCalledWith('feishu', 'agent-a');
+    expect(mocks.deleteChannelConfig).not.toHaveBeenCalled();
+    expect(mocks.clearAllBindingsForChannel).not.toHaveBeenCalled();
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, { success: true });
+  });
+
+  it('rejects send requests for unknown scoped channel ids', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(async (method: string) => {
+          if (method === 'channels.status') {
+            return {
+              channels: {
+                feishu: { configured: true, running: true },
+              },
+              channelAccounts: {
+                feishu: [
+                  {
+                    accountId: 'default',
+                    configured: true,
+                    connected: true,
+                  },
+                ],
+              },
+              channelDefaultAccountId: {
+                feishu: 'default',
+              },
+            };
+          }
+          throw new Error(`Unexpected RPC method: ${method}`);
+        }),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const res = {} as ServerResponse;
+    mocks.parseJsonBody.mockResolvedValue({ text: 'hello' });
+
+    const handled = await handleChannelRoutes(
+      createRequest('POST'),
+      res,
+      new URL('http://127.0.0.1:3210/api/channels/feishu-agent-a/send'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 404, {
+      success: false,
+      error: 'Channel not found',
+    });
   });
 });

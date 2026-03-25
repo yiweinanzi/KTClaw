@@ -176,4 +176,22 @@ describe('Channels page composer UX', () => {
     expect(screen.getByText(/Actions: disconnect, test, send, configure/)).toBeInTheDocument();
     expect(screen.getByText(/Schema: 2 fields \(required 2\)/)).toBeInTheDocument();
   });
+
+  it('surfaces supported non-default channel families like telegram in the channel type list', async () => {
+    channelsStoreState.channels = [
+      {
+        id: 'telegram-default',
+        type: 'telegram',
+        name: 'Ops Telegram',
+        status: 'connected',
+      },
+    ] as typeof channelsStoreState.channels;
+
+    render(<Channels />);
+
+    expect(await screen.findByText('Telegram')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Telegram'));
+    expect(await screen.findByText('Ops Telegram')).toBeInTheDocument();
+  });
 });

@@ -3,7 +3,7 @@
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "execution",
   "current_focus": "PLAN-2026-03-24-PLATFORM-CLOSURE",
-  "last_updated": "2026-03-25T16:21:31+08:00",
+  "last_updated": "2026-03-25T18:07:12+08:00",
   "tasks": [
     {
       "id": "SESSION-8-001",
@@ -423,6 +423,20 @@
       "title": "Add regression coverage for agent detail, settings shell, memory routes, Kanban lineage, TeamOverview, and TeamMap",
       "type": "test",
       "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-27-001",
+      "title": "Add Feishu integration foundation: host routes, plugin status/install service, and Channels wizard entry",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-27-002",
+      "title": "Complete Feishu onboarding closed loop for create/link robot and in-app auth without terminal",
+      "type": "feature",
+      "status": "in_progress",
       "priority": "P0"
     }
   ]

@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   deleteChannelConfig,
+  deleteChannelAccountConfig,
   getChannelFormValues,
   listConfiguredChannels,
   saveChannelConfig,
@@ -12,7 +13,7 @@ import {
   validateChannelConfig,
   validateChannelCredentials,
 } from '../../utils/channel-config';
-import { assignChannelToAgent, clearAllBindingsForChannel } from '../../utils/agent-config';
+import { assignChannelToAgent, clearAllBindingsForChannel, clearChannelBinding } from '../../utils/agent-config';
 import { logger } from '../../utils/logger';
 import { whatsAppLoginManager } from '../../utils/whatsapp-login';
 import type { HostApiContext } from '../context';
@@ -348,6 +349,13 @@ function buildCapability(
   };
 }
 
+function matchesRequestedChannelId(
+  capability: NormalizedChannelCapability,
+  requestedChannelId: string,
+): boolean {
+  return capability.channelId === requestedChannelId || capability.channelType === requestedChannelId;
+}
+
 async function listNormalizedCapabilities(ctx: HostApiContext): Promise<NormalizedChannelCapability[]> {
   const configuredChannelTypes = await listConfiguredChannels();
   let statusSnapshot: ChannelsStatusSnapshot | null = null;
@@ -523,9 +531,16 @@ export async function handleChannelRoutes(
   if (url.pathname.startsWith('/api/channels/config/') && req.method === 'DELETE') {
     try {
       const channelType = decodeURIComponent(url.pathname.slice('/api/channels/config/'.length));
-      await deleteChannelConfig(channelType);
-      await clearAllBindingsForChannel(channelType);
-      scheduleGatewayChannelRestart(ctx, `channel:deleteConfig:${channelType}`);
+      const accountId = url.searchParams.get('accountId') || undefined;
+      if (accountId) {
+        await deleteChannelAccountConfig(channelType, accountId);
+        await clearChannelBinding(channelType, accountId);
+        scheduleGatewayChannelRestart(ctx, `channel:deleteConfig:${channelType}:${accountId}`);
+      } else {
+        await deleteChannelConfig(channelType);
+        await clearAllBindingsForChannel(channelType);
+        scheduleGatewayChannelRestart(ctx, `channel:deleteConfig:${channelType}`);
+      }
       sendJson(res, 200, { success: true });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
@@ -541,6 +556,11 @@ export async function handleChannelRoutes(
       const status = ctx.gatewayManager.getStatus();
       if (status.state !== 'running') {
         sendJson(res, 503, { success: false, error: 'Gateway is not running' });
+        return true;
+      }
+      const capabilities = await listNormalizedCapabilities(ctx);
+      if (!capabilities.some((capability) => matchesRequestedChannelId(capability, channelId))) {
+        sendJson(res, 404, { success: false, error: 'Channel not found' });
         return true;
       }
       const rateKey = `${channelId}:test`;
@@ -583,6 +603,11 @@ export async function handleChannelRoutes(
       const status = ctx.gatewayManager.getStatus();
       if (status.state !== 'running') {
         sendJson(res, 503, { success: false, error: 'Gateway is not running' });
+        return true;
+      }
+      const capabilities = await listNormalizedCapabilities(ctx);
+      if (!capabilities.some((capability) => matchesRequestedChannelId(capability, channelId))) {
+        sendJson(res, 404, { success: false, error: 'Channel not found' });
         return true;
       }
       const rateKey = `${channelId}:send`;

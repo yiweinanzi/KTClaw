@@ -2,28 +2,22 @@
  * Channels Page — Frame 04
  * IM 频道配置与状态管理
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useChannelsStore } from '@/stores/channels';
 import { useSettingsStore } from '@/stores/settings';
+import { ChannelConfigModal } from '@/components/channels/ChannelConfigModal';
+import { FeishuOnboardingWizard } from '@/components/channels/FeishuOnboardingWizard';
 import { hostApiFetch } from '@/lib/host-api';
 import {
   CHANNEL_ICONS,
   CHANNEL_NAMES,
   CHANNEL_META,
+  getPrimaryChannels,
   type ChannelType,
   type ChannelRuntimeCapability,
 } from '@/types/channel';
-
-/* ─── Static channel type tabs ─── */
-
-const CHANNEL_TYPES: { id: ChannelType; label: string; icon: string }[] = [
-  { id: 'feishu',   label: '飞书接入',  icon: CHANNEL_ICONS.feishu },
-  { id: 'dingtalk', label: '钉钉接入',  icon: CHANNEL_ICONS.dingtalk },
-  { id: 'wecom',    label: '企微接入',  icon: CHANNEL_ICONS.wecom },
-  { id: 'qqbot',    label: 'QQ接入',   icon: CHANNEL_ICONS.qqbot },
-];
 
 /* ─── Status helpers ─── */
 
@@ -52,6 +46,8 @@ export function Channels() {
   const [addType, setAddType] = useState<ChannelType>('feishu');
   const [addName, setAddName] = useState('');
   const [addLoading, setAddLoading] = useState(false);
+  const [feishuWizardOpen, setFeishuWizardOpen] = useState(false);
+  const [feishuConfigOpen, setFeishuConfigOpen] = useState(false);
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<Record<string, ChannelRuntimeCapability>>({});
   const isComposingRef = useRef(false);
@@ -63,6 +59,20 @@ export function Channels() {
   useEffect(() => {
     void fetchChannels();
   }, [fetchChannels]);
+
+  const channelTypes = useMemo(() => {
+    const primary = getPrimaryChannels();
+    const configuredExtras = channels
+      .map((channel) => channel.type)
+      .filter((type): type is ChannelType => !primary.includes(type));
+
+    const orderedTypes = [...primary, ...configuredExtras];
+    return [...new Set(orderedTypes)].map((id) => ({
+      id,
+      label: CHANNEL_NAMES[id],
+      icon: CHANNEL_ICONS[id],
+    }));
+  }, [channels]);
 
   useEffect(() => {
     let active = true;
@@ -98,6 +108,11 @@ export function Channels() {
 
   const handleAdd = async () => {
     if (!addName.trim()) return;
+    if (addType === 'feishu') {
+      setAddOpen(false);
+      setFeishuWizardOpen(true);
+      return;
+    }
     setAddLoading(true);
     try {
       await addChannel({ type: addType, name: addName.trim() });
@@ -156,7 +171,7 @@ export function Channels() {
           </button>
         </div>
         <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
-          {CHANNEL_TYPES.map((ch) => (
+          {channelTypes.map((ch) => (
             <button
               key={ch.id}
               type="button"
@@ -406,7 +421,7 @@ export function Channels() {
                 onChange={(e) => setAddType(e.target.value as ChannelType)}
                 className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
               >
-                {CHANNEL_TYPES.map((ct) => (
+                {channelTypes.map((ct) => (
                   <option key={ct.id} value={ct.id}>{ct.icon} {ct.label}</option>
                 ))}
               </select>
@@ -439,6 +454,28 @@ export function Channels() {
             </div>
           </div>
         </div>
+      )}
+
+      {feishuWizardOpen && (
+        <FeishuOnboardingWizard
+          onClose={() => setFeishuWizardOpen(false)}
+          onLinkExistingRobot={() => {
+            setFeishuWizardOpen(false);
+            setFeishuConfigOpen(true);
+          }}
+        />
+      )}
+
+      {feishuConfigOpen && (
+        <ChannelConfigModal
+          initialSelectedType="feishu"
+          configuredTypes={[...new Set(channels.map((channel) => channel.type))]}
+          onClose={() => setFeishuConfigOpen(false)}
+          onChannelSaved={async () => {
+            await fetchChannels();
+            setActiveChannel('feishu');
+          }}
+        />
       )}
     </div>
   );
