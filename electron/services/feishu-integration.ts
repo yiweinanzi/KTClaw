@@ -1,10 +1,13 @@
 import { app } from 'electron';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { getOpenClawConfigDir, getOpenClawStatus } from '../utils/paths';
 import { runOpenClawDoctor, type OpenClawDoctorResult } from '../utils/openclaw-doctor';
 import { validateChannelConfig, type ValidationResult } from '../utils/channel-config';
+import { loadFeishuAuthRuntime } from './feishu-auth-runtime';
+import { renderQrPngDataUrl } from '../utils/qr-code';
 
 const FEISHU_DOCS_VERSION = '2026.3.25';
 const OPENCLAW_MIN_VERSION_WINDOWS = '2026.3.2';
@@ -66,6 +69,37 @@ export interface FeishuDoctorSummary {
   validation: ValidationResult;
   status: FeishuIntegrationStatus;
 }
+
+export interface FeishuRobotCreationEntry {
+  url: string;
+  qrCodeDataUrl: string;
+}
+
+export interface FeishuAuthSessionRecord {
+  id: string;
+  accountId: string;
+  appId: string;
+  brand: string;
+  state: 'pending' | 'success' | 'failed';
+  verificationUriComplete: string;
+  qrCodeDataUrl: string;
+  userCode: string;
+  scopeCount: number;
+  createdAt: string;
+  expiresAt: string;
+  message?: string;
+  userOpenId?: string;
+  appPermissionUrl?: string;
+  missingAppScopes?: string[];
+}
+
+type FeishuOpenClawConfig = {
+  channels?: {
+    feishu?: Record<string, unknown>;
+  };
+};
+
+const feishuAuthSessions = new Map<string, FeishuAuthSessionRecord>();
 
 function parseVersionParts(version: string | null | undefined): number[] {
   if (!version) return [];
@@ -180,6 +214,36 @@ async function readFeishuChannelState(): Promise<{
   }
 }
 
+async function readOpenClawConfig(): Promise<FeishuOpenClawConfig> {
+  const configPath = join(getOpenClawConfigDir(), 'openclaw.json');
+  try {
+    const raw = await readFile(configPath, 'utf8');
+    return JSON.parse(raw) as FeishuOpenClawConfig;
+  } catch {
+    return {};
+  }
+}
+
+function resolveFeishuOpenApiBase(brand: string): string {
+  return brand === 'lark' ? 'https://open.larksuite.com' : 'https://open.feishu.cn';
+}
+
+async function fetchAuthorizedUserOpenId(brand: string, accessToken: string): Promise<string | null> {
+  const response = await fetch(`${resolveFeishuOpenApiBase(brand)}/open-apis/authen/v1/user_info`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const payload = await response.json() as { code?: number; data?: { open_id?: string } };
+  if (payload.code !== 0) return null;
+  return typeof payload.data?.open_id === 'string' ? payload.data.open_id : null;
+}
+
+function buildFeishuAppPermissionUrl(appId: string, scopes: string[], tokenType: 'tenant' | 'user'): string {
+  const suffix = scopes.length > 0
+    ? `?q=${encodeURIComponent(scopes.join(','))}&op_from=ktclaw&token_type=${tokenType}`
+    : `?op_from=ktclaw&token_type=${tokenType}`;
+  return `https://open.feishu.cn/app/${appId}/auth${suffix}`;
+}
+
 function resolveRecommendedPluginVersion(openClawVersion: string | null): string {
   if (compareVersions(openClawVersion, OPENCLAW_PLUGIN_BREAKING_VERSION) >= 0) {
     return FEISHU_RECOMMENDED_VERSION_NEW;
@@ -277,4 +341,168 @@ export async function runFeishuIntegrationDoctor(): Promise<FeishuDoctorSummary>
     validation,
     status,
   };
+}
+
+export function getFeishuRobotCreationEntry(): FeishuRobotCreationEntry {
+  const url = 'https://open.feishu.cn/page/openclaw?form=multiAgent';
+  return {
+    url,
+    qrCodeDataUrl: renderQrPngDataUrl(url),
+  };
+}
+
+export async function startFeishuUserAuthorization(accountId = 'default'): Promise<FeishuAuthSessionRecord> {
+  const cfg = await readOpenClawConfig();
+  const runtime = await loadFeishuAuthRuntime();
+  const account = runtime.getLarkAccount(cfg as Record<string, unknown>, accountId);
+
+  if (!account?.configured || !account.appId || !account.appSecret) {
+    throw new Error(`Feishu account "${accountId}" is not configured`);
+  }
+
+  const sdk = runtime.createSdk(account);
+
+  let tenantScopes: string[];
+  let userScopes: string[];
+  try {
+    tenantScopes = await runtime.getAppGrantedScopes(sdk, account.appId, 'tenant');
+    userScopes = runtime.filterSensitiveScopes(await runtime.getAppGrantedScopes(sdk, account.appId, 'user'));
+  } catch {
+    const appPermissionUrl = buildFeishuAppPermissionUrl(account.appId, ['application:application:self_manage'], 'tenant');
+    const failedSession: FeishuAuthSessionRecord = {
+      id: randomUUID(),
+      accountId,
+      appId: account.appId,
+      brand: account.brand ?? 'feishu',
+      state: 'failed',
+      verificationUriComplete: appPermissionUrl,
+      qrCodeDataUrl: renderQrPngDataUrl(appPermissionUrl),
+      userCode: 'APP_SCOPE_REQUIRED',
+      scopeCount: 1,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      message: '应用缺少 application:application:self_manage，需先确认应用权限。',
+      appPermissionUrl,
+      missingAppScopes: ['application:application:self_manage'],
+    };
+    feishuAuthSessions.set(failedSession.id, failedSession);
+    return failedSession;
+  }
+
+  const missingAppScopes = runtime.requiredAppScopes.filter((scope) => !tenantScopes.includes(scope));
+  if (missingAppScopes.length > 0) {
+    const appPermissionUrl = buildFeishuAppPermissionUrl(account.appId, missingAppScopes, 'tenant');
+    const failedSession: FeishuAuthSessionRecord = {
+      id: randomUUID(),
+      accountId,
+      appId: account.appId,
+      brand: account.brand ?? 'feishu',
+      state: 'failed',
+      verificationUriComplete: appPermissionUrl,
+      qrCodeDataUrl: renderQrPngDataUrl(appPermissionUrl),
+      userCode: 'TENANT_SCOPE_REQUIRED',
+      scopeCount: missingAppScopes.length,
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      message: '飞书应用权限未完整开通，请先在手机飞书里确认权限。',
+      appPermissionUrl,
+      missingAppScopes,
+    };
+    feishuAuthSessions.set(failedSession.id, failedSession);
+    return failedSession;
+  }
+
+  if (userScopes.length === 0) {
+    throw new Error('No Feishu user scopes are available for authorization');
+  }
+
+  const deviceAuth = await runtime.requestDeviceAuthorization({
+    appId: account.appId,
+    appSecret: account.appSecret,
+    brand: account.brand,
+    scope: userScopes.join(' '),
+  });
+
+  const sessionId = randomUUID();
+  const session: FeishuAuthSessionRecord = {
+    id: sessionId,
+    accountId,
+    appId: account.appId,
+    brand: account.brand ?? 'feishu',
+    state: 'pending',
+    verificationUriComplete: deviceAuth.verificationUriComplete,
+    qrCodeDataUrl: renderQrPngDataUrl(deviceAuth.verificationUriComplete),
+    userCode: deviceAuth.userCode,
+    scopeCount: userScopes.length,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + deviceAuth.expiresIn * 1000).toISOString(),
+    message: '等待用户在飞书中确认授权。',
+  };
+  feishuAuthSessions.set(sessionId, session);
+
+  const abortController = new AbortController();
+  void runtime.pollDeviceToken({
+    appId: account.appId,
+    appSecret: account.appSecret,
+    brand: account.brand,
+    deviceCode: deviceAuth.deviceCode,
+    interval: deviceAuth.interval,
+    expiresIn: deviceAuth.expiresIn,
+    signal: abortController.signal,
+  }).then(async (result) => {
+    const current = feishuAuthSessions.get(sessionId);
+    if (!current) return;
+
+    if (!result.ok) {
+      feishuAuthSessions.set(sessionId, {
+        ...current,
+        state: 'failed',
+        message: result.message,
+      });
+      return;
+    }
+
+    const now = Date.now();
+    const userOpenId = await fetchAuthorizedUserOpenId(account.brand ?? 'feishu', result.token.accessToken);
+    if (!userOpenId) {
+      feishuAuthSessions.set(sessionId, {
+        ...current,
+        state: 'failed',
+        message: '授权成功，但无法识别当前用户身份。',
+      });
+      return;
+    }
+
+    await runtime.setStoredToken({
+      userOpenId,
+      appId: account.appId,
+      accessToken: result.token.accessToken,
+      refreshToken: result.token.refreshToken,
+      expiresAt: now + result.token.expiresIn * 1000,
+      refreshExpiresAt: now + result.token.refreshExpiresIn * 1000,
+      scope: result.token.scope,
+      grantedAt: now,
+    });
+
+    feishuAuthSessions.set(sessionId, {
+      ...current,
+      state: 'success',
+      userOpenId,
+      message: '飞书用户授权已完成。',
+    });
+  }).catch((error) => {
+    const current = feishuAuthSessions.get(sessionId);
+    if (!current) return;
+    feishuAuthSessions.set(sessionId, {
+      ...current,
+      state: 'failed',
+      message: String(error),
+    });
+  });
+
+  return session;
+}
+
+export function getFeishuUserAuthorizationSession(sessionId: string): FeishuAuthSessionRecord | null {
+  return feishuAuthSessions.get(sessionId) ?? null;
 }

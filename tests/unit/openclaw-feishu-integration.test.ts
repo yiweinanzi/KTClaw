@@ -11,6 +11,8 @@ const {
   mockGetOpenClawStatus,
   mockRunOpenClawDoctor,
   mockValidateChannelConfig,
+  mockLoadFeishuAuthRuntime,
+  mockRenderQrPngDataUrl,
 } = vi.hoisted(() => ({
   mockExistsSync: vi.fn(),
   mockReadFile: vi.fn(),
@@ -20,6 +22,8 @@ const {
   mockGetOpenClawStatus: vi.fn(),
   mockRunOpenClawDoctor: vi.fn(),
   mockValidateChannelConfig: vi.fn(),
+  mockLoadFeishuAuthRuntime: vi.fn(),
+  mockRenderQrPngDataUrl: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -60,6 +64,14 @@ vi.mock('@electron/utils/channel-config', () => ({
   validateChannelConfig: (...args: unknown[]) => mockValidateChannelConfig(...args),
 }));
 
+vi.mock('@electron/services/feishu-auth-runtime', () => ({
+  loadFeishuAuthRuntime: (...args: unknown[]) => mockLoadFeishuAuthRuntime(...args),
+}));
+
+vi.mock('@electron/utils/qr-code', () => ({
+  renderQrPngDataUrl: (...args: unknown[]) => mockRenderQrPngDataUrl(...args),
+}));
+
 describe('feishu integration service', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -78,6 +90,38 @@ describe('feishu integration service', () => {
     });
     mockRunOpenClawDoctor.mockResolvedValue({ success: true, exitCode: 0 });
     mockValidateChannelConfig.mockResolvedValue({ valid: true, errors: [], warnings: [] });
+    mockRenderQrPngDataUrl.mockReturnValue('data:image/png;base64,qr');
+    mockLoadFeishuAuthRuntime.mockResolvedValue({
+      getLarkAccount: vi.fn((_cfg: unknown, accountId?: string) => ({
+        configured: true,
+        appId: 'cli_123',
+        appSecret: 'secret_123',
+        brand: 'feishu',
+        accountId: accountId || 'default',
+      })),
+      createSdk: vi.fn(() => ({ sdk: true })),
+      getAppGrantedScopes: vi.fn(async (_sdk: unknown, _appId: string, tokenType?: string) =>
+        tokenType === 'tenant'
+          ? ['application:application:self_manage', 'im:message:readonly']
+          : ['im:message', 'offline_access'],
+      ),
+      requestDeviceAuthorization: vi.fn(async () => ({
+        deviceCode: 'device-code',
+        userCode: 'user-code',
+        verificationUri: 'https://verify.example',
+        verificationUriComplete: 'https://verify.example/complete',
+        expiresIn: 600,
+        interval: 5,
+      })),
+      pollDeviceToken: vi.fn(async () => ({
+        ok: false,
+        error: 'expired_token',
+        message: 'pending',
+      })),
+      setStoredToken: vi.fn(async () => undefined),
+      requiredAppScopes: ['application:application:self_manage', 'im:message:readonly'],
+      filterSensitiveScopes: vi.fn((scopes: string[]) => scopes),
+    });
   });
 
   it('reports status with recommended plugin version and feishu account ids', async () => {
@@ -152,5 +196,17 @@ describe('feishu integration service', () => {
     expect(result.success).toBe(true);
     expect(result.version).toBe('2026.3.25');
     expect(result.source).toBe('bundled');
+  });
+
+  it('starts a feishu user authorization session with qr payload', async () => {
+    const { startFeishuUserAuthorization } = await import('@electron/services/feishu-integration');
+
+    const result = await startFeishuUserAuthorization('default');
+
+    expect(result.state).toBe('pending');
+    expect(result.userCode).toBe('user-code');
+    expect(result.verificationUriComplete).toBe('https://verify.example/complete');
+    expect(result.qrCodeDataUrl).toBe('data:image/png;base64,qr');
+    expect(result.scopeCount).toBe(2);
   });
 });

@@ -88,6 +88,8 @@ tail -30 continue/progress.txt
   - Session 27：Feishu integration foundation：host status/install/doctor routes + dedicated onboarding wizard entry
   - Session 27：Channels 多账号隔离增强：account-scoped delete/connect/disconnect + unknown scoped channel guard
   - Session 27：Channels 左侧家族列表改为 supported+configured 动态生成，Telegram/Discord/WhatsApp 等不再被四个硬编码 tab 限死
+  - Session 27b：Feishu app-internal auth QR flow：Device Flow 复用官方插件内核，用户授权不再依赖输入 `/feishu auth`
+  - Session 27b：existing robot 配置完成后自动回到向导并启动用户授权；new robot 提供官方创建页二维码入口
 - 因此下面旧清单里，涉及上述能力的"剩余"描述请以本段为准，不要重复实现已完成部分。
 - 当前真正还缺的重点：
   - P0 i18n：继续清理 Channels / Cron / TaskKanban / AskUserQuestionWizard / Sidebar 等剩余历史硬编码文案
@@ -225,6 +227,7 @@ tail -30 continue/progress.txt
   - unknown scoped channel send/test guard
   - supported+configured 动态频道家族列表
   - Feishu integration foundation：`/api/feishu/status|install|update|doctor` + dedicated onboarding wizard entry
+  - Feishu existing-robot app-internal auth QR flow（Device Flow + token persistence）
 - 本地 API auth gate 深化
 - 多用户隔离与 rate limiting
 

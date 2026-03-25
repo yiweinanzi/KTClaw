@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { hostApiFetch } from '@/lib/host-api';
 import { cn } from '@/lib/utils';
 
@@ -42,12 +42,37 @@ type FeishuDoctorSummary = {
   status: FeishuIntegrationStatus;
 };
 
+type FeishuAuthSessionRecord = {
+  id: string;
+  accountId: string;
+  appId: string;
+  brand: string;
+  state: 'pending' | 'success' | 'failed';
+  verificationUriComplete: string;
+  qrCodeDataUrl: string;
+  userCode: string;
+  scopeCount: number;
+  createdAt: string;
+  expiresAt: string;
+  message?: string;
+  userOpenId?: string;
+  appPermissionUrl?: string;
+  missingAppScopes?: string[];
+};
+
+type FeishuRobotCreationEntry = {
+  url: string;
+  qrCodeDataUrl: string;
+};
+
 interface FeishuOnboardingWizardProps {
+  autoStartAuthorization?: boolean;
   onClose: () => void;
   onLinkExistingRobot: () => void;
 }
 
 export function FeishuOnboardingWizard({
+  autoStartAuthorization = false,
   onClose,
   onLinkExistingRobot,
 }: FeishuOnboardingWizardProps) {
@@ -55,8 +80,12 @@ export function FeishuOnboardingWizard({
   const [loading, setLoading] = useState(true);
   const [installing, setInstalling] = useState(false);
   const [doctoring, setDoctoring] = useState(false);
+  const [authorizing, setAuthorizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [doctorSummary, setDoctorSummary] = useState<FeishuDoctorSummary | null>(null);
+  const [authSession, setAuthSession] = useState<FeishuAuthSessionRecord | null>(null);
+  const [creationEntry, setCreationEntry] = useState<FeishuRobotCreationEntry | null>(null);
+  const autoStartRef = useRef(false);
 
   const loadStatus = async () => {
     setLoading(true);
@@ -111,6 +140,70 @@ export function FeishuOnboardingWizard({
       setError(String(nextError));
     } finally {
       setDoctoring(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authSession || authSession.state !== 'pending') return undefined;
+
+    const timer = window.setInterval(async () => {
+      try {
+        const next = await hostApiFetch<FeishuAuthSessionRecord>(`/api/feishu/auth/status?sessionId=${encodeURIComponent(authSession.id)}`);
+        setAuthSession(next);
+      } catch (nextError) {
+        setError(String(nextError));
+      }
+    }, 3000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [authSession]);
+
+  const handleStartAuthorization = async () => {
+    setAuthorizing(true);
+    setError(null);
+    try {
+      const next = await hostApiFetch<FeishuAuthSessionRecord>('/api/feishu/auth/start', {
+        method: 'POST',
+        body: JSON.stringify({ accountId: 'default' }),
+      });
+      setAuthSession(next);
+    } catch (nextError) {
+      setError(String(nextError));
+    } finally {
+      setAuthorizing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !autoStartAuthorization
+      || autoStartRef.current
+      || loading
+      || !status
+      || !status.channel.configured
+      || !status.channel.pluginEnabled
+      || authSession
+    ) {
+      return;
+    }
+    autoStartRef.current = true;
+    void handleStartAuthorization();
+  }, [autoStartAuthorization, loading, status, authSession]);
+
+  const handleStartRobotCreation = async () => {
+    setAuthorizing(true);
+    setError(null);
+    try {
+      const next = await hostApiFetch<FeishuRobotCreationEntry>('/api/feishu/create/start', {
+        method: 'POST',
+      });
+      setCreationEntry(next);
+    } catch (nextError) {
+      setError(String(nextError));
+    } finally {
+      setAuthorizing(false);
     }
   };
 
@@ -207,17 +300,130 @@ export function FeishuOnboardingWizard({
                 <div className="rounded-2xl border border-black/[0.06] bg-[#fafafa] px-4 py-4">
                   <p className="text-[15px] font-medium text-[#111827]">新建飞书机器人</p>
                   <p className="mt-1 text-[13px] leading-6 text-[#6b7280]">
-                    这一条会继续演进为应用内扫码创建与授权闭环。当前先把环境、插件、诊断层打通，再接入真正的扫码创建。
+                    未配置 App ID / App Secret 时，先扫码进入飞书官方创建页，创建完成后再回到应用继续配置与授权。
                   </p>
                   <button
                     type="button"
-                    disabled
-                    className="mt-4 rounded-full border border-black/10 px-4 py-2 text-[13px] font-medium text-[#9ca3af]"
+                    onClick={() => void handleStartRobotCreation()}
+                    disabled={authorizing}
+                    className="mt-4 rounded-full border border-black/10 px-4 py-2 text-[13px] font-medium text-[#111827] hover:bg-white disabled:opacity-50"
                   >
-                    扫码创建机器人（下一步接入）
+                    {authorizing ? '准备二维码中...' : '扫码创建飞书机器人'}
                   </button>
                 </div>
               </div>
+
+              {creationEntry ? (
+                <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[15px] font-medium text-[#111827]">扫码创建飞书机器人</p>
+                      <p className="mt-1 text-[12px] text-[#6b7280]">
+                        用飞书扫码打开官方创建页，在手机飞书里完成创建后，回到应用继续关联已有机器人。
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
+                    <div className="rounded-2xl border border-black/[0.06] bg-[#fafafa] p-3">
+                      <img
+                        src={creationEntry.qrCodeDataUrl}
+                        alt="Feishu robot creation QR code"
+                        className="h-[196px] w-[196px] rounded-xl bg-white object-contain"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <div className="rounded-xl bg-[#eff6ff] px-3 py-3 text-[12px] text-[#1d4ed8]">
+                        扫码后会进入飞书官方 OpenClaw 创建页。创建完成后，继续用“关联已有机器人”把 App ID / App Secret 接回 KTClaw。
+                      </div>
+                      <a
+                        href={creationEntry.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex rounded-full border border-black/10 px-4 py-2 text-[12px] font-medium text-[#111827] hover:bg-[#f9fafb]"
+                      >
+                        打开官方创建页
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {authSession ? (
+                <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[15px] font-medium text-[#111827]">飞书扫码授权</p>
+                      <p className="mt-1 text-[12px] text-[#6b7280]">
+                        当前状态：{authSession.state} · scope {authSession.scopeCount}
+                      </p>
+                    </div>
+                    {authSession.state === 'success' && authSession.userOpenId ? (
+                      <span className="rounded-full bg-[#dcfce7] px-3 py-1 text-[12px] font-medium text-[#166534]">
+                        授权完成
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
+                    <div className="rounded-2xl border border-black/[0.06] bg-[#fafafa] p-3">
+                      <img
+                        src={authSession.qrCodeDataUrl}
+                        alt="Feishu authorization QR code"
+                        className="h-[196px] w-[196px] rounded-xl bg-white object-contain"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <div className="rounded-xl bg-[#f8fafc] px-3 py-3 text-[12px] text-[#475467]">
+                        <p>用飞书扫码后，在手机飞书里确认授权即可。</p>
+                        <p className="mt-2 font-mono text-[11px] text-[#6b7280]">user_code: {authSession.userCode}</p>
+                      </div>
+                      {authSession.message ? (
+                        <div className={cn(
+                          'rounded-xl px-3 py-3 text-[12px]',
+                          authSession.state === 'failed'
+                            ? 'bg-[#fef2f2] text-[#b91c1c]'
+                            : authSession.state === 'success'
+                              ? 'bg-[#f0fdf4] text-[#166534]'
+                              : 'bg-[#eff6ff] text-[#1d4ed8]',
+                        )}>
+                          {authSession.message}
+                        </div>
+                      ) : null}
+                      {authSession.appPermissionUrl ? (
+                        <a
+                          href={authSession.appPermissionUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex rounded-full border border-black/10 px-4 py-2 text-[12px] font-medium text-[#111827] hover:bg-[#f9fafb]"
+                        >
+                          打开飞书权限链接
+                        </a>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {status.channel.configured && status.channel.pluginEnabled && !authSession ? (
+                <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[15px] font-medium text-[#111827]">飞书用户授权</p>
+                      <p className="mt-1 text-[12px] text-[#6b7280]">
+                        飞书渠道已经配置好时，直接在这里生成授权二维码，不需要再去飞书聊天里输入 `/feishu auth`。
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleStartAuthorization()}
+                      disabled={authorizing}
+                      className="rounded-full border border-black/10 px-4 py-2 text-[13px] font-medium text-[#111827] hover:bg-[#f9fafb] disabled:opacity-50"
+                    >
+                      {authorizing ? '准备二维码中...' : '开始飞书用户授权'}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">

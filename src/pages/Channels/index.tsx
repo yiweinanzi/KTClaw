@@ -48,6 +48,7 @@ export function Channels() {
   const [addLoading, setAddLoading] = useState(false);
   const [feishuWizardOpen, setFeishuWizardOpen] = useState(false);
   const [feishuConfigOpen, setFeishuConfigOpen] = useState(false);
+  const [feishuWizardAutoStartAuth, setFeishuWizardAutoStartAuth] = useState(false);
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<Record<string, ChannelRuntimeCapability>>({});
   const isComposingRef = useRef(false);
@@ -458,7 +459,11 @@ export function Channels() {
 
       {feishuWizardOpen && (
         <FeishuOnboardingWizard
-          onClose={() => setFeishuWizardOpen(false)}
+          autoStartAuthorization={feishuWizardAutoStartAuth}
+          onClose={() => {
+            setFeishuWizardOpen(false);
+            setFeishuWizardAutoStartAuth(false);
+          }}
           onLinkExistingRobot={() => {
             setFeishuWizardOpen(false);
             setFeishuConfigOpen(true);
@@ -474,6 +479,9 @@ export function Channels() {
           onChannelSaved={async () => {
             await fetchChannels();
             setActiveChannel('feishu');
+            setFeishuConfigOpen(false);
+            setFeishuWizardAutoStartAuth(true);
+            setFeishuWizardOpen(true);
           }}
         />
       )}

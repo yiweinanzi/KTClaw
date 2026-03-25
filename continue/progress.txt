@@ -2159,3 +2159,55 @@ Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (Channels first priority, Feishu officia
   - new robot creation by scan
   - in-app completion of user authorization without asking the user to type `/feishu auth`
   - official-plugin-style onboarding state machine across creation, authorization, and final ready state
+
+---
+
+[2026-03-25 18:38 +08:00] Session 27b: Feishu Auth QR Flow
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (Feishu onboarding closed loop, Windows-first)
+
+### Completed
+1. `electron/services/feishu-auth-runtime.ts`
+   - added a dynamic loader for official Feishu plugin internals (`accounts`, `LarkClient`, `app-scope-checker`, `device-flow`, `token-store`, `tool-scopes`)
+   - this allows KTClaw main-process code to reuse the official plugin's Device Flow and token storage path instead of duplicating the protocol
+
+2. `electron/utils/qr-code.ts`
+   - added local QR PNG data-url generation so Feishu onboarding no longer depends on an external QR service
+
+3. `electron/services/feishu-integration.ts`
+   - added in-memory Feishu auth sessions
+   - added `startFeishuUserAuthorization(accountId)`:
+     - checks current Feishu account config
+     - checks app-level Feishu scopes
+     - starts official Device Flow
+     - returns QR payload + session metadata
+     - polls token endpoint in background and persists the resulting UAT into the official plugin token store
+   - added `getFeishuUserAuthorizationSession(sessionId)`
+   - added `getFeishuRobotCreationEntry()` using the official Feishu OpenClaw create page URL
+
+4. `electron/api/routes/feishu.ts`
+   - added `/api/feishu/create/start`
+   - added `/api/feishu/auth/start`
+   - added `/api/feishu/auth/status`
+
+5. `src/components/channels/FeishuOnboardingWizard.tsx`
+   - added QR-based user authorization step with polling and success/failure state
+   - added QR-based robot creation entry to the official Feishu create page
+   - added auto-start authorization when returning from the existing-robot config flow
+
+6. `src/pages/Channels/index.tsx`
+   - after linking an existing Feishu robot via `ChannelConfigModal`, the app now reopens the Feishu onboarding wizard and auto-starts user authorization
+
+7. Tests
+   - expanded `tests/unit/openclaw-feishu-integration.test.ts`
+   - expanded `tests/unit/openclaw-feishu-routes.test.ts`
+   - added `tests/unit/feishu-onboarding-wizard.test.tsx`
+
+### Verification
+- `pnpm exec vitest run tests/unit/openclaw-feishu-integration.test.ts tests/unit/openclaw-feishu-routes.test.ts tests/unit/channels-page.test.tsx tests/unit/channels-store.test.ts tests/unit/channels-routes.test.ts tests/unit/feishu-onboarding-wizard.test.tsx` -> pass
+- `pnpm run typecheck` -> pass
+- `pnpm run lint` -> pass
+- `pnpm run build:vite` -> pass
+
+### Remaining
+- "新建机器人" still opens the official create page by QR, but creation completion is not yet reflected back into KTClaw automatically
+- user auth is now app-internal for configured Feishu accounts, but app-level permission grant and new-robot creation still need a tighter end-to-end state machine
