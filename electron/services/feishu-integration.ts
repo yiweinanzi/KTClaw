@@ -322,7 +322,7 @@ export async function installOrUpdateFeishuPlugin(): Promise<FeishuPluginInstall
 
   return {
     success: true,
-    source: source.source,
+    source: source.source === 'node_modules' ? 'node_modules' : 'bundled',
     version: source.version,
     sourcePath: source.dir,
     installedPath,
@@ -359,20 +359,22 @@ export async function startFeishuUserAuthorization(accountId = 'default'): Promi
   if (!account?.configured || !account.appId || !account.appSecret) {
     throw new Error(`Feishu account "${accountId}" is not configured`);
   }
+  const appId = account.appId;
+  const appSecret = account.appSecret;
 
   const sdk = runtime.createSdk(account);
 
   let tenantScopes: string[];
   let userScopes: string[];
   try {
-    tenantScopes = await runtime.getAppGrantedScopes(sdk, account.appId, 'tenant');
-    userScopes = runtime.filterSensitiveScopes(await runtime.getAppGrantedScopes(sdk, account.appId, 'user'));
+    tenantScopes = await runtime.getAppGrantedScopes(sdk, appId, 'tenant');
+    userScopes = runtime.filterSensitiveScopes(await runtime.getAppGrantedScopes(sdk, appId, 'user'));
   } catch {
-    const appPermissionUrl = buildFeishuAppPermissionUrl(account.appId, ['application:application:self_manage'], 'tenant');
+    const appPermissionUrl = buildFeishuAppPermissionUrl(appId, ['application:application:self_manage'], 'tenant');
     const failedSession: FeishuAuthSessionRecord = {
       id: randomUUID(),
       accountId,
-      appId: account.appId,
+      appId,
       brand: account.brand ?? 'feishu',
       state: 'failed',
       verificationUriComplete: appPermissionUrl,
@@ -391,11 +393,11 @@ export async function startFeishuUserAuthorization(accountId = 'default'): Promi
 
   const missingAppScopes = runtime.requiredAppScopes.filter((scope) => !tenantScopes.includes(scope));
   if (missingAppScopes.length > 0) {
-    const appPermissionUrl = buildFeishuAppPermissionUrl(account.appId, missingAppScopes, 'tenant');
+    const appPermissionUrl = buildFeishuAppPermissionUrl(appId, missingAppScopes, 'tenant');
     const failedSession: FeishuAuthSessionRecord = {
       id: randomUUID(),
       accountId,
-      appId: account.appId,
+      appId,
       brand: account.brand ?? 'feishu',
       state: 'failed',
       verificationUriComplete: appPermissionUrl,
@@ -417,8 +419,8 @@ export async function startFeishuUserAuthorization(accountId = 'default'): Promi
   }
 
   const deviceAuth = await runtime.requestDeviceAuthorization({
-    appId: account.appId,
-    appSecret: account.appSecret,
+    appId,
+    appSecret,
     brand: account.brand,
     scope: userScopes.join(' '),
   });
@@ -427,7 +429,7 @@ export async function startFeishuUserAuthorization(accountId = 'default'): Promi
   const session: FeishuAuthSessionRecord = {
     id: sessionId,
     accountId,
-    appId: account.appId,
+    appId,
     brand: account.brand ?? 'feishu',
     state: 'pending',
     verificationUriComplete: deviceAuth.verificationUriComplete,
@@ -442,8 +444,8 @@ export async function startFeishuUserAuthorization(accountId = 'default'): Promi
 
   const abortController = new AbortController();
   void runtime.pollDeviceToken({
-    appId: account.appId,
-    appSecret: account.appSecret,
+    appId,
+    appSecret,
     brand: account.brand,
     deviceCode: deviceAuth.deviceCode,
     interval: deviceAuth.interval,
@@ -475,7 +477,7 @@ export async function startFeishuUserAuthorization(accountId = 'default'): Promi
 
     await runtime.setStoredToken({
       userOpenId,
-      appId: account.appId,
+      appId,
       accessToken: result.token.accessToken,
       refreshToken: result.token.refreshToken,
       expiresAt: now + result.token.expiresIn * 1000,

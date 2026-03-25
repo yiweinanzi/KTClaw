@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAgentsStore } from '@/stores/agents';
 import { hostApiFetch } from '@/lib/host-api';
-import type { CronJob } from '@/types/cron';
+import type { AgentCronRelation, CronJob } from '@/types/cron';
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -182,38 +182,28 @@ function AvatarSection({ agentId, agentName, avatar, onAvatarChange }: AvatarSec
 
 interface CronSectionProps {
   agentId: string;
-  agentChannelTypes: string[];
 }
 
-function CronSection({ agentId, agentChannelTypes }: CronSectionProps) {
+function CronSection({ agentId }: CronSectionProps) {
   const { t } = useTranslation('agents');
   const navigate = useNavigate();
-  const [jobs, setJobs] = useState<CronJob[]>([]);
+  const [relations, setRelations] = useState<AgentCronRelation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const loadJobs = async () => {
+    const loadRelations = async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const result = await hostApiFetch<CronJob[]>('/api/cron/jobs');
+        const result = await hostApiFetch<{ relations?: AgentCronRelation[] }>(`/api/agents/${encodeURIComponent(agentId)}/cron-relations`);
         if (cancelled) return;
-        const all = Array.isArray(result) ? result : [];
-        // Filter: sessionTarget contains agentId, or delivery channel matches agent's channels
-        const filtered = all.filter((job) => {
-          if (job.sessionTarget && job.sessionTarget.includes(agentId)) return true;
-          if (job.delivery?.channel && agentChannelTypes.includes(job.delivery.channel)) return true;
-          // For the default/main agent, show jobs with no specific agent target
-          if (agentId === 'main' && (!job.sessionTarget || job.sessionTarget === 'isolated')) return true;
-          return false;
-        });
-        setJobs(filtered);
+        setRelations(Array.isArray(result?.relations) ? result.relations : []);
       } catch (err) {
         if (!cancelled) {
-          setJobs([]);
+          setRelations([]);
           setError(String(err));
         }
       } finally {
@@ -221,10 +211,10 @@ function CronSection({ agentId, agentChannelTypes }: CronSectionProps) {
       }
     };
 
-    void loadJobs();
+    void loadRelations();
 
     return () => { cancelled = true; };
-  }, [agentId, agentChannelTypes]);
+  }, [agentId]);
 
   return (
     <div className="rounded-3xl border border-black/[0.06] bg-white p-6">
@@ -242,41 +232,42 @@ function CronSection({ agentId, agentChannelTypes }: CronSectionProps) {
         <p className="mt-4 text-[13px] text-red-500">{error}</p>
       )}
 
-      {!loading && !error && jobs.length === 0 && (
+      {!loading && !error && relations.length === 0 && (
         <p className="mt-4 text-[13px] text-[#8e8e93]">
           {t('detail.noCronJobs', { defaultValue: 'No cron jobs associated with this agent.' })}
         </p>
       )}
 
-      {!loading && !error && jobs.length > 0 && (
+      {!loading && !error && relations.length > 0 && (
         <div className="mt-4 space-y-2">
-          {jobs.map((job) => (
+          {relations.map((relation) => (
             <button
-              key={job.id}
+              key={relation.job.id}
               type="button"
-              onClick={() => navigate('/cron')}
+              onClick={() => navigate(relation.deepLink)}
               className="flex w-full items-center justify-between rounded-2xl border border-black/[0.06] bg-[#f8fafc] px-4 py-3 text-left hover:bg-[#f1f5f9] transition-colors"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-[13px] font-medium text-[#111827]">{job.name}</span>
+                  <span className="truncate text-[13px] font-medium text-[#111827]">{relation.job.name}</span>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                      job.enabled
+                      relation.job.enabled
                         ? 'bg-green-100 text-green-700'
                         : 'bg-[#f1f5f9] text-[#8e8e93]'
                     }`}
                   >
-                    {job.enabled
+                    {relation.job.enabled
                       ? t('detail.cronEnabled', { defaultValue: 'enabled' })
                       : t('detail.cronDisabled', { defaultValue: 'disabled' })}
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center gap-3 text-[12px] text-[#8e8e93]">
-                  <span>{formatSchedule(job.schedule)}</span>
-                  {job.lastRun && (
+                  <span>{formatSchedule(relation.job.schedule)}</span>
+                  <span>{relation.relationReason}</span>
+                  {relation.job.lastRun && (
                     <span>
-                      {t('detail.cronLastRun', { defaultValue: 'Last run' })}: {formatTime(job.lastRun.time)}
+                      {t('detail.cronLastRun', { defaultValue: 'Last run' })}: {formatTime(relation.job.lastRun.time)}
                     </span>
                   )}
                 </div>
@@ -446,7 +437,7 @@ export function AgentDetail() {
         </section>
       </div>
 
-      <CronSection agentId={agent.id} agentChannelTypes={agent.channelTypes} />
+      <CronSection agentId={agent.id} />
     </div>
   );
 }

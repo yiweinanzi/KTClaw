@@ -3,7 +3,7 @@
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "execution",
   "current_focus": "PLAN-2026-03-24-PLATFORM-CLOSURE",
-  "last_updated": "2026-03-25T18:38:12+08:00",
+  "last_updated": "2026-03-25T22:12:00+08:00",
   "tasks": [
     {
       "id": "SESSION-8-001",
@@ -436,8 +436,22 @@
       "id": "SESSION-27-002",
       "title": "Complete Feishu onboarding closed loop for create/link robot and in-app auth without terminal",
       "type": "feature",
-      "status": "in_progress",
+      "status": "done",
       "priority": "P0"
+    },
+    {
+      "id": "SESSION-28-001",
+      "title": "Integrate Feishu onboarding wizard flow in-app and migrate Channels UI strings to locale",
+      "type": "feature",
+      "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-28-002",
+      "title": "Add backend-owned agent cron relations with Cron deep-link drill-down",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
     }
   ]
 }

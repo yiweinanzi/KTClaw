@@ -108,10 +108,12 @@ Chat markdown now covers standard math rendering and KaTeX `mhchem` chemistry fo
 
 ### 📡 Multi-Channel Management
 Configure and monitor multiple AI channels simultaneously. Each channel operates independently, allowing you to run specialized agents for different tasks.
+Feishu onboarding now stays inside KTClaw with one integrated wizard for plugin checks, robot create/link handoff, credential save, app-scope recovery, and QR-based user authorization.
 
 ### ⏰ Cron-Based Automation
 Schedule AI tasks to run automatically. Define triggers, set intervals, and let your AI agents work around the clock without manual intervention.
 The Cron page also includes richer run-detail panels with delivery targets, recent error context, and recent run history.
+Agent detail pages now expose backend-owned cron relations and deep-link directly into the relevant Cron pipeline entry.
 
 ### 🧩 Extensible Skill System
 Extend your AI agents with pre-built skills. Browse, install, and manage skills through the integrated skill panel—no package managers required.

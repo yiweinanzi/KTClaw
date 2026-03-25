@@ -90,13 +90,14 @@ tail -30 continue/progress.txt
   - Session 27：Channels 左侧家族列表改为 supported+configured 动态生成，Telegram/Discord/WhatsApp 等不再被四个硬编码 tab 限死
   - Session 27b：Feishu app-internal auth QR flow：Device Flow 复用官方插件内核，用户授权不再依赖输入 `/feishu auth`
   - Session 27b：existing robot 配置完成后自动回到向导并启动用户授权；new robot 提供官方创建页二维码入口
+  - Session 28：Feishu onboarding wizard 收口为单一应用内状态机：create/link/configure/app-scope recheck/user auth 一体化，不再跳转单独 Feishu 配置弹窗
+  - Session 28：Channels 页面与新 Feishu wizard 文案迁回 locale；`Channels` 这批新增/残留硬编码完成一轮收口
+  - Session 28：Agent detail 新增 backend-owned `/api/agents/:agentId/cron-relations`，并可 deep link 到对应 Cron pipeline detail
 - 因此下面旧清单里，涉及上述能力的"剩余"描述请以本段为准，不要重复实现已完成部分。
 - 当前真正还缺的重点：
   - P0 i18n：继续清理 Channels / Cron / TaskKanban / AskUserQuestionWizard / Sidebar 等剩余历史硬编码文案
   - Runtime / registry：tool execution path / deeper skill bridge / structured runtime history / runtime tree drill-down
-  - Channels：Feishu 真正的“只扫码”闭环（新建机器人、关联已有机器人、应用权限/用户授权一体化）
   - Channels：multi-user isolation deeper capability runtime
-  - Agent detail：cron relation view deeper linkage
   - Wave 5：update / UX / a11y / 工程治理
 
 
@@ -228,6 +229,7 @@ tail -30 continue/progress.txt
   - supported+configured 动态频道家族列表
   - Feishu integration foundation：`/api/feishu/status|install|update|doctor` + dedicated onboarding wizard entry
   - Feishu existing-robot app-internal auth QR flow（Device Flow + token persistence）
+  - Feishu onboarding 单一向导闭环（官方创建页二维码入口、应用内凭证保存、app-scope recheck、用户授权二维码）
 - 本地 API auth gate 深化
 - 多用户隔离与 rate limiting
 
@@ -236,7 +238,7 @@ tail -30 continue/progress.txt
 - 独立 agent 详情页
 - metadata / hierarchy
 - `reportsTo / directReports`
-- cron 关联视图
+- cron 关联视图（backend-owned relation endpoint + Cron pipeline deep link 第一批已完成）
 - avatar upload / remove
 
 #### 12. Settings 深化

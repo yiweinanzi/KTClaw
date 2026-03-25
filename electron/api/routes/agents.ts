@@ -20,6 +20,7 @@ import { logger } from '../../utils/logger';
 import { syncAllProviderAuthToRuntime } from '../../services/providers/provider-runtime-sync';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
+import { transformCronJob } from './cron';
 
 function scheduleGatewayReload(ctx: HostApiContext, reason: string): void {
   if (ctx.gatewayManager.getStatus().state !== 'stopped') {
@@ -35,6 +36,70 @@ function isGatewayPid(pid: unknown): pid is number {
 
 function isNoSuchProcessError(error: unknown): boolean {
   return Boolean(error) && typeof error === 'object' && (error as NodeJS.ErrnoException).code === 'ESRCH';
+}
+
+type GatewayCronJob = {
+  id: string;
+  name: string;
+  payload?: { message?: string; text?: string };
+  schedule: unknown;
+  delivery?: { mode?: string; channel?: string; to?: string };
+  failureAlertAfter?: number;
+  failureAlertCooldownSeconds?: number;
+  failureAlertChannel?: string;
+  deliveryBestEffort?: boolean;
+  sessionTarget?: string;
+  enabled: boolean;
+  createdAtMs: number;
+  updatedAtMs: number;
+  state?: {
+    lastRunAtMs?: number;
+    lastStatus?: string;
+    lastError?: string;
+    lastDurationMs?: number;
+    nextRunAtMs?: number;
+  };
+};
+
+async function listAgentCronRelations(agentId: string, ctx: HostApiContext) {
+  const snapshot = await listAgentsSnapshot();
+  const agent = snapshot.agents.find((entry) => entry.id === agentId);
+  if (!agent) {
+    throw new Error(`Agent not found: ${agentId}`);
+  }
+
+  const result = await ctx.gatewayManager.rpc('cron.list', { includeDisabled: true });
+  const jobs = ((result as { jobs?: GatewayCronJob[] })?.jobs ?? []);
+
+  const relations = jobs.flatMap((job) => {
+    const sessionTargetMatch = Boolean(job.sessionTarget && job.sessionTarget.includes(agentId));
+    const channelTypeMatch = Boolean(job.delivery?.channel && agent.channelTypes.includes(job.delivery.channel));
+    const defaultFallback = agentId === 'main' && (!job.sessionTarget || job.sessionTarget === 'isolated');
+
+    let relationReason: 'session-target' | 'channel-type' | 'default-session-target' | null = null;
+    if (sessionTargetMatch) {
+      relationReason = 'session-target';
+    } else if (channelTypeMatch) {
+      relationReason = 'channel-type';
+    } else if (defaultFallback) {
+      relationReason = 'default-session-target';
+    }
+
+    if (!relationReason) {
+      return [];
+    }
+
+    return [{
+      job: transformCronJob(job),
+      relationReason,
+      deepLink: `/cron?jobId=${encodeURIComponent(job.id)}&agentId=${encodeURIComponent(agentId)}&tab=pipelines`,
+    }];
+  });
+
+  return {
+    success: true,
+    relations,
+  };
 }
 
 /**
@@ -105,6 +170,21 @@ export async function handleAgentRoutes(
   if (url.pathname === '/api/agents' && req.method === 'GET') {
     sendJson(res, 200, { success: true, ...(await listAgentsSnapshot()) });
     return true;
+  }
+
+  if (url.pathname.startsWith('/api/agents/') && req.method === 'GET') {
+    const suffix = url.pathname.slice('/api/agents/'.length);
+    const parts = suffix.split('/').filter(Boolean);
+
+    if (parts.length === 2 && parts[1] === 'cron-relations') {
+      try {
+        const agentId = decodeURIComponent(parts[0]);
+        sendJson(res, 200, await listAgentCronRelations(agentId, ctx));
+      } catch (error) {
+        sendJson(res, 500, { success: false, error: String(error), relations: [] });
+      }
+      return true;
+    }
   }
 
   if (url.pathname === '/api/agents' && req.method === 'POST') {

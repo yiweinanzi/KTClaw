@@ -348,5 +348,97 @@
     "sendTest": "Send Test",
     "configInfo": "Config Info",
     "runtimeCapabilities": "Runtime capabilities",
-    "notConfigured": "Not configured"
+    "notConfigured": "Not configured",
+    "feedback": {
+        "testSent": "Test message sent",
+        "sentWithText": "Sent: {{text}}"
+    },
+    "runtime": {
+        "actionsLabel": "Actions:",
+        "none": "none",
+        "schemaSummary": "Schema: {{total}} fields (required {{required}})"
+    },
+    "wizard": {
+        "title": "Feishu Official Plugin Onboarding",
+        "subtitle": "Complete plugin checks, robot creation/linking, credential save, app-scope recovery, and QR user authorization in one wizard.",
+        "loadingStatus": "Checking Feishu integration status...",
+        "actions": {
+            "installPlugin": "Install Feishu official plugin",
+            "updatePlugin": "Update Feishu official plugin",
+            "installHint": "The bundled official Feishu plugin package will be used automatically. Target version: {{version}}.",
+            "processing": "Processing...",
+            "preparingQr": "Preparing QR code..."
+        },
+        "cards": {
+            "openClawVersion": "OpenClaw Version",
+            "pluginVersion": "Feishu Plugin Version",
+            "channelConfig": "Feishu Channel Config",
+            "minVersion": "Minimum {{version}}",
+            "recommendedVersion": "Recommended {{version}}",
+            "notInstalled": "Not installed",
+            "notConfigured": "Not configured",
+            "pluginEnabled": "Plugin enabled",
+            "pluginDisabled": "Plugin disabled",
+            "accountCount": "{{count}} accounts",
+            "unknownVersion": "unknown"
+        },
+        "existing": {
+            "title": "Link Existing Robot",
+            "description": "If you already have a Feishu robot, enter its App ID / App Secret here and continue directly into permission and user authorization.",
+            "action": "Continue with existing robot"
+        },
+        "newRobot": {
+            "title": "Create New Feishu Robot",
+            "description": "Scan into the official Feishu create page first, then come back here to save App ID / App Secret and immediately continue authorization.",
+            "action": "Create Feishu robot by QR"
+        },
+        "create": {
+            "title": "Create Feishu Robot by QR",
+            "description": "Scan with Feishu to open the official creation page, then return here to continue entering credentials.",
+            "tip": "You do not need to leave this wizard after creation. Click the button below to continue with credentials and authorization.",
+            "continue": "Robot created, continue setup",
+            "openOfficial": "Open official create page"
+        },
+        "configure": {
+            "title": "Save Feishu Robot Credentials",
+            "description": "After saving, the wizard immediately checks app scopes and generates the user authorization QR without sending you to a separate config modal.",
+            "appIdLabel": "App ID",
+            "appIdPlaceholder": "Enter Feishu App ID",
+            "appSecretLabel": "App Secret",
+            "appSecretPlaceholder": "Enter Feishu App Secret",
+            "help": "If you just created the robot by QR, enter the App ID / App Secret from the creation page here. The remaining steps continue automatically after save.",
+            "saveAndContinue": "Save and continue"
+        },
+        "permission": {
+            "title": "App Scopes Required",
+            "description": "Scan into the Feishu permission page, grant the missing app scopes, then come back here to re-check and continue user authorization.",
+            "missingScopes": "Missing scopes",
+            "unknownScopes": "Unknown scopes",
+            "openLink": "Open Feishu permission link",
+            "recheck": "Re-check after granting scopes",
+            "checking": "Checking..."
+        },
+        "auth": {
+            "title": "Feishu QR Authorization",
+            "stateLine": "Current state: {{state}} · scope {{scopeCount}}",
+            "successBadge": "Authorized",
+            "description": "Scan with Feishu, then confirm the authorization on your phone.",
+            "userCode": "user_code: {{code}}",
+            "regenerate": "Regenerate authorization QR",
+            "regenerating": "Regenerating...",
+            "readyTitle": "Feishu User Authorization",
+            "readyDescription": "Once the Feishu channel is configured, you can generate the authorization QR here instead of typing `/feishu auth` inside Feishu chat.",
+            "start": "Start Feishu user authorization"
+        },
+        "doctor": {
+            "title": "Diagnostics",
+            "description": "Docs version {{version}} can be used to verify OpenClaw and plugin compatibility.",
+            "run": "Run Feishu diagnostics",
+            "running": "Running diagnostics...",
+            "openClawDoctor": "OpenClaw doctor: {{status}}",
+            "channelValidation": "Feishu channel validation: {{status}}",
+            "pass": "pass",
+            "fail": "fail"
+        }
+    }
 }

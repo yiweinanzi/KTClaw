@@ -222,4 +222,16 @@ describe('Cron page richer detail views', () => {
       );
     });
   });
+
+  it('opens the pipelines tab and expands the targeted job from a deep link', async () => {
+    window.history.pushState({}, '', '/cron?jobId=job-release-check&agentId=researcher&tab=pipelines');
+
+    render(<Cron />);
+
+    expect(await screen.findByText('运行详情')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/cron/runs/job-release-check');
+    });
+    expect(screen.getByText(/Feishu delivery did not acknowledge/i)).toBeInTheDocument();
+  });
 });

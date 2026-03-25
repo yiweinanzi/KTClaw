@@ -265,7 +265,7 @@ export function buildCronSessionFallbackMessages(params: {
   return messages.slice(-limit);
 }
 
-function transformCronJob(job: GatewayCronJob) {
+export function transformCronJob(job: GatewayCronJob) {
   const message = job.payload?.message || job.payload?.text || '';
   const channelType = job.delivery?.channel;
   const target = channelType

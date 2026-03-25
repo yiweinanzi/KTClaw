@@ -48,12 +48,6 @@ vi.mock('@/stores/settings', () => ({
   useSettingsStore: (selector: (state: typeof settingsState) => unknown) => selector(settingsState),
 }));
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => key,
-  }),
-}));
-
 describe('Channels page composer UX', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -193,5 +187,52 @@ describe('Channels page composer UX', () => {
 
     fireEvent.click(screen.getByText('Telegram'));
     expect(await screen.findByText('Ops Telegram')).toBeInTheDocument();
+  });
+
+  it('keeps the feishu add flow inside the onboarding wizard instead of opening a separate config modal', async () => {
+    channelsStoreState.channels = [] as typeof channelsStoreState.channels;
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') {
+        return { success: true, capabilities: [] };
+      }
+      if (path === '/api/feishu/status') {
+        return {
+          docsVersion: '2026.3.25',
+          openClaw: { version: '2026.3.22', minVersion: '2026.3.2', compatible: true },
+          plugin: {
+            bundledVersion: '2026.3.25',
+            bundledSource: 'build/openclaw-plugins/feishu-openclaw-plugin',
+            installedVersion: '2026.3.25',
+            installedPath: 'C:/Users/test/.openclaw/extensions/feishu-openclaw-plugin',
+            recommendedVersion: '2026.3.25',
+            installed: true,
+            needsUpdate: false,
+          },
+          channel: {
+            configured: false,
+            accountIds: [],
+            pluginEnabled: false,
+          },
+          nextAction: 'configure-channel',
+        };
+      }
+      return { success: true };
+    });
+
+    render(<Channels />);
+
+    fireEvent.click(screen.getAllByRole('button', { name: '+' })[0]);
+    fireEvent.change(screen.getByPlaceholderText('例如：研发中心飞书群'), {
+      target: { value: '研发中心飞书群' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '确认添加' }));
+
+    expect(await screen.findByText('飞书官方插件接入')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '继续关联已有机器人' }));
+
+    expect(await screen.findByLabelText('App ID')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '保存并继续' })).toBeInTheDocument();
   });
 });

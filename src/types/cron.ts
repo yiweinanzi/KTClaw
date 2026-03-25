@@ -68,6 +68,14 @@ export interface CronJob {
   nextRun?: string;
 }
 
+export type AgentCronRelationReason = 'session-target' | 'channel-type' | 'default-session-target';
+
+export interface AgentCronRelation {
+  job: CronJob;
+  relationReason: AgentCronRelationReason;
+  deepLink: string;
+}
+
 /**
  * Input for creating a cron job from the UI.
  * No target/delivery — UI-created tasks push results to the KTClaw chat page.

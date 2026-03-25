@@ -9,6 +9,7 @@ const {
   mockReadOpenClawConfig,
   mockWriteOpenClawConfig,
   mockExec,
+  mockListAgentsSnapshot,
 } = vi.hoisted(() => ({
   mockDeleteAgentConfig: vi.fn(),
   mockFinalizeAgentDeletion: vi.fn(),
@@ -17,6 +18,7 @@ const {
   mockReadOpenClawConfig: vi.fn(),
   mockWriteOpenClawConfig: vi.fn(),
   mockExec: vi.fn(),
+  mockListAgentsSnapshot: vi.fn(),
 }));
 
 vi.mock('@electron/utils/agent-config', () => ({
@@ -25,7 +27,7 @@ vi.mock('@electron/utils/agent-config', () => ({
   createAgent: vi.fn(),
   deleteAgentConfig: mockDeleteAgentConfig,
   finalizeAgentDeletion: mockFinalizeAgentDeletion,
-  listAgentsSnapshot: vi.fn(),
+  listAgentsSnapshot: mockListAgentsSnapshot,
   removeAgentWorkspaceDirectory: mockRemoveAgentWorkspaceDirectory,
   resolveAccountIdForAgent: vi.fn(() => 'default'),
   updateAgentName: vi.fn(),
@@ -96,6 +98,13 @@ describe('agents route deletion restart safety', () => {
     mockDeleteAgentChannelAccounts.mockResolvedValue(undefined);
     mockFinalizeAgentDeletion.mockResolvedValue(undefined);
     mockRemoveAgentWorkspaceDirectory.mockResolvedValue(undefined);
+    mockListAgentsSnapshot.mockResolvedValue({
+      agents: [
+        { id: 'main', name: 'Main', channelTypes: ['feishu'] },
+        { id: 'researcher', name: 'Researcher', channelTypes: ['telegram', 'discord'] },
+      ],
+      channelOwners: {},
+    });
     mockReadOpenClawConfig.mockResolvedValue({
       agents: {
         list: [
@@ -179,5 +188,59 @@ describe('agents route deletion restart safety', () => {
 
     expect(mockExec).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(500);
+  });
+
+  it('returns agent-specific cron relations with deep links', async () => {
+    const { handleAgentRoutes } = await import('@electron/api/routes/agents');
+
+    const req = { method: 'GET' } as IncomingMessage;
+    const res = createMockResponse();
+    const url = new URL('http://localhost/api/agents/researcher/cron-relations');
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', pid: 24561, port: 18789 }),
+        rpc: vi.fn(async (method: string) => {
+          if (method === 'cron.list') {
+            return {
+              jobs: [
+                {
+                  id: 'job-status-report',
+                  name: 'Status Report',
+                  payload: { message: 'Send a morning status update' },
+                  schedule: '0 9 * * 1-5',
+                  sessionTarget: 'researcher',
+                  enabled: true,
+                  createdAtMs: Date.parse('2026-01-01T08:00:00Z'),
+                  updatedAtMs: Date.parse('2026-02-01T08:00:00Z'),
+                  delivery: { mode: 'announce', channel: 'telegram', to: 'ops-room' },
+                  state: {
+                    lastRunAtMs: Date.parse('2026-03-24T08:00:00Z'),
+                    lastStatus: 'ok',
+                  },
+                },
+              ],
+            };
+          }
+          throw new Error(`Unexpected RPC method: ${method}`);
+        }),
+        debouncedReload: vi.fn(),
+      },
+    } as unknown;
+
+    await handleAgentRoutes(req, res, url, ctx as never);
+
+    const body = parseBody(res);
+    expect(res.statusCode).toBe(200);
+    expect(body.relations).toEqual([
+      expect.objectContaining({
+        relationReason: 'session-target',
+        deepLink: '/cron?jobId=job-status-report&agentId=researcher&tab=pipelines',
+        job: expect.objectContaining({
+          id: 'job-status-report',
+          name: 'Status Report',
+          sessionTarget: 'researcher',
+        }),
+      }),
+    ]);
   });
 });

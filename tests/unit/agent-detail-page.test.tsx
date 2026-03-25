@@ -64,7 +64,23 @@ vi.mock('react-i18next', () => ({
 describe('AgentDetail page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    hostApiFetchMock.mockResolvedValue(mockCronJobs);
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/agents/researcher/cron-relations') {
+        return {
+          relations: [
+            {
+              relationReason: 'session-target',
+              deepLink: '/cron?jobId=job-status-report&agentId=researcher&tab=pipelines',
+              job: mockCronJobs[0],
+            },
+          ],
+        };
+      }
+      if (path === '/api/agents/main/cron-relations') {
+        return { relations: [] };
+      }
+      throw new Error(`Unexpected hostApiFetch path: ${path}`);
+    });
 
     agentsStoreState.loading = false;
     agentsStoreState.error = null;
@@ -125,10 +141,11 @@ describe('AgentDetail page', () => {
     expect(screen.getByText('discord')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/cron/jobs');
+      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/agents/researcher/cron-relations');
     });
     expect(await screen.findByText('Status Report')).toBeInTheDocument();
     expect(screen.getByText('0 9 * * 1-5')).toBeInTheDocument();
+    expect(screen.getByText('session-target')).toBeInTheDocument();
   });
 
   it('shows a not-found state for unknown agents', async () => {

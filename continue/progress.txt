@@ -2211,3 +2211,63 @@ Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (Feishu onboarding closed loop, Windows-
 ### Remaining
 - "新建机器人" still opens the official create page by QR, but creation completion is not yet reflected back into KTClaw automatically
 - user auth is now app-internal for configured Feishu accounts, but app-level permission grant and new-robot creation still need a tighter end-to-end state machine
+
+---
+
+[2026-03-25 22:12 +08:00] Session 28: Feishu Wizard Closure + Agent Cron Drill-down
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (Channels Feishu closure, Channels i18n, Agent detail cron linkage)
+
+### Completed
+1. `src/components/channels/FeishuOnboardingWizard.tsx`
+   - replaced the split wizard + config-modal handoff with one in-app state machine
+   - added create/link/configure/permission-recheck/auth states in a single surface
+   - config save now continues directly into Feishu auth instead of reopening another modal
+   - app-scope failure now renders a dedicated permission QR/re-check state
+   - migrated the wizard shell to `channels` locale keys
+
+2. `src/pages/Channels/index.tsx`
+   - removed the separate Feishu `ChannelConfigModal` loop from the add flow
+   - wired the wizard to create/fetch Feishu channels after config save
+   - localized the Channels page shell, feedback strings, runtime capability block, composer placeholder, activity panel, and add modal
+
+3. `src/i18n/locales/zh/channels.json`
+   - added `feedback`, `runtime`, and `wizard` locale sections for the Channels page and Feishu onboarding wizard
+
+4. `src/i18n/locales/en/channels.json`
+   - added English parity for the new Channels runtime and Feishu onboarding locale keys
+
+5. `electron/api/routes/agents.ts`
+   - added backend-owned `/api/agents/:agentId/cron-relations`
+   - relation matching is now centralized server-side instead of reimplemented ad hoc in AgentDetail
+   - each relation includes a Cron deep link for pipeline drill-down
+
+6. `src/pages/AgentDetail/index.tsx`
+   - switched the cron section from `/api/cron/jobs` + local heuristics to `/api/agents/:agentId/cron-relations`
+   - shows relation reason and navigates to a job-specific Cron deep link
+
+7. `src/pages/Cron/index.tsx`
+   - added `jobId`/`tab=pipelines` deep-link handling
+   - the pipelines tab now auto-expands the targeted job when navigated from AgentDetail
+
+8. Tests
+   - expanded `tests/unit/feishu-onboarding-wizard.test.tsx`
+   - expanded `tests/unit/channels-page.test.tsx`
+   - expanded `tests/unit/openclaw-agents-route.test.ts`
+   - expanded `tests/unit/agent-detail-page.test.tsx`
+   - expanded `tests/unit/cron-page.test.tsx`
+
+9. Docs
+   - updated `README.md` and `README.zh-CN.md` to mention the integrated Feishu wizard and AgentDetail -> Cron deep links
+
+### Verification
+- `pnpm exec vitest run tests/unit/feishu-onboarding-wizard.test.tsx tests/unit/channels-page.test.tsx --project jsdom` -> pass
+- `pnpm exec vitest run tests/unit/openclaw-agents-route.test.ts tests/unit/agent-detail-page.test.tsx tests/unit/cron-page.test.tsx --project node --project jsdom` -> pass
+- `pnpm run typecheck` -> pass
+- `pnpm exec tsc -p tsconfig.node.json --noEmit` -> pass
+- `pnpm run lint` -> pass
+- `pnpm run build:vite` -> pass
+
+### Remaining
+- P0 i18n still needs the larger Cron / TaskKanban / AskUserQuestionWizard / Sidebar cleanup
+- runtime / registry still lacks structured runtime history + Kanban child-run drill-down
+- Channels still needs deeper multi-user isolation / capability runtime work

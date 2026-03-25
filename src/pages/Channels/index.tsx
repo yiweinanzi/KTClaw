@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useChannelsStore } from '@/stores/channels';
 import { useSettingsStore } from '@/stores/settings';
-import { ChannelConfigModal } from '@/components/channels/ChannelConfigModal';
 import { FeishuOnboardingWizard } from '@/components/channels/FeishuOnboardingWizard';
 import { hostApiFetch } from '@/lib/host-api';
 import {
@@ -28,17 +27,23 @@ const STATUS_DOT: Record<string, string> = {
   disconnected: 'bg-[#d1d5db]',
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  connected:    '已连接',
-  connecting:   '连接中',
-  error:        '连接错误',
-  disconnected: '未连接',
-};
+function getStatusLabel(status: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  switch (status) {
+    case 'connected':
+      return t('common:status.connected');
+    case 'connecting':
+      return t('common:status.connecting');
+    case 'error':
+      return t('common:status.connectionError');
+    default:
+      return t('common:status.notConnected');
+  }
+}
 
 /* ─── Main component ─── */
 
 export function Channels() {
-  const { t } = useTranslation('channels');
+  const { t } = useTranslation(['channels', 'common']);
   const [activeChannel, setActiveChannel] = useState<ChannelType>('feishu');
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
   const [composerValue, setComposerValue] = useState('');
@@ -47,8 +52,7 @@ export function Channels() {
   const [addName, setAddName] = useState('');
   const [addLoading, setAddLoading] = useState(false);
   const [feishuWizardOpen, setFeishuWizardOpen] = useState(false);
-  const [feishuConfigOpen, setFeishuConfigOpen] = useState(false);
-  const [feishuWizardAutoStartAuth, setFeishuWizardAutoStartAuth] = useState(false);
+  const [feishuWizardInitialName, setFeishuWizardInitialName] = useState('');
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<Record<string, ChannelRuntimeCapability>>({});
   const isComposingRef = useRef(false);
@@ -111,7 +115,9 @@ export function Channels() {
     if (!addName.trim()) return;
     if (addType === 'feishu') {
       setAddOpen(false);
+      setFeishuWizardInitialName(addName.trim());
       setFeishuWizardOpen(true);
+      setAddName('');
       return;
     }
     setAddLoading(true);
@@ -133,7 +139,7 @@ export function Channels() {
     setTestResult(null);
     try {
       await hostApiFetch(`/api/channels/${encodeURIComponent(id)}/test`, { method: 'POST' });
-      setTestResult({ id, ok: true, msg: '测试消息已发送' });
+      setTestResult({ id, ok: true, msg: t('feedback.testSent') });
     } catch (e) {
       setTestResult({ id, ok: false, msg: String(e) });
     }
@@ -149,7 +155,7 @@ export function Channels() {
         body: JSON.stringify({ text }),
       });
       setComposerValue('');
-      setTestResult({ id: selected.id, ok: true, msg: `已发送：${text}` });
+      setTestResult({ id: selected.id, ok: true, msg: t('feedback.sentWithText', { text }) });
     } catch (e) {
       setTestResult({ id: selected.id, ok: false, msg: String(e) });
     }
@@ -162,7 +168,7 @@ export function Channels() {
       {/* Panel 1: Channel type list */}
       <div className="flex w-[164px] shrink-0 flex-col border-r border-black/[0.06] bg-white">
         <div className="flex h-[52px] shrink-0 items-center justify-between px-4">
-          <span className="text-[13px] font-semibold text-[#000000]">CHANNEL 频道</span>
+          <span className="text-[13px] font-semibold text-[#000000]">{t('channelTitle')}</span>
           <button
             type="button"
             onClick={() => setAddOpen(true)}
@@ -195,7 +201,7 @@ export function Channels() {
       <div className="flex w-[252px] shrink-0 flex-col border-r border-black/[0.06] bg-white">
         <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.06] px-4">
           <span className="text-[14px] font-semibold text-[#000000]">
-            {CHANNEL_NAMES[activeChannel]} 配置详情
+            {CHANNEL_NAMES[activeChannel]} {t('configDetails')}
           </span>
           <button
             type="button"
@@ -209,20 +215,20 @@ export function Channels() {
         <div className="flex flex-1 flex-col overflow-y-auto">
           {loading ? (
             <div className="flex flex-1 items-center justify-center text-[13px] text-[#8e8e93]">
-              加载中...
+              {t('common:status.loading')}
             </div>
           ) : error ? (
             <div className="px-4 py-3 text-[12px] text-[#ef4444]">{error}</div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
               <span className="text-[28px]">{CHANNEL_ICONS[activeChannel]}</span>
-              <p className="text-[13px] text-[#8e8e93]">暂无已配置的频道</p>
+              <p className="text-[13px] text-[#8e8e93]">{t('noChannels')}</p>
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
                 className="mt-1 rounded-lg border border-dashed border-[#c6c6c8] px-3 py-1.5 text-[12px] text-[#8e8e93] hover:border-[#8e8e93] hover:text-[#3c3c43]"
               >
-                + 添加
+                {t('add')}
               </button>
             </div>
           ) : (
@@ -236,12 +242,12 @@ export function Channels() {
                     'flex w-full flex-col rounded-xl px-3 py-2.5 text-left transition-colors',
                     activeChannelId === ch.id ? 'bg-[#f0f7ff]' : 'hover:bg-[#f2f2f7]',
                   )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="truncate pr-1 text-[13px] font-medium text-[#000000]">{ch.name}</span>
-                    <span className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_DOT[ch.status])} />
-                  </div>
-                  <span className="mt-0.5 text-[11px] text-[#8e8e93]">{STATUS_LABEL[ch.status]}</span>
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="truncate pr-1 text-[13px] font-medium text-[#000000]">{ch.name}</span>
+                      <span className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_DOT[ch.status])} />
+                    </div>
+                  <span className="mt-0.5 text-[11px] text-[#8e8e93]">{getStatusLabel(ch.status, t)}</span>
                 </button>
               ))}
             </div>
@@ -255,7 +261,7 @@ export function Channels() {
           /* No channel selected */
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
             <span className="text-[40px]">{CHANNEL_ICONS[activeChannel]}</span>
-            <p className="text-[14px] text-[#8e8e93]">选择左侧频道查看详情</p>
+            <p className="text-[14px] text-[#8e8e93]">{t('common:channels.selectChannel')}</p>
           </div>
         ) : (
           <>
@@ -274,7 +280,7 @@ export function Channels() {
                         : 'bg-[#f2f2f7] text-[#8e8e93]',
                 )}>
                   <span className={cn('h-[6px] w-[6px] rounded-full', STATUS_DOT[selected.status])} />
-                  {STATUS_LABEL[selected.status]}
+                  {getStatusLabel(selected.status, t)}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -284,7 +290,7 @@ export function Channels() {
                     onClick={() => void disconnectChannel(selected.id)}
                     className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
                   >
-                    断开连接
+                    {t('disconnect')}
                   </button>
                 ) : (
                   <button
@@ -292,7 +298,7 @@ export function Channels() {
                     onClick={() => void connectChannel(selected.id)}
                     className="rounded-md bg-clawx-ac px-2.5 py-1 text-[12px] text-white hover:bg-[#0056b3]"
                   >
-                    {selected.status === 'connecting' ? '连接中...' : '连接'}
+                    {selected.status === 'connecting' ? t('connecting') : t('connect')}
                   </button>
                 )}
                 <button
@@ -300,14 +306,14 @@ export function Channels() {
                   onClick={() => void handleTest(selected.id)}
                   className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
                 >
-                  发送测试
+                  {t('sendTest')}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleDelete(selected.id)}
                   className="rounded-md border border-[#ef4444]/30 px-2.5 py-1 text-[12px] text-[#ef4444] hover:bg-[#fef2f2]"
                 >
-                  删除
+                  {t('common:actions.delete')}
                 </button>
               </div>
             </div>
@@ -325,7 +331,7 @@ export function Channels() {
             {/* Config fields (read-only) */}
             {meta.configFields.length > 0 && (
               <div className="shrink-0 border-b border-black/[0.06] px-5 py-3">
-                <p className="mb-2 text-[12px] font-medium text-[#8e8e93]">配置信息</p>
+                <p className="mb-2 text-[12px] font-medium text-[#8e8e93]">{t('configInfo')}</p>
                 <div className="flex flex-col gap-1.5">
                   {meta.configFields.map((field) => (
                     <div key={field.key} className="flex items-center justify-between gap-4">
@@ -337,19 +343,22 @@ export function Channels() {
                   ))}
                 </div>
                 {selected.error && (
-                  <p className="mt-2 text-[12px] text-[#ef4444]">错误：{selected.error}</p>
+                  <p className="mt-2 text-[12px] text-[#ef4444]">{t('common:channels.errorPrefix')}：{selected.error}</p>
                 )}
               </div>
             )}
 
             {selectedRuntimeCapability && (
               <div className="shrink-0 border-b border-black/[0.06] px-5 py-3" data-testid="channel-runtime-capabilities">
-                <p className="mb-1 text-[12px] font-medium text-[#8e8e93]">Runtime capabilities</p>
+                <p className="mb-1 text-[12px] font-medium text-[#8e8e93]">{t('runtimeCapabilities')}</p>
                 <p className="text-[12px] text-[#3c3c43]">
-                  Actions: {selectedRuntimeCapability.availableActions.join(', ') || 'none'}
+                  {t('runtime.actionsLabel')} {selectedRuntimeCapability.availableActions.join(', ') || t('runtime.none')}
                 </p>
                 <p className="mt-1 text-[12px] text-[#8e8e93]">
-                  Schema: {selectedRuntimeCapability.configSchemaSummary.totalFieldCount} fields (required {selectedRuntimeCapability.configSchemaSummary.requiredFieldCount})
+                  {t('runtime.schemaSummary', {
+                    total: selectedRuntimeCapability.configSchemaSummary.totalFieldCount,
+                    required: selectedRuntimeCapability.configSchemaSummary.requiredFieldCount,
+                  })}
                 </p>
               </div>
             )}
@@ -367,7 +376,7 @@ export function Channels() {
                 </button>
                 <div className="flex shrink-0 items-center gap-1 rounded-full border border-black/10 bg-[#f2f2f7] px-2 py-0.5 text-[12px] text-[#3c3c43]">
                   <span className="h-[6px] w-[6px] rounded-full bg-[#10b981]" />
-                  <span className="font-medium">{defaultModel || 'Not configured'}</span>
+                  <span className="font-medium">{defaultModel || t('notConfigured')}</span>
                   <span className="text-[#8e8e93]">▾</span>
                 </div>
                 <input
@@ -393,7 +402,7 @@ export function Channels() {
                       void handleSend();
                     }
                   }}
-                  placeholder={`在 ${selected.name} 发送消息...`}
+                  placeholder={t('common:channels.sendMessagePlaceholder', { name: selected.name })}
                   className="flex-1 bg-transparent text-[14px] text-[#000000] outline-none placeholder:text-[#8e8e93]"
                 />
                 <button
@@ -414,9 +423,9 @@ export function Channels() {
       {addOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="w-[360px] rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="mb-4 text-[16px] font-semibold text-[#000000]">添加频道</h2>
+            <h2 className="mb-4 text-[16px] font-semibold text-[#000000]">{t('common:channels.addChannelTitle')}</h2>
             <div className="mb-3">
-              <p className="mb-1.5 text-[13px] font-medium text-[#000000]">频道类型</p>
+              <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('common:channels.channelType')}</p>
               <select
                 value={addType}
                 onChange={(e) => setAddType(e.target.value as ChannelType)}
@@ -428,11 +437,11 @@ export function Channels() {
               </select>
             </div>
             <div className="mb-5">
-              <p className="mb-1.5 text-[13px] font-medium text-[#000000]">频道名称</p>
+              <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('common:channels.channelName')}</p>
               <input
                 value={addName}
                 onChange={(e) => setAddName(e.target.value)}
-                placeholder="例如：研发中心飞书群"
+                placeholder={t('common:channels.channelNamePlaceholder')}
                 className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
               />
             </div>
@@ -442,7 +451,7 @@ export function Channels() {
                 onClick={() => { setAddOpen(false); setAddName(''); }}
                 className="flex-1 rounded-xl border border-black/10 py-2 text-[13px] text-[#3c3c43] hover:bg-[#f2f2f7]"
               >
-                取消
+                {t('common:actions.cancel')}
               </button>
               <button
                 type="button"
@@ -450,7 +459,7 @@ export function Channels() {
                 disabled={addLoading || !addName.trim()}
                 className="flex-1 rounded-xl bg-clawx-ac py-2 text-[13px] font-medium text-white hover:bg-[#0056b3] disabled:opacity-50"
               >
-                {addLoading ? '添加中...' : '确认添加'}
+                {addLoading ? t('common:channels.adding') : t('common:channels.confirmAdd')}
               </button>
             </div>
           </div>
@@ -459,29 +468,21 @@ export function Channels() {
 
       {feishuWizardOpen && (
         <FeishuOnboardingWizard
-          autoStartAuthorization={feishuWizardAutoStartAuth}
+          initialChannelName={feishuWizardInitialName}
           onClose={() => {
             setFeishuWizardOpen(false);
-            setFeishuWizardAutoStartAuth(false);
+            setFeishuWizardInitialName('');
           }}
-          onLinkExistingRobot={() => {
-            setFeishuWizardOpen(false);
-            setFeishuConfigOpen(true);
-          }}
-        />
-      )}
-
-      {feishuConfigOpen && (
-        <ChannelConfigModal
-          initialSelectedType="feishu"
-          configuredTypes={[...new Set(channels.map((channel) => channel.type))]}
-          onClose={() => setFeishuConfigOpen(false)}
-          onChannelSaved={async () => {
+          onConfigured={async ({ channelName }) => {
+            const hasFeishuChannel = channels.some((channel) => channel.type === 'feishu');
+            if (!hasFeishuChannel) {
+              await addChannel({
+                type: 'feishu',
+                name: channelName.trim() || CHANNEL_NAMES.feishu,
+              });
+            }
             await fetchChannels();
             setActiveChannel('feishu');
-            setFeishuConfigOpen(false);
-            setFeishuWizardAutoStartAuth(true);
-            setFeishuWizardOpen(true);
           }}
         />
       )}
@@ -496,6 +497,7 @@ export default Channels;
 import type { Channel } from '@/types/channel';
 
 function ChannelActivityPanel({ channel }: { channel: Channel }) {
+  const { t } = useTranslation(['channels', 'common']);
   const isConnected = channel.status === 'connected';
   const isError = channel.status === 'error';
 
@@ -517,11 +519,11 @@ function ChannelActivityPanel({ channel }: { channel: Channel }) {
           <span className={cn('text-[13px] font-medium',
             isConnected ? 'text-[#059669]' : isError ? 'text-[#ef4444]' : 'text-[#8e8e93]',
           )}>
-            {STATUS_LABEL[channel.status]}
+            {getStatusLabel(channel.status, t)}
           </span>
         </div>
         {lastActivity && (
-          <p className="mt-1 text-[12px] text-[#8e8e93]">最近活动：{lastActivity}</p>
+          <p className="mt-1 text-[12px] text-[#8e8e93]">{t('common:time.lastActivity')}：{lastActivity}</p>
         )}
         {channel.error && (
           <p className="mt-1 text-[12px] text-[#ef4444]">{channel.error}</p>
@@ -531,9 +533,9 @@ function ChannelActivityPanel({ channel }: { channel: Channel }) {
       {/* Info rows */}
       <div className="rounded-xl border border-black/[0.06] bg-white">
         {[
-          { label: '频道 ID', value: channel.id },
-          { label: '类型', value: channel.type.toUpperCase() },
-          channel.accountId ? { label: '账号 ID', value: channel.accountId } : null,
+          { label: t('common:channels.channelId'), value: channel.id },
+          { label: t('common:channels.type'), value: channel.type.toUpperCase() },
+          channel.accountId ? { label: t('common:channels.accountId'), value: channel.accountId } : null,
         ].filter(Boolean).map((row) => (
           <div key={row!.label} className="flex items-center justify-between border-b border-black/[0.04] px-4 py-2.5 last:border-b-0">
             <span className="text-[12px] text-[#8e8e93]">{row!.label}</span>
@@ -547,14 +549,14 @@ function ChannelActivityPanel({ channel }: { channel: Channel }) {
         {isConnected ? (
           <>
             <span className="text-[28px]">💬</span>
-            <p className="text-[13px] text-[#8e8e93]">等待消息中</p>
-            <p className="text-[12px] text-[#c6c6c8]">频道已连接，消息将在此显示</p>
+            <p className="text-[13px] text-[#8e8e93]">{t('common:channels.waitingForMessages')}</p>
+            <p className="text-[12px] text-[#c6c6c8]">{t('common:channels.channelConnectedWaiting')}</p>
           </>
         ) : (
           <>
             <span className="text-[28px] opacity-40">💬</span>
-            <p className="text-[13px] text-[#8e8e93]">频道未连接</p>
-            <p className="text-[12px] text-[#c6c6c8]">连接后可在此查看消息记录</p>
+            <p className="text-[13px] text-[#8e8e93]">{t('common:channels.channelNotConnected')}</p>
+            <p className="text-[12px] text-[#c6c6c8]">{t('common:channels.channelNotConnectedDesc')}</p>
           </>
         )}
       </div>

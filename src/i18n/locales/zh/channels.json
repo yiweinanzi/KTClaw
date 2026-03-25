@@ -349,5 +349,97 @@
     "sendTest": "发送测试",
     "configInfo": "配置信息",
     "runtimeCapabilities": "Runtime capabilities",
-    "notConfigured": "Not configured"
+    "notConfigured": "未配置",
+    "feedback": {
+        "testSent": "测试消息已发送",
+        "sentWithText": "已发送：{{text}}"
+    },
+    "runtime": {
+        "actionsLabel": "Actions:",
+        "none": "none",
+        "schemaSummary": "Schema: {{total}} fields (required {{required}})"
+    },
+    "wizard": {
+        "title": "飞书官方插件接入",
+        "subtitle": "在同一个向导里完成插件检查、机器人创建/关联、凭证保存、应用权限补齐和用户扫码授权。",
+        "loadingStatus": "正在检查飞书接入状态...",
+        "actions": {
+            "installPlugin": "安装飞书官方插件",
+            "updatePlugin": "升级飞书官方插件",
+            "installHint": "当前会自动使用仓库内置的官方飞书插件包，目标版本 {{version}}。",
+            "processing": "处理中...",
+            "preparingQr": "准备二维码中..."
+        },
+        "cards": {
+            "openClawVersion": "OpenClaw 版本",
+            "pluginVersion": "飞书插件版本",
+            "channelConfig": "飞书渠道配置",
+            "minVersion": "最低要求 {{version}}",
+            "recommendedVersion": "推荐 {{version}}",
+            "notInstalled": "未安装",
+            "notConfigured": "未配置",
+            "pluginEnabled": "插件已启用",
+            "pluginDisabled": "插件未启用",
+            "accountCount": "{{count}} 个账号",
+            "unknownVersion": "unknown"
+        },
+        "existing": {
+            "title": "关联已有机器人",
+            "description": "已有飞书机器人时，直接在这里填写 App ID / App Secret，然后继续走权限与扫码授权。",
+            "action": "继续关联已有机器人"
+        },
+        "newRobot": {
+            "title": "新建飞书机器人",
+            "description": "先扫码进入飞书官方创建页，新建完成后继续在本向导里保存 App ID / App Secret 并立刻开始后续授权。",
+            "action": "扫码创建飞书机器人"
+        },
+        "create": {
+            "title": "扫码创建飞书机器人",
+            "description": "用飞书扫码打开官方创建页，创建完成后直接回到这里继续填写凭证。",
+            "tip": "新建完成后不需要退出向导，直接点击下面的“我已创建机器人，继续配置”即可录入凭证并继续授权。",
+            "continue": "我已创建机器人，继续配置",
+            "openOfficial": "打开官方创建页"
+        },
+        "configure": {
+            "title": "保存飞书机器人凭证",
+            "description": "保存成功后会立刻检查应用权限并生成用户授权二维码，不再跳转到其他配置弹窗。",
+            "appIdLabel": "App ID",
+            "appIdPlaceholder": "请输入飞书 App ID",
+            "appSecretLabel": "App Secret",
+            "appSecretPlaceholder": "请输入飞书 App Secret",
+            "help": "如果你刚刚通过扫码新建了机器人，这里填写创建页里拿到的 App ID / App Secret。保存后会自动继续后面的权限与授权步骤。",
+            "saveAndContinue": "保存并继续"
+        },
+        "permission": {
+            "title": "应用权限待补齐",
+            "description": "先扫码进入飞书权限页完成应用权限开通，再回到这里重新检查并继续用户授权。",
+            "missingScopes": "待补齐权限",
+            "unknownScopes": "未知权限",
+            "openLink": "打开飞书权限链接",
+            "recheck": "完成权限开通后重新检查",
+            "checking": "检查中..."
+        },
+        "auth": {
+            "title": "飞书扫码授权",
+            "stateLine": "当前状态：{{state}} · scope {{scopeCount}}",
+            "successBadge": "授权完成",
+            "description": "用飞书扫码后，在手机飞书里确认授权即可。",
+            "userCode": "user_code: {{code}}",
+            "regenerate": "重新生成授权二维码",
+            "regenerating": "重新生成中...",
+            "readyTitle": "飞书用户授权",
+            "readyDescription": "飞书渠道已经配置好时，直接在这里生成授权二维码，不需要再去飞书聊天里输入 `/feishu auth`。",
+            "start": "开始飞书用户授权"
+        },
+        "doctor": {
+            "title": "诊断与说明",
+            "description": "文档版本 {{version}}，可用来核对 OpenClaw 与插件版本是否匹配。",
+            "run": "运行飞书诊断",
+            "running": "诊断中...",
+            "openClawDoctor": "OpenClaw doctor: {{status}}",
+            "channelValidation": "飞书渠道配置检查: {{status}}",
+            "pass": "通过",
+            "fail": "失败"
+        }
+    }
 }

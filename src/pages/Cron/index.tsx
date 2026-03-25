@@ -112,10 +112,21 @@ const TABS = ['总览 Overview', '排期表 Schedule', '流水线 Pipelines'] as
 type Tab = (typeof TABS)[number];
 type StatusFilter = 'all' | 'failed' | 'enabled';
 
+function resolveDeepLinkedTab(raw: string | null): Tab | null {
+  if (raw === 'overview') return '总览 Overview';
+  if (raw === 'schedule') return '排期表 Schedule';
+  if (raw === 'pipelines') return '流水线 Pipelines';
+  return null;
+}
+
 /* ─── Main component ─── */
 
 export function Cron() {
-  const [activeTab, setActiveTab] = useState<Tab>('总览 Overview');
+  const deepLinkParams = new URLSearchParams(window.location.search);
+  const deepLinkedJobId = deepLinkParams.get('jobId');
+  const initialTab = resolveDeepLinkedTab(deepLinkParams.get('tab'));
+  const [activeTab, setActiveTab] = useState<Tab>(deepLinkedJobId ? '流水线 Pipelines' : initialTab ?? '总览 Overview');
+  const [expandedPipelineJobId, setExpandedPipelineJobId] = useState<string | null>(deepLinkedJobId);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [createOpen, setCreateOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<CronJob | null>(null);
@@ -207,6 +218,13 @@ export function Cron() {
     return new Date(job.updatedAt).getTime() > new Date(latest).getTime() ? job.updatedAt : latest;
   }, null);
   const hasJobErrors = jobs.some((job) => job.lastRun?.error);
+
+  useEffect(() => {
+    if (!deepLinkedJobId) return;
+    if (!jobs.some((job) => job.id === deepLinkedJobId)) return;
+    setActiveTab('流水线 Pipelines');
+    setExpandedPipelineJobId(deepLinkedJobId);
+  }, [deepLinkedJobId, jobs]);
 
   return (
     <div className="flex h-full flex-col bg-[#f2f2f7] p-6">
@@ -311,6 +329,8 @@ export function Cron() {
           <PipelinesTab
             jobs={jobs}
             loading={loading}
+            expandedJobId={expandedPipelineJobId}
+            onExpandedJobChange={setExpandedPipelineJobId}
             onTrigger={(id) => void triggerJob(id)}
             onEdit={openEditWizard}
           />
@@ -711,16 +731,18 @@ function RunDetailPanel({ job, onClose }: { job: CronJob; onClose: () => void })
 function PipelinesTab({
   jobs,
   loading,
+  expandedJobId,
+  onExpandedJobChange,
   onTrigger,
   onEdit,
 }: {
   jobs: CronJob[];
   loading: boolean;
+  expandedJobId: string | null;
+  onExpandedJobChange: (jobId: string | null) => void;
   onTrigger: (id: string) => void;
   onEdit: (job: CronJob) => void;
 }) {
-  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
-
   const ran = jobs.filter((j) => j.lastRun);
   const succeeded = ran.filter((j) => j.lastRun?.success).length;
   const failed = ran.filter((j) => !j.lastRun?.success).length;
@@ -821,7 +843,7 @@ function PipelinesTab({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setExpandedJobId(isExpanded ? null : job.id)}
+                            onClick={() => onExpandedJobChange(isExpanded ? null : job.id)}
                             className={cn('rounded-md border px-2.5 py-1 text-[12px] transition-colors', isExpanded ? 'border-clawx-ac/30 bg-clawx-ac/5 text-clawx-ac' : 'border-black/10 text-[#3c3c43] hover:bg-[#f2f2f7]')}
                           >
                             {isExpanded ? '收起' : '详情'}
@@ -833,7 +855,7 @@ function PipelinesTab({
                       <RunDetailPanel
                         key={`history-${job.id}`}
                         job={job}
-                        onClose={() => setExpandedJobId(null)}
+                        onClose={() => onExpandedJobChange(null)}
                       />
                     )}
                   </Fragment>
