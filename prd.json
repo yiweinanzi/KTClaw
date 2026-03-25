@@ -1,0 +1,307 @@
+{
+  "project": "KTClaw",
+  "branchName": "ralph/platform-closure-non-i18n",
+  "description": "Continue platform closure work from Prompt.md, excluding i18n cleanup and disabled Docs/Help restoration, and finish the remaining business/runtime/UX/a11y tasks.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Persist runtime tool execution records for subagent sessions",
+      "description": "As a developer, I need runtime records to store structured tool execution data so deeper runtime drill-down can be rendered reliably after restarts.",
+      "acceptanceCriteria": [
+        "Runtime persistence stores structured tool execution entries alongside subagent session records",
+        "Gateway/runtime adapters load and save the new execution record shape without breaking existing session restore",
+        "Targeted backend or node tests cover persistence and restore of tool execution records",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Expose runtime tree drill-down APIs for parent-child subagent runs",
+      "description": "As a user, I want the backend to expose runtime tree and subtree drill-down data so the UI can inspect parent, child, and sibling run relationships.",
+      "acceptanceCriteria": [
+        "Backend exposes a route or host API response that returns lineage and subtree data for a selected runtime session",
+        "The payload includes enough metadata to distinguish parent, current, and child runs plus execution summaries",
+        "Targeted tests cover the new runtime tree API behavior",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Render runtime tree drill-down in TaskKanban detail panel",
+      "description": "As a user, I want TaskKanban detail to show the runtime tree so I can inspect nested agent work without leaving the ticket.",
+      "acceptanceCriteria": [
+        "TaskKanban detail panel renders the runtime tree for the selected ticket session",
+        "The panel surfaces current run, parent context, and child run summaries from the new backend drill-down payload",
+        "Targeted TaskKanban tests cover the runtime tree rendering path",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add lineage and subtree interactions for Kanban runtime detail",
+      "description": "As a user, I want to navigate lineage and subtree states in the Kanban detail so retries and delegated work are easier to inspect.",
+      "acceptanceCriteria": [
+        "TaskKanban detail supports switching between lineage and subtree views for runtime drill-down",
+        "Selecting a node updates the detail view without losing ticket context",
+        "Targeted tests cover lineage or subtree interaction flows",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Deepen runtime skill bridge and executable registry surfaces",
+      "description": "As a developer, I need runtime records and registry surfaces to expose executable skill and tool bridge metadata so delegated runs can be inspected accurately.",
+      "acceptanceCriteria": [
+        "Runtime or registry payloads include the skill or tool bridge metadata needed for downstream UI inspection",
+        "Existing capability snapshot behavior remains backward compatible for already completed runtime records",
+        "Targeted tests cover the new registry or bridge payload behavior",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Normalize IM message formatting through channel capability runtime",
+      "description": "As a user, I want send and test flows to format IM messages through the capability runtime so channel behavior is consistent across providers.",
+      "acceptanceCriteria": [
+        "Channel send or test flows route message formatting through a shared capability runtime path",
+        "The normalized output shape works for supported configured channel families without breaking existing guarded flows",
+        "Targeted channel tests cover the normalized message formatting path",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Deepen local API auth gates for channel runtime actions",
+      "description": "As a developer, I need stronger local API auth checks on channel runtime routes so protected channel actions cannot bypass the intended auth path.",
+      "acceptanceCriteria": [
+        "Relevant channel runtime routes enforce the intended local API auth gate consistently",
+        "Unauthorized requests fail with the expected error shape without regressing configured happy paths",
+        "Targeted backend tests cover both allowed and denied auth scenarios",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Finish deeper multi-user isolation and rate limiting in channel runtime",
+      "description": "As a user, I want channel runtime operations to stay isolated per account or user and respect consistent rate limiting under deeper runtime paths.",
+      "acceptanceCriteria": [
+        "Account or user scoping is enforced for deeper channel runtime operations beyond the already completed basic actions",
+        "Rate limiting behavior is applied consistently to the newly covered runtime paths",
+        "Targeted channel tests cover isolation and rate limiting edge cases",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add richer Costs charts and detailed drill-down panels",
+      "description": "As a user, I want the Costs page to show fuller charts and detailed drill-down panels so cost hotspots are easier to inspect.",
+      "acceptanceCriteria": [
+        "Costs page renders the next layer of charts or detailed drill-down panels using the existing costs analysis backend",
+        "The UI keeps existing job or cron analysis flows intact while exposing the richer breakdown",
+        "Targeted Costs page tests cover the new chart or drill-down states",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Compute optimization score and insight summaries for Costs",
+      "description": "As a user, I want optimization scores and actionable insights on the Costs page so I can quickly identify improvement opportunities.",
+      "acceptanceCriteria": [
+        "Costs analysis produces an optimization score and human-readable insight summary based on existing metrics",
+        "The UI surfaces the new insights without breaking current cards and tables",
+        "Targeted tests cover optimization score and insight rendering",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add anomaly, week-over-week, and cache-savings views to Costs",
+      "description": "As a user, I want anomaly detection and trend views on Costs so unusual spend and savings patterns stand out.",
+      "acceptanceCriteria": [
+        "Costs analysis surfaces anomaly indicators, week-over-week comparisons, and cache savings data",
+        "The UI renders the new trend signals using stable empty and loading states",
+        "Targeted tests cover the new analysis states",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add realtime usage stream updates to Costs",
+      "description": "As a user, I want the Costs page to update from realtime usage data so recent spend changes appear without manual refresh.",
+      "acceptanceCriteria": [
+        "Costs page listens to or polls a realtime usage stream and refreshes the relevant summaries in place",
+        "The refresh behavior avoids breaking existing manual filters or drill-down selections",
+        "Targeted tests cover the realtime update path",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Add memory health score and stale-log analysis backend",
+      "description": "As a user, I want the Memory workspace to calculate health and stale-log signals so memory quality issues are visible at a glance.",
+      "acceptanceCriteria": [
+        "Memory APIs compute a health score and stale-log analysis for the selected scope",
+        "The analysis works across the existing multi-agent memory sources without regressing edit flows",
+        "Targeted tests cover health score and stale-log calculations",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Render AI-powered analysis summaries in Memory",
+      "description": "As a user, I want Memory to show an AI-powered analysis summary so I can understand the current quality and gaps of a scope quickly.",
+      "acceptanceCriteria": [
+        "Memory UI renders the new analysis summary from backend-provided health analysis data",
+        "The page keeps existing edit, copy, download, and save flows intact",
+        "Targeted Memory page tests cover the analysis summary state",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Support extraPaths and QMD collection sources in Memory",
+      "description": "As a user, I want Memory to include extraPaths and QMD collection sources so agent knowledge outside the default folders is browseable and maintainable.",
+      "acceptanceCriteria": [
+        "Memory source discovery includes configured extraPaths and QMD collection sources for a scope",
+        "The UI surfaces the extra sources clearly without mixing them up with default memory files",
+        "Targeted tests cover source discovery and display for extraPaths or QMD entries",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Unify update route handling through a single host-owned flow",
+      "description": "As a developer, I need the update workflow to use a consistent host API path so update checks and actions behave predictably across the app.",
+      "acceptanceCriteria": [
+        "Update-related UI actions use a single host-owned route or route family consistently",
+        "The change does not regress current update status display or check flows",
+        "Targeted tests cover the unified update path behavior",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Add rollout delay and attempt-state persistence for update policy",
+      "description": "As a user, I want rollout timing and update-attempt state to persist so release checks behave consistently across restarts.",
+      "acceptanceCriteria": [
+        "Update policy supports rollout delay or jitter, beta interval, and persisted attempt state where the existing design calls for it",
+        "Stored update state survives app restarts without breaking current settings",
+        "Targeted tests cover persisted update policy behavior",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Add unified toast and dismissible feedback foundation",
+      "description": "As a user, I want feedback to use a unified toast system with dismissible persistence so status and error messaging feels consistent across the app.",
+      "acceptanceCriteria": [
+        "A shared feedback foundation is used for the newly covered UX surfaces with dismissible persistence where applicable",
+        "The work does not regress existing success or error messaging paths",
+        "Targeted UI tests cover the unified feedback behavior",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Add skeletons, motion tokens, and empty-state polish foundation",
+      "description": "As a user, I want common loading, motion, and empty states to feel consistent so unfinished screens do not look broken.",
+      "acceptanceCriteria": [
+        "Shared skeleton, motion-token, or empty-state patterns are introduced for the targeted surfaces named in the remaining UX backlog",
+        "Existing pages continue to render correctly when the new foundation is not used",
+        "Targeted tests cover at least one consumer path of the new UX foundation",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Add accessibility regression gates and engineering governance checks",
+      "description": "As a developer, I need a11y regression gates and engineering governance checks so accessibility and codebase health do not silently regress.",
+      "acceptanceCriteria": [
+        "The repository gains automated a11y regression coverage or lint or test gates for the targeted surfaces",
+        "Boundary, dead-code, or cycle detection checks are added where the backlog explicitly calls for engineering governance",
+        "The new checks are documented in the development workflow if they add runnable commands",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

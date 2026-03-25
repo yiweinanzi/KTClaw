@@ -166,7 +166,31 @@ describe('SessionRuntimeManager', () => {
       }
       if (method === 'chat.history') {
         return {
-          messages: [{ role: 'assistant', content: `persisted-${runtimeState}` }],
+          messages: [
+            {
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool_use',
+                  id: 'tool-call-1',
+                  name: 'search_docs',
+                  arguments: { query: 'runtime execution restore' },
+                },
+              ],
+            },
+            {
+              role: 'toolResult',
+              toolCallId: 'tool-call-1',
+              toolName: 'search_docs',
+              details: {
+                status: 'completed',
+                durationMs: 240,
+                aggregated: 'Found runtime execution docs\nReady for summary',
+              },
+              content: 'Found runtime execution docs\nReady for summary',
+            },
+            { role: 'assistant', content: `persisted-${runtimeState}` },
+          ],
         };
       }
       if (method === 'chat.abort') {
@@ -187,6 +211,15 @@ describe('SessionRuntimeManager', () => {
 
     expect(persistence.save).toHaveBeenCalled();
     expect(spawned.sessionKey).toContain(':subagent:');
+    expect(persistedRecords[0]?.executionRecords).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tool-call-1',
+        toolName: 'search_docs',
+        status: 'completed',
+        durationMs: 240,
+        summary: 'Found runtime execution docs / Ready for summary',
+      }),
+    ]);
 
     const manager2 = new (SessionRuntimeManager as unknown as new (...args: unknown[]) => SessionRuntimeManager)(
       { rpc: gatewayRpcMock },
@@ -201,7 +234,16 @@ describe('SessionRuntimeManager', () => {
     runtimeState = 'waiting_approval';
     const waited = await manager2.wait(spawned.id);
     expect(waited?.status).toBe('waiting_approval');
-    expect(waited?.transcript).toEqual(['persisted-waiting_approval']);
+    expect(waited?.transcript).toContain('persisted-waiting_approval');
+    expect(waited?.executionRecords).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tool-call-1',
+        toolName: 'search_docs',
+        status: 'completed',
+        durationMs: 240,
+        summary: 'Found runtime execution docs / Ready for summary',
+      }),
+    ]);
 
     const killed = await manager2.kill(spawned.id);
     expect(killed?.status).toBe('killed');

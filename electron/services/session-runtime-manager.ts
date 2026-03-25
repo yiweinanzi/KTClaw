@@ -20,6 +20,20 @@ export interface RuntimeHistoryMessage {
   isError?: boolean;
 }
 
+export type RuntimeToolExecutionStatus = 'running' | 'completed' | 'error';
+
+export interface RuntimeToolExecutionRecord {
+  id: string;
+  toolCallId?: string;
+  toolName: string;
+  status: RuntimeToolExecutionStatus;
+  summary?: string;
+  durationMs?: number;
+  input?: unknown;
+  output?: unknown;
+  details?: unknown;
+}
+
 export interface RuntimeSessionRecord {
   id: string;
   parentSessionKey: string;
@@ -40,6 +54,7 @@ export interface RuntimeSessionRecord {
   updatedAt: string;
   history: RuntimeHistoryMessage[];
   transcript: string[];
+  executionRecords: RuntimeToolExecutionRecord[];
   childRuntimeIds: string[];
   toolSnapshot: Array<{ server: string; name: string }>;
   skillSnapshot: string[];
@@ -71,6 +86,7 @@ interface RuntimeSessionSnapshot {
 interface RuntimeHistorySnapshot {
   history: RuntimeHistoryMessage[];
   transcript: string[];
+  executionRecords: RuntimeToolExecutionRecord[];
   status?: string;
   runId?: string;
   lastError?: string;
@@ -138,6 +154,7 @@ export class SessionRuntimeManager {
       updatedAt: now,
       history: [{ role: 'user', content: input.prompt }],
       transcript: [input.prompt],
+      executionRecords: [],
       childRuntimeIds: [],
       toolSnapshot: capabilitySnapshot.toolSnapshot,
       skillSnapshot: capabilitySnapshot.skillSnapshot,
@@ -339,6 +356,12 @@ export class SessionRuntimeManager {
       return null;
     }
 
+    const history = this.normalizeRuntimeHistory(row.history);
+    const executionRecords = this.normalizeExecutionRecords(row.executionRecords);
+    const derivedExecutionRecords = executionRecords.length > 0
+      ? executionRecords
+      : this.collectExecutionRecords(history);
+
     const modeRaw = this.extractFirstString(row, ['mode']);
     const mode: RuntimeSessionMode = modeRaw === 'thread' ? 'thread' : 'session';
 
@@ -365,8 +388,9 @@ export class SessionRuntimeManager {
       lastError: this.extractFirstString(row, ['lastError', 'error', 'errorMessage']),
       createdAt: this.resolveUpdatedAt([this.coerceIsoDate(row.createdAt)]),
       updatedAt: this.resolveUpdatedAt([this.coerceIsoDate(row.updatedAt), this.coerceIsoDate(row.createdAt)]),
-      history: this.normalizeRuntimeHistory(row.history),
+      history,
       transcript: this.normalizeStringArray(row.transcript),
+      executionRecords: derivedExecutionRecords,
       childRuntimeIds: this.normalizeStringArray(row.childRuntimeIds),
       toolSnapshot: this.normalizeToolSnapshot(row.toolSnapshot),
       skillSnapshot: this.normalizeStringArray(row.skillSnapshot),
@@ -441,6 +465,209 @@ export class SessionRuntimeManager {
     };
   }
 
+  private normalizeExecutionRecords(value: unknown): RuntimeToolExecutionRecord[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .map((item) => this.normalizeExecutionRecord(item))
+      .filter((item): item is RuntimeToolExecutionRecord => item != null);
+  }
+
+  private normalizeExecutionRecord(value: unknown): RuntimeToolExecutionRecord | null {
+    if (typeof value !== 'object' || value == null) {
+      return null;
+    }
+
+    const row = value as Record<string, unknown>;
+    const toolCallId = this.extractFirstString(row, ['toolCallId', 'tool_call_id']);
+    const toolName = this.extractFirstString(row, ['toolName', 'tool_name', 'name']) ?? toolCallId ?? 'tool';
+    const id = this.extractFirstString(row, ['id']) ?? toolCallId ?? toolName;
+    if (!id) {
+      return null;
+    }
+
+    return {
+      id,
+      toolCallId,
+      toolName,
+      status: this.mapToolExecutionStatus(row.status, 'completed'),
+      summary: this.extractFirstString(row, ['summary']),
+      durationMs: this.parseDurationMs(row.durationMs ?? row.duration),
+      input: row.input ?? row.arguments,
+      output: row.output ?? row.content ?? row.result,
+      details: row.details,
+    };
+  }
+
+  private collectExecutionRecords(history: RuntimeHistoryMessage[]): RuntimeToolExecutionRecord[] {
+    const records = new Map<string, RuntimeToolExecutionRecord>();
+    for (const message of history) {
+      for (const update of this.collectExecutionUpdates(message, records.size)) {
+        this.upsertExecutionRecord(records, update);
+      }
+    }
+    return [...records.values()];
+  }
+
+  private collectExecutionUpdates(
+    message: RuntimeHistoryMessage,
+    seed: number,
+  ): RuntimeToolExecutionRecord[] {
+    const updates: RuntimeToolExecutionRecord[] = [];
+    const role = message.role.trim().toLowerCase();
+
+    if (Array.isArray(message.content)) {
+      let offset = seed;
+      for (const item of message.content) {
+        if (typeof item !== 'object' || item == null) {
+          continue;
+        }
+        const block = item as Record<string, unknown>;
+        const blockType = this.extractFirstString(block, ['type'])?.trim().toLowerCase();
+        if (blockType === 'tool_use' || blockType === 'toolcall') {
+          const toolCallId = this.extractFirstString(block, ['id']);
+          const toolName = this.extractFirstString(block, ['name']) ?? toolCallId ?? 'tool';
+          updates.push({
+            id: toolCallId ?? `${toolName}:${offset}`,
+            toolCallId,
+            toolName,
+            status: 'running',
+            input: block.input ?? block.arguments,
+          });
+          offset += 1;
+          continue;
+        }
+        if (blockType === 'tool_result' || blockType === 'toolresult') {
+          const toolCallId = this.extractFirstString(block, ['id']);
+          const toolName = this.extractFirstString(block, ['name']) ?? toolCallId ?? 'tool';
+          const output = block.content ?? block.text;
+          const summary = this.summarizeToolOutput(this.extractText(output) ?? '');
+          updates.push({
+            id: toolCallId ?? `${toolName}:${offset}`,
+            toolCallId,
+            toolName,
+            status: 'completed',
+            output,
+            ...(summary ? { summary } : {}),
+          });
+          offset += 1;
+        }
+      }
+    }
+
+    if (role === 'toolresult' || role === 'tool_result') {
+      const details = message.details && typeof message.details === 'object'
+        ? message.details as Record<string, unknown>
+        : undefined;
+      const toolCallId = message.toolCallId;
+      const toolName = message.toolName
+        ?? this.extractFirstString(details, ['toolName', 'tool_name'])
+        ?? toolCallId
+        ?? 'tool';
+      const output = details?.content ?? details?.aggregated ?? message.content;
+      const summary = this.summarizeToolOutput(this.extractText(output) ?? String(details?.error ?? ''));
+      updates.push({
+        id: toolCallId ?? message.id ?? `${toolName}:${seed + updates.length}`,
+        toolCallId,
+        toolName,
+        status: this.mapToolExecutionStatus(details?.status, message.isError ? 'error' : 'completed'),
+        ...(summary ? { summary } : {}),
+        ...(this.parseDurationMs(details?.durationMs ?? details?.duration) !== undefined
+          ? { durationMs: this.parseDurationMs(details?.durationMs ?? details?.duration) }
+          : {}),
+        output,
+        details: message.details,
+      });
+    }
+
+    return updates;
+  }
+
+  private upsertExecutionRecord(
+    records: Map<string, RuntimeToolExecutionRecord>,
+    update: RuntimeToolExecutionRecord,
+  ): void {
+    const key = update.toolCallId ?? update.id;
+    const existing = records.get(key);
+    if (!existing) {
+      records.set(key, update);
+      return;
+    }
+
+    records.set(key, {
+      ...existing,
+      ...update,
+      toolName: update.toolName || existing.toolName,
+      status: this.mergeToolExecutionStatus(existing.status, update.status),
+      summary: update.summary ?? existing.summary,
+      durationMs: update.durationMs ?? existing.durationMs,
+      input: update.input ?? existing.input,
+      output: update.output ?? existing.output,
+      details: update.details ?? existing.details,
+    });
+  }
+
+  private mergeToolExecutionStatus(
+    existing: RuntimeToolExecutionStatus,
+    incoming: RuntimeToolExecutionStatus,
+  ): RuntimeToolExecutionStatus {
+    const order: Record<RuntimeToolExecutionStatus, number> = {
+      running: 0,
+      completed: 1,
+      error: 2,
+    };
+    return order[incoming] >= order[existing] ? incoming : existing;
+  }
+
+  private mapToolExecutionStatus(
+    rawStatus: unknown,
+    fallback: RuntimeToolExecutionStatus,
+  ): RuntimeToolExecutionStatus {
+    const normalized = typeof rawStatus === 'string'
+      ? rawStatus.trim().toLowerCase().replace(/[\s-]+/g, '_')
+      : '';
+    if (!normalized) {
+      return fallback;
+    }
+    if (normalized === 'error' || normalized === 'failed' || normalized === 'failure') {
+      return 'error';
+    }
+    if (normalized === 'completed' || normalized === 'success' || normalized === 'done') {
+      return 'completed';
+    }
+    return 'running';
+  }
+
+  private parseDurationMs(value: unknown): number | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim().length > 0) {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return undefined;
+  }
+
+  private summarizeToolOutput(text: string): string | undefined {
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const lines = trimmed
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) {
+      return undefined;
+    }
+    const summary = lines.slice(0, 2).join(' / ');
+    return summary.length > 160 ? `${summary.slice(0, 157)}...` : summary;
+  }
+
   private async persistSessions(): Promise<void> {
     if (!this.persistence) {
       return;
@@ -484,6 +711,7 @@ export class SessionRuntimeManager {
       attachments: [...record.attachments],
       history: record.history.map((message) => ({ ...message })),
       transcript: [...record.transcript],
+      executionRecords: record.executionRecords.map((execution) => ({ ...execution })),
       childRuntimeIds: [...record.childRuntimeIds],
       toolSnapshot: record.toolSnapshot.map((tool) => ({ ...tool })),
       skillSnapshot: [...record.skillSnapshot],
@@ -568,6 +796,7 @@ export class SessionRuntimeManager {
         ?? existing.lastError,
       history: history.history.length > 0 ? history.history : existing.history,
       transcript: history.transcript.length > 0 ? history.transcript : options.fallbackTranscript,
+      executionRecords: history.executionRecords.length > 0 ? history.executionRecords : existing.executionRecords,
       updatedAt: this.resolveUpdatedAt([
         sessionSnapshot?.updatedAt,
         history.updatedAt,
@@ -618,6 +847,7 @@ export class SessionRuntimeManager {
       transcript: messageItems
         .map((message) => this.extractTranscriptLine(message))
         .filter((line): line is string => Boolean(line)),
+      executionRecords: this.collectExecutionRecords(history),
       status: this.extractFirstString(payload, ['status', 'state']),
       runId: this.extractFirstString(payload, ['runId', 'run_id']),
       lastError: this.extractFirstString(payload, ['lastError', 'error', 'errorMessage']),
