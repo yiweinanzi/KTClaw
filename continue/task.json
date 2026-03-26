@@ -3,7 +3,7 @@
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "execution",
   "current_focus": "PLAN-2026-03-24-PLATFORM-CLOSURE",
-  "last_updated": "2026-03-27T01:45:00+08:00",
+  "last_updated": "2026-03-27T02:12:00+08:00",
   "tasks": [
     {
       "id": "SESSION-8-001",
@@ -563,6 +563,13 @@
       "title": "Finish current i18n closure sweep for Sidebar, TaskKanban, and Cron",
       "type": "feature",
       "status": "done",
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-37-001",
+      "title": "Deepen Kanban latest/selected runtime retry flow and add rooted runtime tree route",
+      "type": "feature",
+      "status": "in_progress",
       "priority": "P0"
     }
   ]

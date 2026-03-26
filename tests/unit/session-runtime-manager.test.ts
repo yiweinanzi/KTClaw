@@ -369,4 +369,64 @@ describe('SessionRuntimeManager', () => {
       }),
     ]);
   });
+
+  it('returns a rooted runtime tree with descendants in creation order', async () => {
+    const historyBySessionKey = new Map<string, string[]>();
+    const gatewayRpcMock = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'chat.send') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        const message = String(params?.message ?? '');
+        historyBySessionKey.set(sessionKey, [message]);
+        return { runId: `run-${sessionKey.split(':').at(-1)}` };
+      }
+      if (method === 'sessions.list') {
+        return {
+          sessions: [...historyBySessionKey.keys()].map((sessionKey) => ({
+            sessionKey,
+            status: 'running',
+          })),
+        };
+      }
+      if (method === 'chat.history') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        return {
+          messages: (historyBySessionKey.get(sessionKey) ?? []).map((content) => ({
+            role: 'assistant',
+            content,
+          })),
+        };
+      }
+      throw new Error(`Unexpected gateway RPC: ${method}`);
+    });
+
+    const manager = new SessionRuntimeManager({ rpc: gatewayRpcMock } as never);
+    const root = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      prompt: 'Root task',
+    });
+    const childA = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      parentRuntimeId: root.id,
+      prompt: 'Child task A',
+    });
+    const childB = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      parentRuntimeId: root.id,
+      prompt: 'Child task B',
+    });
+    const grandchild = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      parentRuntimeId: childA.id,
+      prompt: 'Grandchild task',
+    });
+
+    const tree = await manager.getTree(root.id);
+
+    expect(tree?.root.id).toBe(root.id);
+    expect(tree?.descendants.map((record) => record.id)).toEqual([
+      childA.id,
+      childB.id,
+      grandchild.id,
+    ]);
+  });
 });

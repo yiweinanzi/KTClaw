@@ -693,7 +693,10 @@ export function TaskKanban() {
     };
   }, [tickets, fetchApprovals]);
 
-  const startRuntimeWork = async (ticket: KanbanTicket) => {
+  const startRuntimeWork = async (
+    ticket: KanbanTicket,
+    retryOrigin?: { runtimeSessionId?: string; runtimeSessionKey?: string },
+  ) => {
     updateTicket(ticket.id, {
       status: 'in-progress',
       workState: 'starting',
@@ -719,8 +722,8 @@ export function TaskKanban() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parentSessionKey: ticket.runtimeSessionKey ?? assigneeSessionKey,
-          ...(ticket.runtimeSessionId ? { parentRuntimeId: ticket.runtimeSessionId } : {}),
+          parentSessionKey: retryOrigin?.runtimeSessionKey ?? ticket.runtimeSessionKey ?? assigneeSessionKey,
+          ...((retryOrigin?.runtimeSessionId ?? ticket.runtimeSessionId) ? { parentRuntimeId: retryOrigin?.runtimeSessionId ?? ticket.runtimeSessionId } : {}),
           agentName: ticket.assigneeRole ?? ticket.assigneeId,
           prompt: [ticket.title, ticket.description].filter(Boolean).join('\n\n'),
           mode: 'session',
@@ -954,7 +957,7 @@ export function TaskKanban() {
           onClose={() => setDetailTicket(null)}
           onUpdate={(updates) => updateTicket(detailTicket.id, updates)}
           onDelete={() => deleteTicket(detailTicket.id)}
-          onStartRuntime={() => void startRuntimeWork(detailTicket)}
+          onStartRuntime={(retryOrigin) => void startRuntimeWork(detailTicket, retryOrigin)}
           onSteerRuntime={(input) => void steerRuntimeWork(detailTicket, input)}
           onStopRuntime={() => void stopRuntimeWork(detailTicket)}
           onApproveApproval={(id, reason) => void approveItem(id, reason)}
@@ -1192,7 +1195,7 @@ function DetailPanel({
   onClose: () => void;
   onUpdate: (updates: Partial<KanbanTicket>) => void;
   onDelete: () => void;
-  onStartRuntime: () => void;
+  onStartRuntime: (retryOrigin?: { runtimeSessionId?: string; runtimeSessionKey?: string }) => void;
   onSteerRuntime: (input: string) => void;
   onStopRuntime: () => void;
   onApproveApproval: (id: string, reason?: string) => void;
@@ -1652,7 +1655,14 @@ function DetailPanel({
                   </button>
                   <button
                     type="button"
-                    onClick={onStartRuntime}
+                    onClick={() => onStartRuntime(
+                      selectedRuntimeSessionId && selectedRuntimeSessionId !== ticket.runtimeSessionId
+                        ? {
+                          runtimeSessionId: currentRuntimeView?.id,
+                          runtimeSessionKey: currentRuntimeView?.sessionKey,
+                        }
+                        : undefined,
+                    )}
                     className="rounded-lg border border-black/10 px-3 py-2 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
                   >
                     {t('kanban.runtime.retry')}

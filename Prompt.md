@@ -110,9 +110,12 @@ tail -30 continue/progress.txt
   - Session 34：Channels `/send` 在 Feishu 会话场景下优先进入绑定 runtime `chat.send`；Channels 页面移除本地伪 agent reply，改为以服务端 transcript 为准，并在 `gateway:notification` 到来时即时刷新当前会话
   - Session 35：Feishu workbench read/send 对齐真实 per-chat runtime session key；发送后补充多段 history refresh 轮询，发送失败时恢复输入框草稿
   - Session 36：收口当前重点 i18n 剩余项，Sidebar / TaskKanban / Cron 的历史硬编码用户文案迁回 locale，并补齐对应回归验证
+  - Session 37：Kanban detail 现在支持从当前选中的 child run 发起 retry；runtime backend 新增 rooted tree 读取能力（`SessionRuntimeManager.getTree()` + `/api/sessions/subagents/:id/tree`），为后续 subagent tree orchestration 可见层打基础
 - 因此下面旧清单里，涉及上述能力的"剩余"描述请以本段为准，不要重复实现已完成部分。
 - 当前真正还缺的重点：
-  - 当前 4-16 的非禁用 / 非延期业务项已完成收口
+  - `Kanban` 剩余仍是更完整的 runtime tree / latest-vs-selected run / subtree 状态与操作闭环
+  - `Multi-agent runtime / tool registry` 剩余仍是更完整的 subagent tree orchestration、registry 级交互与 skills->runtime bridge
+  - `通用 UX 收尾` 剩余仍是 empty-state illustration 与 mobile chat adaptation
   - `Docs / Help` 继续保持停用，除非用户再次明确要求恢复
 
 

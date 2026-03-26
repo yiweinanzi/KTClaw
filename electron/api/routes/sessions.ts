@@ -70,6 +70,23 @@ export async function handleSessionRoutes(
     return true;
   }
 
+  const runtimeTreeMatch = url.pathname.match(/^\/api\/sessions\/subagents\/([^/]+)\/tree$/);
+  if (runtimeTreeMatch && req.method === 'GET') {
+    try {
+      const [, encodedId] = runtimeTreeMatch;
+      const id = decodeURIComponent(encodedId);
+      const tree = await ctx.sessionRuntimeManager.getTree(id);
+      if (!tree) {
+        sendJson(res, 404, { success: false, error: 'Runtime session not found' });
+        return true;
+      }
+      sendJson(res, 200, { success: true, tree });
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
   const runtimeActionMatch = url.pathname.match(/^\/api\/sessions\/subagents\/([^/]+)\/(kill|steer|wait)$/);
   if (runtimeActionMatch && req.method === 'POST') {
     try {

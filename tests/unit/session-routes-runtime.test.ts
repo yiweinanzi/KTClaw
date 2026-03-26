@@ -320,4 +320,67 @@ describe('session runtime routes', () => {
       }),
     });
   });
+
+  it('returns a rooted runtime tree from the tree route', async () => {
+    const { SessionRuntimeManager } = await import('@electron/services/session-runtime-manager');
+    const { handleSessionRoutes } = await import('@electron/api/routes/sessions');
+
+    const historyBySessionKey = new Map<string, string[]>();
+    const gatewayRpcMock = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'chat.send') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        const message = String(params?.message ?? '');
+        historyBySessionKey.set(sessionKey, [message]);
+        return { runId: `run-${sessionKey.split(':').at(-1)}` };
+      }
+      if (method === 'sessions.list') {
+        return {
+          sessions: [...historyBySessionKey.keys()].map((sessionKey) => ({
+            sessionKey,
+            status: 'running',
+          })),
+        };
+      }
+      if (method === 'chat.history') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        return {
+          messages: (historyBySessionKey.get(sessionKey) ?? []).map((content) => ({
+            role: 'assistant',
+            content,
+          })),
+        };
+      }
+      throw new Error(`Unexpected gateway RPC: ${method}`);
+    });
+
+    const manager = new SessionRuntimeManager({ rpc: gatewayRpcMock } as never);
+    const root = await manager.spawn({
+      parentSessionKey: 'agent:main:main',
+      prompt: 'Initial root work',
+    });
+    const child = await manager.spawn({
+      parentSessionKey: 'agent:main:main',
+      parentRuntimeId: root.id,
+      prompt: 'Retry as child work',
+    });
+    const ctx = { sessionRuntimeManager: manager } as never;
+
+    const handled = await handleSessionRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL(`http://127.0.0.1:3210/api/sessions/subagents/${root.id}/tree`),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, {
+      success: true,
+      tree: {
+        root: expect.objectContaining({ id: root.id }),
+        descendants: [
+          expect.objectContaining({ id: child.id, parentRuntimeId: root.id }),
+        ],
+      },
+    });
+  });
 });

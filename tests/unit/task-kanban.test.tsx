@@ -833,6 +833,105 @@ describe('TaskKanban', () => {
       expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-child-1');
     });
     expect((await screen.findAllByText('Child run output')).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /back to latest run/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /back to latest run/i }));
+    expect(await screen.findByText('Parent run summary')).toBeInTheDocument();
+  });
+
+  it('retries work from the selected child runtime instead of the ticket root runtime', async () => {
+    agentsStoreState.agents = [{ id: 'planner-1', name: 'Planner' }];
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-retry-selected-child',
+        title: 'Retry from selected child',
+        description: 'Pick the child branch before retrying',
+        status: 'review',
+        priority: 'medium',
+        assigneeId: 'planner-1',
+        workState: 'done',
+        runtimeSessionId: 'runtime-parent',
+        runtimeSessionKey: 'agent:planner-1:main:subagent:runtime-parent',
+        runtimeChildSessionIds: ['runtime-child-1'],
+        runtimeTranscript: ['Parent output'],
+        createdAt: '2026-03-25T00:00:00.000Z',
+        updatedAt: '2026-03-25T00:00:00.000Z',
+      },
+    ]));
+
+    let spawnBody: Record<string, unknown> | null = null;
+    hostApiFetchMock.mockImplementation(async (path: string, init?: { body?: string }) => {
+      if (path === '/api/sessions/subagents') {
+        return {
+          success: true,
+          sessions: [
+            {
+              id: 'runtime-parent',
+              sessionKey: 'agent:planner-1:main:subagent:runtime-parent',
+              status: 'completed',
+              transcript: ['Parent output'],
+              childRuntimeIds: ['runtime-child-1'],
+            },
+            {
+              id: 'runtime-child-1',
+              sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+              status: 'completed',
+              transcript: ['Child branch output'],
+            },
+          ],
+        };
+      }
+      if (path === '/api/sessions/subagents/runtime-child-1') {
+        return {
+          success: true,
+          session: {
+            id: 'runtime-child-1',
+            parentRuntimeId: 'runtime-parent',
+            sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+            status: 'completed',
+            transcript: ['Child branch output'],
+          },
+        };
+      }
+      if (path === '/api/sessions/spawn') {
+        spawnBody = init?.body ? JSON.parse(String(init.body)) : null;
+        return {
+          success: true,
+          session: {
+            id: 'runtime-child-retry',
+            parentRuntimeId: 'runtime-child-1',
+            rootRuntimeId: 'runtime-parent',
+            depth: 2,
+            sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1:subagent:runtime-child-retry',
+            parentSessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+            transcript: ['Retry branch output'],
+            status: 'running',
+          },
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+    fireEvent.click(screen.getByText('Retry from selected child'));
+    fireEvent.click(await screen.findByRole('button', { name: /runtime-child-1/i }));
+
+    await waitFor(() => {
+      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-child-1');
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: retryWorkButtonName }));
+    });
+
+    expect(spawnBody).toEqual(expect.objectContaining({
+      parentRuntimeId: 'runtime-child-1',
+      parentSessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+    }));
+    expect(readStoredTicket('ticket-retry-selected-child')).toEqual(expect.objectContaining({
+      runtimeSessionId: 'runtime-child-retry',
+      runtimeParentSessionId: 'runtime-child-1',
+      runtimeRootSessionId: 'runtime-parent',
+    }));
   });
 
   it('renders execution records for the selected runtime detail', async () => {

@@ -2607,3 +2607,29 @@ Focus: PLAN-2026-03-24-PLATFORM-CLOSURE
 ### Notes
 - Current active i18n remainder called out in `Prompt.md` (Cron / TaskKanban / Sidebar) is now complete
 - `Docs / Help` remains intentionally disabled per persistent directive
+
+---
+
+[2026-03-27 02:12 +08:00] Session 37: Kanban / Runtime Tree Groundwork
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE
+
+### Completed
+1. `src/pages/TaskKanban/index.tsx`
+   - retry now respects the currently selected child runtime in the detail panel instead of always retrying from the ticket root runtime
+   - `Back to latest run` flow remains available after drilling into a child runtime
+
+2. runtime tree groundwork
+   - `electron/services/session-runtime-manager.ts` now exposes `getTree()` for a rooted runtime tree snapshot
+   - `electron/api/routes/sessions.ts` now exposes `GET /api/sessions/subagents/:id/tree`
+
+3. regression coverage
+   - `tests/unit/task-kanban.test.tsx` now covers retrying from a selected child runtime
+   - `tests/unit/session-runtime-manager.test.ts` now covers rooted runtime tree reads
+   - `tests/unit/session-routes-runtime.test.ts` now covers the tree route
+
+### Verification
+- `pnpm test -- --run tests/unit/task-kanban.test.tsx tests/unit/session-runtime-manager.test.ts tests/unit/session-routes-runtime.test.ts` -> pass
+
+### Remaining
+- Kanban still needs stronger latest/current/parent subtree summary UI, not just the retry fix
+- Runtime/tool registry still needs richer tree/registry visibility on the frontend, beyond the new tree route

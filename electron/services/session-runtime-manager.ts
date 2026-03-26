@@ -100,6 +100,11 @@ interface RuntimeCapabilityProvider {
   listEnabledSkills?: () => Promise<string[]> | string[];
 }
 
+export interface RuntimeSessionTree {
+  root: RuntimeSessionRecord;
+  descendants: RuntimeSessionRecord[];
+}
+
 export interface RuntimeSessionPersistence {
   load: () => Promise<RuntimeSessionRecord[]>;
   save: (records: RuntimeSessionRecord[]) => Promise<void>;
@@ -266,6 +271,28 @@ export class SessionRuntimeManager {
       fallbackRunId: existing.runId,
       fallbackLastError: existing.lastError,
     });
+  }
+
+  async getTree(id: string): Promise<RuntimeSessionTree | null> {
+    await this.ensureHydrated();
+    const root = await this.get(id);
+    if (!root) return null;
+
+    const descendants: RuntimeSessionRecord[] = [];
+    const queue = [...root.childRuntimeIds];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const childId = queue.shift();
+      if (!childId || visited.has(childId)) continue;
+      visited.add(childId);
+      const child = await this.get(childId);
+      if (!child) continue;
+      descendants.push(child);
+      queue.push(...child.childRuntimeIds);
+    }
+
+    return { root, descendants };
   }
 
   private resolveOptions(
