@@ -106,6 +106,8 @@ tail -30 continue/progress.txt
   - Session 32：Memory `/api/memory` 已接入 `memory.qmd.paths`，QMD collection files 作为只读 `qmd/<collection>/...` sources 暴露到 Memory browser
   - Session 33：Costs dashboard 新增 `/api/costs/by-model` 消费与 `Model Costs` 明细表，“更完整图表与明细层”进一步收口
   - Session 33：locale parity 目前已恢复到全量测试通过；`pnpm test` 再次全绿
+  - Session 34：新增 Feishu conversation binding store，`/api/channels/workbench/messages` 改为对已绑定/已发现会话优先读取 runtime `chat.history`，并为未知 synthetic Feishu 会话返回 neutral payload，避免 sidebar 与 Channels transcript 分叉
+  - Session 34：Channels `/send` 在 Feishu 会话场景下优先进入绑定 runtime `chat.send`；Channels 页面移除本地伪 agent reply，改为以服务端 transcript 为准，并在 `gateway:notification` 到来时即时刷新当前会话
 - 因此下面旧清单里，涉及上述能力的"剩余"描述请以本段为准，不要重复实现已完成部分。
 - 当前真正还缺的重点：
   - 大范围 i18n 收口仍按用户要求延后，不作为当前业务闭环阻塞项
@@ -237,6 +239,7 @@ tail -30 continue/progress.txt
 - 已完成：Feishu onboarding 单一向导闭环（官方创建页二维码入口、应用内凭证保存、app-scope recheck、用户授权二维码）
 - 已完成：本地 API auth gate 深化
 - 已完成：多用户隔离与 rate limiting
+- 已完成：Feishu Channels workbench conversation/session binding，消息读取与发送统一接到 runtime session，桌面发言与飞书来信不再走两套 transcript
 
 #### 11. Agent detail page
 

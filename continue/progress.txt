@@ -2505,3 +2505,40 @@ Focus: PLAN-2026-03-24-PLATFORM-CLOSURE
 - 大范围 i18n 收口仍按用户要求延后
 - `Docs / Help` 继续保持停用
 - 若后续继续深挖，主要剩增强型事项：更深的 runtime / registry 交互语义，以及把 Wave 5 的共享 UX 基础层继续推广到更多页面
+---
+
+[2026-03-27 00:46 +08:00] Session 34: Feishu Runtime Unification
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE
+
+### Completed
+1. `electron/services/channel-conversation-bindings.ts`
+   - added a backend-owned JSON store for `channelType/accountId/externalConversationId -> agentId/sessionKey`
+   - hardened malformed binding-file handling and covered destructive delete paths
+
+2. `electron/api/routes/channels.ts`
+   - `GET /api/channels/workbench/messages` now prefers bound/discovered Feishu runtime transcripts via `chat.history`
+   - discovered-but-unbound Feishu conversations create bindings on read and fall back to snapshot readability if runtime history is unavailable
+   - synthetic unknown Feishu conversation ids now return a neutral payload instead of fabricating fallback sessions
+   - `POST /api/channels/:id/send` now routes bound Feishu conversations through runtime `chat.send`, with direct Feishu transport left as fallback only
+
+3. `src/pages/Channels/index.tsx`
+   - removed the local fake agent reply append after send
+   - conversation pane now replaces its transcript with the server response instead of preserving stale local messages
+   - subscribed to `gateway:notification` so the selected Channels conversation refreshes immediately alongside sidebar/runtime updates
+
+4. regression coverage
+   - `tests/unit/channel-conversation-bindings.test.ts`
+   - `tests/unit/channel-sync-routes.test.ts`
+   - `tests/unit/channels-page.test.tsx`
+
+### Verification
+- `pnpm test -- --run tests/unit/channel-conversation-bindings.test.ts` -> pass
+- `pnpm test -- --run tests/unit/channel-sync-routes.test.ts` -> pass
+- `pnpm test -- --run tests/unit/channels-page.test.tsx` -> pass
+- `pnpm run typecheck` -> pass
+- `pnpm run lint` -> pass
+- `pnpm run build:vite` -> pass
+
+### Notes
+- README / README.zh-CN reviewed; no mandatory wording changes were needed for this bugfix
+- Existing unrelated worktree changes in `src/components/layout/Sidebar.tsx`, `src/components/workbench/accordion-group.tsx`, and `tests/unit/workbench-sidebar.test.tsx` were left untouched

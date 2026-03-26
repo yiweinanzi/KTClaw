@@ -34,7 +34,10 @@ function loadBindings(filePath: string): ChannelConversationBindingRecord[] {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`Failed to parse channel conversation bindings at ${filePath}: ${String(error)}`);
+    throw new Error(
+      `Failed to parse channel conversation bindings at ${filePath}: ${String(error)}`,
+      { cause: error },
+    );
   }
 
   if (Array.isArray((parsed as { bindings?: unknown })?.bindings)) {
