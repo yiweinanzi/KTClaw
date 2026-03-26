@@ -42,6 +42,27 @@ describe('host-events', () => {
     expect(offMock).toHaveBeenCalledWith('gateway:status-changed', expect.any(Function));
   });
 
+  it('maps update status host events onto the existing renderer channel bridge', async () => {
+    const onMock = vi.mocked(window.electron.ipcRenderer.on);
+    const offMock = vi.mocked(window.electron.ipcRenderer.off);
+    const captured: Array<(...args: unknown[]) => void> = [];
+    onMock.mockImplementation((_, cb: (...args: unknown[]) => void) => {
+      captured.push(cb);
+      return () => {};
+    });
+
+    const { subscribeHostEvent } = await import('@/lib/host-events');
+    const handler = vi.fn();
+    const unsubscribe = subscribeHostEvent('update:status', handler);
+
+    expect(onMock).toHaveBeenCalledWith('update:status-changed', expect.any(Function));
+    captured[0]({ status: 'available' });
+    expect(handler).toHaveBeenCalledWith({ status: 'available' });
+
+    unsubscribe();
+    expect(offMock).toHaveBeenCalledWith('update:status-changed', expect.any(Function));
+  });
+
   it('does not use SSE fallback by default for unknown events', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const { subscribeHostEvent } = await import('@/lib/host-events');

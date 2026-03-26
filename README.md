@@ -324,11 +324,13 @@ pnpm dev                  # Start with hot reload
 
 # Quality
 pnpm run lint             # Run ESLint checks
+pnpm run lint:a11y        # Run focused accessibility lint gates
 pnpm run lint:fix         # Run ESLint with auto-fix
 pnpm typecheck            # TypeScript validation
 
 # Testing
 pnpm test                 # Run unit tests
+pnpm run test:a11y        # Run focused accessibility regression tests
 pnpm run test:e2e         # Run Playwright E2E tests
 pnpm run test:e2e:headed  # Run Playwright E2E tests in headed mode
 pnpm run smoke:linux      # Linux release + install smoke (non-destructive)
@@ -346,6 +348,7 @@ pnpm package:linux        # Package for Linux
 pnpm package:mac:ci       # CI package for macOS (no publish)
 pnpm package:win:ci       # CI package for Windows (no publish)
 pnpm package:linux:ci     # CI package for Linux (no publish)
+pnpm run governance:check # Run knip + dependency-cruiser governance checks
 ```
 
 ### Communication Regression Checks
@@ -358,6 +361,46 @@ pnpm run comms:compare
 ```
 
 `comms-regression` in CI enforces required scenarios and threshold checks.
+
+### Accessibility & Governance Gates
+
+When a change touches shared UI, renderer accessibility, or module boundaries, run the focused gates before pushing:
+
+```bash
+pnpm run lint:a11y
+pnpm run test:a11y
+pnpm run governance:check
+```
+
+`lint:a11y` currently covers the Activity, Cron, Settings, and Workbench empty-state surfaces. `test:a11y` runs the matching `vitest-axe` regressions, and `governance:check` combines `knip` with `dependency-cruiser` boundary checks.
+
+### Codex Ralph Loop
+
+For long-running autonomous iteration with Codex, the repository now includes a Ralph-compatible loop under `scripts/ralph/`.
+
+Required files:
+
+- `scripts/ralph/ralph-codex.mjs`
+- `scripts/ralph/ralph-codex.sh`
+- `scripts/ralph/ralph-codex.ps1`
+- `scripts/ralph/CODEX.md`
+- `scripts/ralph/prd.json.example`
+- repository-root `prd.json`
+
+Example commands:
+
+```bash
+pnpm run ralph:codex -- 999
+bash ./scripts/ralph/ralph-codex.sh 999
+bash ./scripts/ralph/ralph-codex.sh --forever
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\ralph\ralph-codex.ps1 999
+```
+
+The loop calls `codex exec --dangerously-bypass-approvals-and-sandbox` internally and stops early once the agent emits `<promise>COMPLETE</promise>`.
+
 ### Tech Stack
 
 | Layer | Technology |

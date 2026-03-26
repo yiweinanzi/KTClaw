@@ -166,7 +166,31 @@ describe('SessionRuntimeManager', () => {
       }
       if (method === 'chat.history') {
         return {
-          messages: [{ role: 'assistant', content: `persisted-${runtimeState}` }],
+          messages: [
+            {
+              role: 'assistant',
+              content: [
+                {
+                  type: 'tool_use',
+                  id: 'tool-call-1',
+                  name: 'search_docs',
+                  arguments: { query: 'runtime execution restore' },
+                },
+              ],
+            },
+            {
+              role: 'toolResult',
+              toolCallId: 'tool-call-1',
+              toolName: 'search_docs',
+              details: {
+                status: 'completed',
+                durationMs: 240,
+                aggregated: 'Found runtime execution docs\nReady for summary',
+              },
+              content: 'Found runtime execution docs\nReady for summary',
+            },
+            { role: 'assistant', content: `persisted-${runtimeState}` },
+          ],
         };
       }
       if (method === 'chat.abort') {
@@ -187,6 +211,15 @@ describe('SessionRuntimeManager', () => {
 
     expect(persistence.save).toHaveBeenCalled();
     expect(spawned.sessionKey).toContain(':subagent:');
+    expect(persistedRecords[0]?.executionRecords).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tool-call-1',
+        toolName: 'search_docs',
+        status: 'completed',
+        durationMs: 240,
+        summary: 'Found runtime execution docs / Ready for summary',
+      }),
+    ]);
 
     const manager2 = new (SessionRuntimeManager as unknown as new (...args: unknown[]) => SessionRuntimeManager)(
       { rpc: gatewayRpcMock },
@@ -201,7 +234,16 @@ describe('SessionRuntimeManager', () => {
     runtimeState = 'waiting_approval';
     const waited = await manager2.wait(spawned.id);
     expect(waited?.status).toBe('waiting_approval');
-    expect(waited?.transcript).toEqual(['persisted-waiting_approval']);
+    expect(waited?.transcript).toContain('persisted-waiting_approval');
+    expect(waited?.executionRecords).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tool-call-1',
+        toolName: 'search_docs',
+        status: 'completed',
+        durationMs: 240,
+        summary: 'Found runtime execution docs / Ready for summary',
+      }),
+    ]);
 
     const killed = await manager2.kill(spawned.id);
     expect(killed?.status).toBe('killed');
@@ -266,5 +308,65 @@ describe('SessionRuntimeManager', () => {
       depth: 1,
       parentSessionKey: root.sessionKey,
     }));
+  });
+
+  it('links a parent skill execution record to the spawned child runtime', async () => {
+    const historyBySessionKey = new Map<string, unknown[]>();
+    const gatewayRpcMock = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'chat.send') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        const message = String(params?.message ?? '');
+        if (message === 'Root task') {
+          historyBySessionKey.set(sessionKey, [
+            {
+              role: 'assistant',
+              content: [
+                { type: 'tool_use', id: 'tool-skill-1', name: 'skill:planner-review', input: { prompt: 'Review the plan' } },
+                { type: 'tool_result', id: 'tool-skill-1', name: 'skill:planner-review', content: 'Delegated planner review.' },
+              ],
+            },
+          ]);
+        } else {
+          historyBySessionKey.set(sessionKey, [{ role: 'assistant', content: message }]);
+        }
+        return { runId: `run-${sessionKey.split(':').at(-1)}` };
+      }
+      if (method === 'sessions.list') {
+        return {
+          sessions: [...historyBySessionKey.keys()].map((sessionKey) => ({
+            sessionKey,
+            status: 'running',
+          })),
+        };
+      }
+      if (method === 'chat.history') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        return {
+          messages: historyBySessionKey.get(sessionKey) ?? [],
+        };
+      }
+      throw new Error(`Unexpected gateway RPC: ${method}`);
+    });
+
+    const manager = new SessionRuntimeManager({ rpc: gatewayRpcMock } as never);
+    const root = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      prompt: 'Root task',
+    });
+    const child = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      parentRuntimeId: root.id,
+      prompt: 'Child task',
+    });
+
+    const listed = await manager.list();
+    const linkedRoot = listed.find((record) => record.id === root.id);
+
+    expect(linkedRoot?.executionRecords).toEqual([
+      expect.objectContaining({
+        toolName: 'skill:planner-review',
+        linkedRuntimeId: child.id,
+      }),
+    ]);
   });
 });

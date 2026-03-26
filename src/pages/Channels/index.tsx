@@ -1,51 +1,77 @@
-/**
- * Channels Page — Frame 04
- * IM 频道配置与状态管理
- */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { hostApiFetch } from '@/lib/host-api';
 import { useChannelsStore } from '@/stores/channels';
 import { useSettingsStore } from '@/stores/settings';
 import { FeishuOnboardingWizard } from '@/components/channels/FeishuOnboardingWizard';
-import { hostApiFetch } from '@/lib/host-api';
 import {
   CHANNEL_ICONS,
-  CHANNEL_NAMES,
   CHANNEL_META,
-  getPrimaryChannels,
-  type ChannelType,
+  CHANNEL_NAMES,
   type ChannelRuntimeCapability,
+  type ChannelType,
 } from '@/types/channel';
+import type { ChannelSyncConversation, ChannelSyncMessage, ChannelSyncSession } from '@/types/channel-sync';
 
-/* ─── Status helpers ─── */
+const DOMESTIC_CHANNEL_TYPES: ChannelType[] = ['feishu', 'dingtalk', 'wecom', 'qqbot'];
 
-const STATUS_DOT: Record<string, string> = {
-  connected:    'bg-[#10b981]',
-  connecting:   'bg-[#f59e0b]',
-  error:        'bg-[#ef4444]',
-  disconnected: 'bg-[#d1d5db]',
+const CHANNEL_FAMILY_UI: Record<ChannelType, { railLabel: string; panelTitle: string; icon: string }> = {
+  feishu: { railLabel: '飞书接入', panelTitle: '飞书配置详情', icon: '🪶' },
+  dingtalk: { railLabel: '钉钉接入', panelTitle: '钉钉配置详情', icon: '💙' },
+  wecom: { railLabel: '企微接入', panelTitle: '企微配置详情', icon: '🍀' },
+  qqbot: { railLabel: 'QQ接入', panelTitle: 'QQ配置详情', icon: '🐧' },
+  whatsapp: { railLabel: 'WhatsApp', panelTitle: 'WhatsApp', icon: CHANNEL_ICONS.whatsapp },
+  telegram: { railLabel: 'Telegram', panelTitle: 'Telegram', icon: CHANNEL_ICONS.telegram },
+  discord: { railLabel: 'Discord', panelTitle: 'Discord', icon: CHANNEL_ICONS.discord },
+  signal: { railLabel: 'Signal', panelTitle: 'Signal', icon: CHANNEL_ICONS.signal },
+  imessage: { railLabel: 'iMessage', panelTitle: 'iMessage', icon: CHANNEL_ICONS.imessage },
+  matrix: { railLabel: 'Matrix', panelTitle: 'Matrix', icon: CHANNEL_ICONS.matrix },
+  line: { railLabel: 'LINE', panelTitle: 'LINE', icon: CHANNEL_ICONS.line },
+  msteams: { railLabel: 'Microsoft Teams', panelTitle: 'Microsoft Teams', icon: CHANNEL_ICONS.msteams },
+  googlechat: { railLabel: 'Google Chat', panelTitle: 'Google Chat', icon: CHANNEL_ICONS.googlechat },
+  mattermost: { railLabel: 'Mattermost', panelTitle: 'Mattermost', icon: CHANNEL_ICONS.mattermost },
 };
 
-function getStatusLabel(status: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  switch (status) {
-    case 'connected':
-      return t('common:status.connected');
-    case 'connecting':
-      return t('common:status.connecting');
-    case 'error':
-      return t('common:status.connectionError');
-    default:
-      return t('common:status.notConnected');
-  }
+const SESSION_TYPE_LABEL: Record<'group' | 'private', string> = {
+  group: '群聊',
+  private: '私聊',
+};
+
+function formatRelativeTimestamp(value?: string): string {
+  if (!value) return '';
+  const ts = Date.parse(value);
+  if (!Number.isFinite(ts)) return '';
+  return new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
-/* ─── Main component ─── */
+function formatToolDuration(durationMs?: number): string | null {
+  if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) return null;
+  if (durationMs < 1000) return `${Math.round(durationMs)}ms`;
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
+
+function isVisibleConversationMessage(message: ChannelSyncMessage): boolean {
+  if (message.role === 'system' && message.internal) return false;
+  return true;
+}
+
+function getDrawerFieldLabel(fieldKey: string, fallback: string): string {
+  if (fieldKey === 'appId') return 'App ID';
+  if (fieldKey === 'appSecret') return 'App Secret';
+  return fallback;
+}
 
 export function Channels() {
   const { t } = useTranslation(['channels', 'common']);
-  const [activeChannel, setActiveChannel] = useState<ChannelType>('feishu');
-  const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+  const requestedChannel = (() => {
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get('channel');
+    return requested && DOMESTIC_CHANNEL_TYPES.includes(requested as ChannelType)
+      ? requested as ChannelType
+      : 'feishu';
+  })();
+  const [activeChannel, setActiveChannel] = useState<ChannelType>(requestedChannel);
   const [composerValue, setComposerValue] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [addType, setAddType] = useState<ChannelType>('feishu');
@@ -53,63 +79,146 @@ export function Channels() {
   const [addLoading, setAddLoading] = useState(false);
   const [feishuWizardOpen, setFeishuWizardOpen] = useState(false);
   const [feishuWizardInitialName, setFeishuWizardInitialName] = useState('');
-  const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<Record<string, ChannelRuntimeCapability>>({});
+  const [sessions, setSessions] = useState<ChannelSyncSession[]>([]);
+  const [conversation, setConversation] = useState<ChannelSyncConversation | null>(null);
+  const [messages, setMessages] = useState<ChannelSyncMessage[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const isComposingRef = useRef(false);
   const defaultModel = useSettingsStore((s) => s.defaultModel);
 
-  const { channels, loading, error, fetchChannels, connectChannel, disconnectChannel, deleteChannel, addChannel } =
-    useChannelsStore();
+  const {
+    channels,
+    loading,
+    error,
+    fetchChannels,
+    connectChannel,
+    disconnectChannel,
+    deleteChannel,
+    addChannel,
+  } = useChannelsStore();
 
   useEffect(() => {
     void fetchChannels();
   }, [fetchChannels]);
 
-  const channelTypes = useMemo(() => {
-    const primary = getPrimaryChannels();
-    const configuredExtras = channels
-      .map((channel) => channel.type)
-      .filter((type): type is ChannelType => !primary.includes(type));
-
-    const orderedTypes = [...primary, ...configuredExtras];
-    return [...new Set(orderedTypes)].map((id) => ({
-      id,
-      label: CHANNEL_NAMES[id],
-      icon: CHANNEL_ICONS[id],
-    }));
-  }, [channels]);
+  useEffect(() => {
+    if (requestedChannel !== activeChannel) {
+      setActiveChannel(requestedChannel);
+    }
+  }, [requestedChannel, activeChannel]);
 
   useEffect(() => {
     let active = true;
-    const fetchRuntimeCapabilities = async () => {
-      try {
-        const response = await hostApiFetch('/api/channels/capabilities') as
-          | { capabilities?: ChannelRuntimeCapability[] }
-          | undefined;
-        const list = Array.isArray(response?.capabilities) ? response.capabilities : [];
+    void hostApiFetch<{ capabilities?: ChannelRuntimeCapability[] }>('/api/channels/capabilities')
+      .then((response) => {
         if (!active) return;
         const next: Record<string, ChannelRuntimeCapability> = {};
-        for (const capability of list) {
+        for (const capability of response.capabilities ?? []) {
           next[capability.channelId] = capability;
         }
         setRuntimeCapabilities(next);
-      } catch {
-        if (!active) return;
-        setRuntimeCapabilities({});
-      }
-    };
-    void fetchRuntimeCapabilities();
+      })
+      .catch(() => {
+        if (active) setRuntimeCapabilities({});
+      });
     return () => {
       active = false;
     };
   }, [channels]);
 
-  const filtered = channels.filter((c) => c.type === activeChannel);
-  const selected = activeChannelId ? channels.find((c) => c.id === activeChannelId) ?? null : null;
-  const selectedRuntimeCapability = selected
-    ? runtimeCapabilities[selected.id] ?? runtimeCapabilities[`${selected.type}-${selected.accountId || 'default'}`] ?? null
+  const filteredChannels = channels.filter((channel) => channel.type === activeChannel);
+  const selectedChannel = filteredChannels[0] ?? null;
+  const selectedMeta = CHANNEL_META[activeChannel];
+  const selectedRuntimeCapability = selectedChannel
+    ? runtimeCapabilities[selectedChannel.id] ?? runtimeCapabilities[`${selectedChannel.type}-${selectedChannel.accountId || 'default'}`] ?? null
     : null;
-  const meta = CHANNEL_META[activeChannel];
+
+  const loadConversation = async (conversationId: string) => {
+    const response = await hostApiFetch<{ conversation?: ChannelSyncConversation | null; messages?: ChannelSyncMessage[] }>(
+      `/api/channels/workbench/messages?conversationId=${encodeURIComponent(conversationId)}`,
+    );
+    setConversation(response.conversation ?? null);
+    setMessages((prev) => {
+      const nextMessages = (response.messages ?? []).filter(isVisibleConversationMessage);
+      return nextMessages.length > 0 ? nextMessages : prev;
+    });
+  };
+
+  useEffect(() => {
+    let active = true;
+    setSessions([]);
+    setConversation(null);
+    setMessages([]);
+    setSelectedConversationId(null);
+
+    void hostApiFetch<{ sessions?: ChannelSyncSession[] }>(
+      `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannel)}`,
+    )
+      .then(async (response) => {
+        if (!active) return;
+        const sortedSessions = [...(response.sessions ?? [])].sort((left, right) => {
+          if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+          return Date.parse(right.latestActivityAt ?? '') - Date.parse(left.latestActivityAt ?? '');
+        });
+        setSessions(sortedSessions);
+        const firstConversationId = sortedSessions[0]?.id ?? null;
+        setSelectedConversationId(firstConversationId);
+        if (firstConversationId) {
+          await loadConversation(firstConversationId);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setSessions([]);
+          setSelectedConversationId(null);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeChannel]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    let active = true;
+    void loadConversation(selectedConversationId)
+      .then(() => {
+        if (!active) return;
+      })
+      .catch(() => {
+        if (!active) return;
+        setConversation(null);
+        setMessages([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return undefined;
+    const timer = window.setInterval(() => {
+      void hostApiFetch<{ sessions?: ChannelSyncSession[] }>(
+        `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannel)}`,
+      ).then((response) => {
+        const sortedSessions = [...(response.sessions ?? [])].sort((left, right) => {
+          if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
+          return Date.parse(right.latestActivityAt ?? '') - Date.parse(left.latestActivityAt ?? '');
+        });
+        setSessions(sortedSessions);
+      }).catch(() => undefined);
+      void loadConversation(selectedConversationId);
+    }, 5000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [activeChannel, selectedConversationId]);
 
   const handleAdd = async () => {
     if (!addName.trim()) return;
@@ -130,309 +239,337 @@ export function Channels() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    await deleteChannel(id);
-    if (activeChannelId === id) setActiveChannelId(null);
-  };
-
-  const handleTest = async (id: string) => {
-    setTestResult(null);
-    try {
-      await hostApiFetch(`/api/channels/${encodeURIComponent(id)}/test`, { method: 'POST' });
-      setTestResult({ id, ok: true, msg: t('feedback.testSent') });
-    } catch (e) {
-      setTestResult({ id, ok: false, msg: String(e) });
-    }
-    setTimeout(() => setTestResult(null), 4000);
-  };
-
   const handleSend = async () => {
-    if (!composerValue.trim() || !selected) return;
+    if (!composerValue.trim() || !selectedChannel || !selectedConversationId) return;
     const text = composerValue.trim();
     try {
-      await hostApiFetch(`/api/channels/${encodeURIComponent(selected.id)}/send`, {
+      await hostApiFetch(`/api/channels/${encodeURIComponent(selectedChannel.id)}/send`, {
         method: 'POST',
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, conversationId: selectedConversationId }),
       });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `local-${Date.now()}`,
+          role: 'agent',
+          authorName: conversation?.visibleAgentId || 'KTClaw',
+          createdAt: new Date().toISOString(),
+          content: text,
+        },
+      ]);
       setComposerValue('');
-      setTestResult({ id: selected.id, ok: true, msg: t('feedback.sentWithText', { text }) });
-    } catch (e) {
-      setTestResult({ id: selected.id, ok: false, msg: String(e) });
+      setTestResult({ ok: true, msg: t('feedback.sentWithText', { text, defaultValue: `已发送：${text}` }) });
+      window.setTimeout(() => {
+        void loadConversation(selectedConversationId);
+      }, 1200);
+    } catch (error) {
+      setTestResult({ ok: false, msg: String(error) });
     }
-    setTimeout(() => setTestResult(null), 4000);
+    window.setTimeout(() => setTestResult(null), 4000);
+  };
+
+  const handleTest = async () => {
+    if (!selectedChannel) return;
+    try {
+      await hostApiFetch(`/api/channels/${encodeURIComponent(selectedChannel.id)}/test`, { method: 'POST' });
+      setTestResult({ ok: true, msg: t('feedback.testSent', { defaultValue: '测试消息已发送' }) });
+    } catch (error) {
+      setTestResult({ ok: false, msg: String(error) });
+    }
+    window.setTimeout(() => setTestResult(null), 4000);
   };
 
   return (
     <div className="flex h-full flex-row overflow-hidden bg-[#f2f2f7]">
-
-      {/* Panel 1: Channel type list */}
-      <div className="flex w-[164px] shrink-0 flex-col border-r border-black/[0.06] bg-white">
-        <div className="flex h-[52px] shrink-0 items-center justify-between px-4">
-          <span className="text-[13px] font-semibold text-[#000000]">{t('channelTitle')}</span>
+      <section className="flex w-[290px] shrink-0 flex-col border-r border-black/[0.06] bg-white">
+        <div className="flex h-[56px] items-center justify-between px-5">
+          <div>
+            <h1 className="text-[15px] font-semibold text-[#111827]">{CHANNEL_FAMILY_UI[activeChannel].panelTitle}</h1>
+            <p className="text-[12px] text-[#8e8e93]">{t('syncWorkbench.sessionsTitle', { defaultValue: '同步会话' })}</p>
+          </div>
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-[16px] text-[#3c3c43] hover:bg-[#f2f2f7]"
-          >
-            +
-          </button>
-        </div>
-        <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-2">
-          {channelTypes.map((ch) => (
-            <button
-              key={ch.id}
-              type="button"
-              onClick={() => { setActiveChannel(ch.id); setActiveChannelId(null); }}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[14px] transition-colors',
-                activeChannel === ch.id
-                  ? 'bg-[#f2f2f7] font-medium text-[#000000]'
-                  : 'text-[#3c3c43] hover:bg-[#f2f2f7]',
-              )}
-            >
-              <span className="text-[16px]">{ch.icon}</span>
-              <span className="truncate">{ch.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Panel 2: Channel list for selected type */}
-      <div className="flex w-[252px] shrink-0 flex-col border-r border-black/[0.06] bg-white">
-        <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.06] px-4">
-          <span className="text-[14px] font-semibold text-[#000000]">
-            {CHANNEL_NAMES[activeChannel]} {t('configDetails')}
-          </span>
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-[16px] text-[#3c3c43] hover:bg-[#f2f2f7]"
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-[16px] text-[#3c3c43] hover:bg-[#f8fafc]"
           >
             +
           </button>
         </div>
 
-        <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="px-4 pb-3">
+          <input
+            className="w-full rounded-2xl border border-black/10 bg-[#f4f7fb] px-4 py-2.5 text-[13px] outline-none"
+            placeholder={t('syncWorkbench.searchPlaceholder', { defaultValue: '搜索群聊或机器人...' })}
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-3 pb-3" data-testid="channels-conversation-list">
           {loading ? (
-            <div className="flex flex-1 items-center justify-center text-[13px] text-[#8e8e93]">
-              {t('common:status.loading')}
-            </div>
+            <div className="px-2 py-8 text-[13px] text-[#8e8e93]">{t('common:status.loading')}</div>
           ) : error ? (
-            <div className="px-4 py-3 text-[12px] text-[#ef4444]">{error}</div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-              <span className="text-[28px]">{CHANNEL_ICONS[activeChannel]}</span>
-              <p className="text-[13px] text-[#8e8e93]">{t('noChannels')}</p>
-              <button
-                type="button"
-                onClick={() => setAddOpen(true)}
-                className="mt-1 rounded-lg border border-dashed border-[#c6c6c8] px-3 py-1.5 text-[12px] text-[#8e8e93] hover:border-[#8e8e93] hover:text-[#3c3c43]"
-              >
-                {t('add')}
-              </button>
-            </div>
+            <div className="px-2 py-8 text-[13px] text-[#ef4444]">{error}</div>
+          ) : sessions.length === 0 ? (
+            <div className="px-2 py-8 text-[13px] text-[#8e8e93]">{t('syncWorkbench.emptySessions', { defaultValue: '暂无同步会话' })}</div>
           ) : (
-            <div className="flex flex-col gap-0.5 px-2 py-2">
-              {filtered.map((ch) => (
-                <button
-                  key={ch.id}
-                  type="button"
-                  onClick={() => setActiveChannelId(ch.id)}
-                  className={cn(
-                    'flex w-full flex-col rounded-xl px-3 py-2.5 text-left transition-colors',
-                    activeChannelId === ch.id ? 'bg-[#f0f7ff]' : 'hover:bg-[#f2f2f7]',
-                  )}
+            <div className="flex flex-col gap-2">
+              {sessions.map((session) => {
+                const isActive = session.id === selectedConversationId;
+                return (
+                  <button
+                    key={session.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedConversationId(session.id);
+                      void loadConversation(session.id);
+                    }}
+                    className={cn(
+                      'rounded-2xl border px-3 py-3 text-left transition-colors',
+                      isActive
+                        ? 'border-[#bfdbfe] bg-[#f8fbff] shadow-[0_2px_8px_rgba(59,130,246,0.08)]'
+                        : 'border-black/[0.06] bg-white hover:bg-[#f8fafc]',
+                    )}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate pr-1 text-[13px] font-medium text-[#000000]">{ch.name}</span>
-                      <span className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_DOT[ch.status])} />
+                    <div className="mb-1 flex items-start justify-between gap-3">
+                      <span className="truncate text-[14px] font-medium text-[#111827]">{session.title}</span>
+                      <div className="flex items-center gap-1.5">
+                        {session.pinned ? <span className="text-[11px] text-[#f59e0b]">📌</span> : null}
+                        <span className="h-2 w-2 rounded-full bg-[#10b981]" />
+                      </div>
                     </div>
-                  <span className="mt-0.5 text-[11px] text-[#8e8e93]">{getStatusLabel(ch.status, t)}</span>
-                </button>
-              ))}
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="rounded-full bg-[#f1f5f9] px-2 py-0.5 text-[11px] text-[#475569]">
+                        {SESSION_TYPE_LABEL[session.sessionType]}
+                      </span>
+                      {session.syncState ? (
+                        <span className="rounded-full bg-[#eff6ff] px-2 py-0.5 text-[11px] text-[#0284c7]">
+                          {session.syncState === 'synced' ? '已同步' : session.syncState}
+                        </span>
+                      ) : null}
+                    </div>
+                    {session.previewText ? (
+                      <p className="line-clamp-2 text-[12px] leading-5 text-[#64748b]">{session.previewText}</p>
+                    ) : null}
+                    <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-[#94a3b8]">
+                      <span className="truncate">{session.participantSummary}</span>
+                      <span>{formatRelativeTimestamp(session.latestActivityAt)}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Panel 3: Detail + IM preview */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-white">
-        {!selected ? (
-          /* No channel selected */
+      <main className="flex min-w-0 flex-1 flex-col bg-white">
+        {!conversation || !selectedChannel ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
             <span className="text-[40px]">{CHANNEL_ICONS[activeChannel]}</span>
-            <p className="text-[14px] text-[#8e8e93]">{t('common:channels.selectChannel')}</p>
+            <p className="text-[14px] text-[#8e8e93]">{t('syncWorkbench.emptyConversation', { defaultValue: '选择一个同步会话开始查看' })}</p>
           </div>
         ) : (
           <>
-            {/* Header */}
-            <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.06] px-5">
-              <div className="flex items-center gap-2">
-                <span className="text-[14px] font-semibold text-[#000000]">{selected.name}</span>
-                <span className={cn(
-                  'flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                  selected.status === 'connected'
-                    ? 'bg-[#dcfce7] text-[#059669]'
-                    : selected.status === 'error'
-                      ? 'bg-[#fee2e2] text-[#ef4444]'
-                      : selected.status === 'connecting'
-                        ? 'bg-[#fef9c3] text-[#b45309]'
-                        : 'bg-[#f2f2f7] text-[#8e8e93]',
-                )}>
-                  <span className={cn('h-[6px] w-[6px] rounded-full', STATUS_DOT[selected.status])} />
-                  {getStatusLabel(selected.status, t)}
+            <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-black/[0.06] px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <h2 className="truncate text-[17px] font-semibold text-[#111827]">{conversation.title}</h2>
+                <span className="rounded-full border border-[#dbeafe] bg-[#eff6ff] px-3 py-1 text-[12px] text-[#0284c7]">
+                  {conversation.syncState === 'synced' ? '飞书同步中' : conversation.syncState}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                {selected.status === 'connected' ? (
-                  <button
-                    type="button"
-                    onClick={() => void disconnectChannel(selected.id)}
-                    className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
-                  >
-                    {t('disconnect')}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => void connectChannel(selected.id)}
-                    className="rounded-md bg-clawx-ac px-2.5 py-1 text-[12px] text-white hover:bg-[#0056b3]"
-                  >
-                    {selected.status === 'connecting' ? t('connecting') : t('connect')}
-                  </button>
-                )}
+              <div className="flex items-center gap-3">
+                <span className="text-[12px] text-[#64748b]">{conversation.participantSummary}</span>
                 <button
                   type="button"
-                  onClick={() => void handleTest(selected.id)}
-                  className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
+                  onClick={() => setSettingsOpen(true)}
+                  className="rounded-xl border border-black/10 px-3 py-1.5 text-[13px] text-[#3c3c43] hover:bg-[#f8fafc]"
                 >
-                  {t('sendTest')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(selected.id)}
-                  className="rounded-md border border-[#ef4444]/30 px-2.5 py-1 text-[12px] text-[#ef4444] hover:bg-[#fef2f2]"
-                >
-                  {t('common:actions.delete')}
+                  设置
                 </button>
               </div>
-            </div>
+            </header>
 
-            {/* Test result feedback */}
-            {testResult?.id === selected.id && (
+            {testResult ? (
               <div className={cn(
-                'mx-5 mt-2 rounded-lg px-3 py-2 text-[12px]',
+                'mx-6 mt-3 rounded-xl px-3 py-2 text-[12px]',
                 testResult.ok ? 'bg-[#dcfce7] text-[#059669]' : 'bg-[#fee2e2] text-[#ef4444]',
               )}>
-                {testResult.ok ? '✅ ' : '❌ '}{testResult.msg}
+                {testResult.msg}
               </div>
-            )}
+            ) : null}
 
-            {/* Config fields (read-only) */}
-            {meta.configFields.length > 0 && (
-              <div className="shrink-0 border-b border-black/[0.06] px-5 py-3">
-                <p className="mb-2 text-[12px] font-medium text-[#8e8e93]">{t('configInfo')}</p>
-                <div className="flex flex-col gap-1.5">
-                  {meta.configFields.map((field) => (
-                    <div key={field.key} className="flex items-center justify-between gap-4">
-                      <span className="text-[12px] text-[#3c3c43]">{t(field.label)}</span>
-                      <span className="font-mono text-[12px] text-[#8e8e93]">
-                        {field.type === 'password' ? '••••••••' : '—'}
-                      </span>
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="mb-6 flex justify-center">
+                <span className="rounded-full bg-[#f1f5f9] px-4 py-2 text-[12px] text-[#64748b]">
+                  {t('syncWorkbench.filteredHint', { defaultValue: '已隐藏同步噪音，仅显示群聊消息、Agent 回复和精简工具卡' })}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-5">
+                {messages.map((message) => {
+                  if (message.role === 'tool') {
+                    return (
+                      <div key={message.id} className="ml-[54px] max-w-[760px] rounded-2xl border border-black/[0.06] bg-[#f8fafc] p-3">
+                        <div className="flex items-center justify-between gap-3 text-[12px]">
+                          <div className="flex items-center gap-2 text-[#334155]">
+                            <span>⚡</span>
+                            <strong>{message.toolName}</strong>
+                            {formatToolDuration(message.durationMs) ? (
+                              <span className="text-[#94a3b8]">{formatToolDuration(message.durationMs)}</span>
+                            ) : null}
+                          </div>
+                          <span className="text-[#94a3b8]">{t('syncWorkbench.compactToolCard', { defaultValue: '精简工具卡' })}</span>
+                        </div>
+                        {message.summary ? (
+                          <p className="mt-2 text-[13px] leading-6 text-[#475569]">{message.summary}</p>
+                        ) : null}
+                      </div>
+                    );
+                  }
+
+                  const isHuman = message.role === 'human';
+                  const avatar = isHuman ? (message.authorName?.charAt(0) ?? '人') : (message.authorName?.charAt(0) ?? 'A');
+                  const avatarClass = isHuman ? 'bg-[#e5e7eb] text-[#475569]' : 'bg-[#10b981] text-white';
+
+                  return (
+                    <div key={message.id} className="flex gap-4">
+                      <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold', avatarClass)}>
+                        {avatar}
+                      </div>
+                      <div className="max-w-[860px]">
+                        <div className="mb-1.5 flex items-center gap-2 text-[12px] text-[#94a3b8]">
+                          <strong className="text-[14px] text-[#1f2937]">{message.authorName}</strong>
+                          {message.createdAt ? <span>{formatRelativeTimestamp(message.createdAt)}</span> : null}
+                        </div>
+                        <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-3 text-[14px] leading-7 text-[#334155]">
+                          {message.content}
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
-                {selected.error && (
-                  <p className="mt-2 text-[12px] text-[#ef4444]">{t('common:channels.errorPrefix')}：{selected.error}</p>
-                )}
+                  );
+                })}
               </div>
-            )}
-
-            {selectedRuntimeCapability && (
-              <div className="shrink-0 border-b border-black/[0.06] px-5 py-3" data-testid="channel-runtime-capabilities">
-                <p className="mb-1 text-[12px] font-medium text-[#8e8e93]">{t('runtimeCapabilities')}</p>
-                <p className="text-[12px] text-[#3c3c43]">
-                  {t('runtime.actionsLabel')} {selectedRuntimeCapability.availableActions.join(', ') || t('runtime.none')}
-                </p>
-                <p className="mt-1 text-[12px] text-[#8e8e93]">
-                  {t('runtime.schemaSummary', {
-                    total: selectedRuntimeCapability.configSchemaSummary.totalFieldCount,
-                    required: selectedRuntimeCapability.configSchemaSummary.requiredFieldCount,
-                  })}
-                </p>
-              </div>
-            )}
-
-            {/* Channel activity panel */}
-            <div className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
-              <ChannelActivityPanel channel={selected} />
             </div>
 
-            {/* Composer */}
-            <div className="shrink-0 border-t border-black/[0.06] px-4 py-3">
-              <div className="flex items-center gap-3 rounded-xl border border-black/[0.06] bg-white px-3 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-                <button type="button" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#8e8e93] hover:bg-[#f2f2f7]">
-                  🎤
-                </button>
-                <div className="flex shrink-0 items-center gap-1 rounded-full border border-black/10 bg-[#f2f2f7] px-2 py-0.5 text-[12px] text-[#3c3c43]">
-                  <span className="h-[6px] w-[6px] rounded-full bg-[#10b981]" />
-                  <span className="font-medium">{defaultModel || t('notConfigured')}</span>
-                  <span className="text-[#8e8e93]">▾</span>
-                </div>
+            <div className="shrink-0 border-t border-black/[0.06] px-5 py-4">
+              <div className="flex items-center gap-3 rounded-[24px] border border-black/[0.08] bg-white px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+                <button type="button" className="text-[18px] text-[#94a3b8]">📎</button>
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#f1f5f9] px-3 py-1 text-[12px] font-medium text-[#475569]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#10b981]" />
+                  {defaultModel || t('notConfigured', { defaultValue: '未配置模型' })}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#ecfeff] px-3 py-1 text-[12px] font-medium text-[#0f766e]">
+                  当前发言身份：{conversation.visibleAgentId || 'KTClaw'}
+                </span>
                 <input
                   value={composerValue}
-                  onChange={(e) => setComposerValue(e.target.value)}
+                  onChange={(event) => setComposerValue(event.target.value)}
                   onCompositionStart={() => {
                     isComposingRef.current = true;
                   }}
                   onCompositionEnd={() => {
                     isComposingRef.current = false;
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      const nativeEvent = e.nativeEvent as KeyboardEvent;
-                      if (
-                        isComposingRef.current
-                        || nativeEvent.isComposing
-                        || nativeEvent.keyCode === 229
-                      ) {
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      const nativeEvent = event.nativeEvent as KeyboardEvent;
+                      if (isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229) {
                         return;
                       }
-                      e.preventDefault();
+                      event.preventDefault();
                       void handleSend();
                     }
                   }}
-                  placeholder={t('common:channels.sendMessagePlaceholder', { name: selected.name })}
-                  className="flex-1 bg-transparent text-[14px] text-[#000000] outline-none placeholder:text-[#8e8e93]"
+                  placeholder="在群聊发送消息（将同步至飞书）..."
+                  className="min-w-0 flex-1 bg-transparent text-[14px] text-[#111827] outline-none placeholder:text-[#8e8e93]"
                 />
                 <button
                   type="button"
                   onClick={() => void handleSend()}
                   disabled={!composerValue.trim()}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#10b981] text-white shadow-sm transition-colors hover:bg-[#059669] disabled:opacity-40"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0f172a] text-white disabled:opacity-40"
                 >
-                  ▶
+                  ➤
                 </button>
               </div>
             </div>
           </>
         )}
-      </div>
+      </main>
 
-      {/* Add Channel Modal */}
+      {settingsOpen && selectedChannel && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/20" onClick={() => setSettingsOpen(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="频道设置"
+            className="flex h-full w-[360px] flex-col bg-white shadow-[-8px_0_24px_rgba(0,0,0,0.08)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex h-[56px] items-center justify-between border-b border-black/[0.06] px-5">
+              <div>
+                <h3 className="text-[15px] font-semibold text-[#111827]">频道设置</h3>
+                <p className="text-[12px] text-[#8e8e93]">{selectedChannel.name}</p>
+              </div>
+              <button type="button" className="text-[18px] text-[#8e8e93]" onClick={() => setSettingsOpen(false)}>×</button>
+            </div>
+
+            <div className="flex flex-col gap-5 overflow-y-auto px-5 py-5">
+              <div className="rounded-2xl border border-black/[0.06] p-4">
+                <p className="mb-3 text-[12px] font-medium text-[#8e8e93]">配置控制</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedChannel.status === 'connected' ? (
+                    <button type="button" onClick={() => void disconnectChannel(selectedChannel.id)} className="rounded-xl border border-black/10 px-3 py-2 text-[13px] text-[#3c3c43]">断开连接</button>
+                  ) : (
+                    <button type="button" onClick={() => void connectChannel(selectedChannel.id)} className="rounded-xl bg-[#0f172a] px-3 py-2 text-[13px] text-white">连接</button>
+                  )}
+                  <button type="button" onClick={() => void handleTest()} className="rounded-xl border border-black/10 px-3 py-2 text-[13px] text-[#3c3c43]">发送测试</button>
+                  <button type="button" onClick={() => void deleteChannel(selectedChannel.id)} className="rounded-xl border border-[#ef4444]/30 px-3 py-2 text-[13px] text-[#ef4444]">删除</button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-black/[0.06] p-4">
+                <p className="mb-3 text-[12px] font-medium text-[#8e8e93]">配置字段</p>
+                <div className="flex flex-col gap-3">
+                  {selectedMeta.configFields.map((field) => (
+                    <div key={field.key} className="flex items-center justify-between gap-4">
+                      <span className="text-[13px] text-[#3c3c43]">{getDrawerFieldLabel(field.key, t(field.label))}</span>
+                      <span className="font-mono text-[12px] text-[#8e8e93]">
+                        {field.type === 'password' ? '••••••••' : field.label.includes('appId') ? 'cli_******' : '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {selectedRuntimeCapability && (
+                <div className="rounded-2xl border border-black/[0.06] p-4">
+                  <p className="mb-3 text-[12px] font-medium text-[#8e8e93]">Runtime capabilities</p>
+                  <p className="text-[13px] text-[#3c3c43]">
+                    Actions: {selectedRuntimeCapability.availableActions.join(', ')}
+                  </p>
+                  <p className="mt-1 text-[12px] text-[#8e8e93]">
+                    Schema: {selectedRuntimeCapability.configSchemaSummary.totalFieldCount} fields (required {selectedRuntimeCapability.configSchemaSummary.requiredFieldCount})
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {addOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
           <div className="w-[360px] rounded-2xl bg-white p-6 shadow-xl">
             <h2 className="mb-4 text-[16px] font-semibold text-[#000000]">{t('common:channels.addChannelTitle')}</h2>
             <div className="mb-3">
               <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('common:channels.channelType')}</p>
               <select
                 value={addType}
-                onChange={(e) => setAddType(e.target.value as ChannelType)}
-                className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
+                onChange={(event) => setAddType(event.target.value as ChannelType)}
+                className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] text-[#000000]"
               >
-                {channelTypes.map((ct) => (
-                  <option key={ct.id} value={ct.id}>{ct.icon} {ct.label}</option>
+                {DOMESTIC_CHANNEL_TYPES.map((entry) => (
+                  <option key={entry} value={entry}>{CHANNEL_FAMILY_UI[entry].railLabel}</option>
                 ))}
               </select>
             </div>
@@ -440,24 +577,20 @@ export function Channels() {
               <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('common:channels.channelName')}</p>
               <input
                 value={addName}
-                onChange={(e) => setAddName(e.target.value)}
+                onChange={(event) => setAddName(event.target.value)}
                 placeholder={t('common:channels.channelNamePlaceholder')}
-                className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] text-[#000000]"
               />
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setAddOpen(false); setAddName(''); }}
-                className="flex-1 rounded-xl border border-black/10 py-2 text-[13px] text-[#3c3c43] hover:bg-[#f2f2f7]"
-              >
+              <button type="button" onClick={() => setAddOpen(false)} className="flex-1 rounded-xl border border-black/10 py-2 text-[13px] text-[#3c3c43]">
                 {t('common:actions.cancel')}
               </button>
               <button
                 type="button"
                 onClick={() => void handleAdd()}
                 disabled={addLoading || !addName.trim()}
-                className="flex-1 rounded-xl bg-clawx-ac py-2 text-[13px] font-medium text-white hover:bg-[#0056b3] disabled:opacity-50"
+                className="flex-1 rounded-xl bg-clawx-ac py-2 text-[13px] font-medium text-white disabled:opacity-50"
               >
                 {addLoading ? t('common:channels.adding') : t('common:channels.confirmAdd')}
               </button>
@@ -491,75 +624,3 @@ export function Channels() {
 }
 
 export default Channels;
-
-/* ─── Channel Activity Panel ─── */
-
-import type { Channel } from '@/types/channel';
-
-function ChannelActivityPanel({ channel }: { channel: Channel }) {
-  const { t } = useTranslation(['channels', 'common']);
-  const isConnected = channel.status === 'connected';
-  const isError = channel.status === 'error';
-
-  const lastActivity = channel.lastActivity
-    ? new Date(channel.lastActivity).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : null;
-
-  return (
-    <div className="flex flex-1 flex-col gap-4">
-      {/* Status card */}
-      <div className={cn(
-        'rounded-xl border px-4 py-3',
-        isConnected ? 'border-[#10b981]/20 bg-[#f0fdf4]' :
-        isError ? 'border-[#ef4444]/20 bg-[#fef2f2]' :
-        'border-black/[0.06] bg-[#f9f9f9]',
-      )}>
-        <div className="flex items-center gap-2">
-          <span className={cn('h-2 w-2 rounded-full', STATUS_DOT[channel.status])} />
-          <span className={cn('text-[13px] font-medium',
-            isConnected ? 'text-[#059669]' : isError ? 'text-[#ef4444]' : 'text-[#8e8e93]',
-          )}>
-            {getStatusLabel(channel.status, t)}
-          </span>
-        </div>
-        {lastActivity && (
-          <p className="mt-1 text-[12px] text-[#8e8e93]">{t('common:time.lastActivity')}：{lastActivity}</p>
-        )}
-        {channel.error && (
-          <p className="mt-1 text-[12px] text-[#ef4444]">{channel.error}</p>
-        )}
-      </div>
-
-      {/* Info rows */}
-      <div className="rounded-xl border border-black/[0.06] bg-white">
-        {[
-          { label: t('common:channels.channelId'), value: channel.id },
-          { label: t('common:channels.type'), value: channel.type.toUpperCase() },
-          channel.accountId ? { label: t('common:channels.accountId'), value: channel.accountId } : null,
-        ].filter(Boolean).map((row) => (
-          <div key={row!.label} className="flex items-center justify-between border-b border-black/[0.04] px-4 py-2.5 last:border-b-0">
-            <span className="text-[12px] text-[#8e8e93]">{row!.label}</span>
-            <span className="font-mono text-[12px] text-[#3c3c43]">{row!.value}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Message placeholder */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#c6c6c8] py-10 text-center">
-        {isConnected ? (
-          <>
-            <span className="text-[28px]">💬</span>
-            <p className="text-[13px] text-[#8e8e93]">{t('common:channels.waitingForMessages')}</p>
-            <p className="text-[12px] text-[#c6c6c8]">{t('common:channels.channelConnectedWaiting')}</p>
-          </>
-        ) : (
-          <>
-            <span className="text-[28px] opacity-40">💬</span>
-            <p className="text-[13px] text-[#8e8e93]">{t('common:channels.channelNotConnected')}</p>
-            <p className="text-[12px] text-[#c6c6c8]">{t('common:channels.channelNotConnectedDesc')}</p>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}

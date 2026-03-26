@@ -29,7 +29,7 @@ import { useAgentsStore } from '@/stores/agents';
 import { useChannelsStore } from '@/stores/channels';
 import { useNotificationsStore } from '@/stores/notifications';
 import { type Notification } from '@/stores/notifications';
-import { CHANNEL_ICONS } from '@/types/channel';
+import { CHANNEL_ICONS, type ChannelType } from '@/types/channel';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { AddAgentDialog } from '@/components/agents/AddAgentDialog';
 import { AgentSettingsModal } from '@/components/agents/AgentSettingsModal';
@@ -41,13 +41,20 @@ import {
 import { useTranslation } from 'react-i18next';
 import { AccordionGroup } from '@/components/workbench/accordion-group';
 import { usePinnedSessions } from '@/lib/pinned-sessions';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 type SidebarMetaItem = {
   name: string;
   summary?: string;
   meta: string;
 };
+
+const DOMESTIC_CHANNEL_ENTRIES: Array<{ type: ChannelType; label: string }> = [
+  { type: 'feishu', label: '飞书接入' },
+  { type: 'dingtalk', label: '钉钉接入' },
+  { type: 'wecom', label: '企微接入' },
+  { type: 'qqbot', label: 'QQ接入' },
+];
 
 const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
 const INITIAL_NOTIFICATION_TIME = Date.now();
@@ -523,27 +530,43 @@ export function Sidebar() {
           icon={<Network className="h-[18px] w-[18px]" strokeWidth={2} />}
           collapsed={sidebarCollapsed}
         >
-          {channels.length > 0 ? (
-            channels.map((channel) => (
+          {DOMESTIC_CHANNEL_ENTRIES.map((entry) => {
+            const matchedChannel = channels.find((channel) => channel.type === entry.type);
+            const channel = matchedChannel ?? {
+              id: entry.type,
+              type: entry.type,
+              name: entry.label,
+              status: 'disconnected' as const,
+            };
+            const isActiveChannelPage = location.pathname === '/channels'
+              && new URLSearchParams(location.search).get('channel') === entry.type;
+            return (
               <button
-                key={channel.id}
+                key={entry.type}
                 type="button"
-                onClick={() => navigate('/channels')}
-                className="flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]"
+                onClick={() => navigate(`/channels?channel=${entry.type}`)}
+                className={cn(
+                  'flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] transition-colors dark:hover:bg-white/[0.04]',
+                  isActiveChannelPage
+                    ? 'bg-white text-[#000000] shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_0.5px_rgba(0,0,0,0.04)]'
+                    : 'text-[#000000] hover:bg-[#e5e5ea]',
+                )}
               >
                 <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">
                   {CHANNEL_ICONS[channel.type] ?? '📡'}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-left">{channel.name}</span>
+                <span className="min-w-0 flex-1 truncate text-left">{entry.label}</span>
                 <span className={cn(
                   'h-1.5 w-1.5 shrink-0 rounded-full',
-                  channel.status === 'connected' ? 'bg-[#10b981]' :
-                  channel.status === 'connecting' ? 'bg-[#f59e0b]' :
-                  channel.status === 'error' ? 'bg-[#ef4444]' : 'bg-[#d1d5db]',
+                  matchedChannel?.status === 'connected' ? 'bg-[#10b981]' :
+                  matchedChannel?.status === 'connecting' ? 'bg-[#f59e0b]' :
+                  matchedChannel?.status === 'error' ? 'bg-[#ef4444]' : 'bg-[#d1d5db]',
                 )} />
               </button>
-            ))
-          ) : (
+            );
+          })}
+          {null}
+          {/*
             <button
               type="button"
               onClick={() => navigate('/channels')}
@@ -552,7 +575,7 @@ export function Sidebar() {
               <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">＋</span>
               <span className="min-w-0 flex-1 truncate text-left">添加频道</span>
             </button>
-          )}
+          */}
         </AccordionGroup>
 
         <AccordionGroup

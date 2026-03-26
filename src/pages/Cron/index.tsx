@@ -10,24 +10,28 @@ import type { CronJob } from '@/types/cron';
 
 /* ─── Helpers ─── */
 
-function formatSchedule(schedule: CronJob['schedule']): string {
+function formatSchedule(schedule: CronJob['schedule'], t: (key: string, options?: Record<string, unknown>) => string): string {
   if (typeof schedule === 'string') return schedule;
   if (schedule.kind === 'cron') return schedule.expr;
   if (schedule.kind === 'every') {
     const ms = schedule.everyMs;
-    if (ms < 60_000) return `每 ${ms / 1000}秒`;
-    if (ms < 3_600_000) return `每 ${ms / 60_000}分钟`;
-    if (ms < 86_400_000) return `每 ${ms / 3_600_000}小时`;
-    return `每 ${ms / 86_400_000}天`;
+    if (ms < 60_000) return t('schedule.everySeconds', { count: ms / 1000 });
+    if (ms < 3_600_000) return t('schedule.everyMinutes', { count: ms / 60_000 });
+    if (ms < 86_400_000) return t('schedule.everyHours', { count: ms / 3_600_000 });
+    return t('schedule.everyDays', { count: ms / 86_400_000 });
   }
-  if (schedule.kind === 'at') return `固定时间 ${schedule.at}`;
-  return '—';
+  if (schedule.kind === 'at') return t('schedule.onceAt', { time: schedule.at });
+  return t('common.unknown');
 }
 
-function formatTime(iso?: string): string {
-  if (!iso) return '—';
+function resolveDateLocale(language?: string): string {
+  return language?.startsWith('zh') ? 'zh-CN' : 'en-US';
+}
+
+function formatTime(iso: string | undefined, language: string | undefined, fallback = '—'): string {
+  if (!iso) return fallback;
   try {
-    return new Date(iso).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleString(resolveDateLocale(language), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   } catch {
     return iso;
   }
@@ -125,7 +129,8 @@ function resolveDeepLinkedTab(raw: string | null): TabKey | null {
 /* ─── Main component ─── */
 
 export function Cron() {
-  const { t } = useTranslation('cron');
+  const { t, i18n } = useTranslation('cron');
+  const resolvedLanguage = i18n?.resolvedLanguage;
   const deepLinkParams = new URLSearchParams(window.location.search);
   const deepLinkedJobId = deepLinkParams.get('jobId');
   const initialTab = resolveDeepLinkedTab(deepLinkParams.get('tab'));
@@ -173,7 +178,7 @@ export function Cron() {
     setEditingJob(job);
     setCreateName(job.name);
     setCreateMessage(job.message);
-    setCreateSchedule(typeof job.schedule === 'string' ? job.schedule : formatSchedule(job.schedule));
+    setCreateSchedule(typeof job.schedule === 'string' ? job.schedule : formatSchedule(job.schedule, t));
     setCreateDeliveryMode(job.delivery?.mode ?? 'none');
     setCreateDeliveryChannel(job.delivery?.channel ?? '');
     setCreateDeliveryTo(job.delivery?.to ?? '');
@@ -247,7 +252,7 @@ export function Cron() {
             </p>
             {!loading && !error && latestUpdatedAt && (
               <p className="mt-1 text-[12px] text-[#8e8e93]">
-                {t('header.lastUpdated', { time: formatTime(latestUpdatedAt) })}
+                {t('header.lastUpdated', { time: formatTime(latestUpdatedAt, resolvedLanguage, t('common.unknown')) })}
               </p>
             )}
           </div>
@@ -348,106 +353,106 @@ export function Cron() {
       </div>
 
       {/* Create modal */}
-      {createOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="w-[400px] rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="mb-4 text-[16px] font-semibold text-[#000000]">新建定时任务</h2>
-            <div className="mb-4 rounded-xl border border-black/[0.06] bg-[#f8fafc] px-4 py-3">
-              <p className="text-[12px] font-medium text-[#6b7280]">Pipeline Wizard</p>
-              <p className="mt-1 text-[13px] text-[#334155]">Trigger → Agent → Delivery → Failure Alert</p>
-            </div>
-            <div className="mb-3">
-              <p className="mb-1.5 text-[13px] font-medium text-[#000000]">任务名称</p>
-              <input value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder="例如：每日晨报" className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac" />
-            </div>
-            <div className="mb-3">
-              <p className="mb-1.5 text-[13px] font-medium text-[#000000]">任务指令</p>
-              <textarea value={createMessage} onChange={(e) => setCreateMessage(e.target.value)} placeholder="发送给 Agent 的指令内容..." rows={3} className="w-full resize-none rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac" />
-            </div>
-            <div className="mb-5">
-              <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Cron 表达式</p>
-              <input value={createSchedule} onChange={(e) => setCreateSchedule(e.target.value)} placeholder="0 7 * * *" className="w-full rounded-lg border border-black/10 px-3 py-2 font-mono text-[13px] outline-none focus:border-clawx-ac" />
-              <p className="mt-1 text-[11px] text-[#8e8e93]">标准 5 段 cron 表达式，例如 <code>0 7 * * *</code> = 每天 07:00</p>
-            </div>
-            <div className="mb-3 grid grid-cols-2 gap-3">
-              <label className="block">
-                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Delivery mode</p>
-                <select
-                  aria-label="Delivery mode"
-                  value={createDeliveryMode}
-                  onChange={(e) => setCreateDeliveryMode(e.target.value)}
-                  className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
-                >
-                  <option value="none">none</option>
-                  <option value="announce">announce</option>
-                </select>
-              </label>
-              <label className="block">
-                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Delivery channel</p>
-                <input
-                  value={createDeliveryChannel}
-                  onChange={(e) => setCreateDeliveryChannel(e.target.value)}
+        {createOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+            <div className="w-[400px] rounded-2xl bg-white p-6 shadow-xl">
+              <h2 className="mb-4 text-[16px] font-semibold text-[#000000]">{editingJob ? t('dialog.editTitle') : t('dialog.createTitle')}</h2>
+              <div className="mb-4 rounded-xl border border-black/[0.06] bg-[#f8fafc] px-4 py-3">
+                <p className="text-[12px] font-medium text-[#6b7280]">{t('dialog.pipelineWizardLabel')}</p>
+                <p className="mt-1 text-[13px] text-[#334155]">{t('dialog.pipelineSummary')}</p>
+              </div>
+              <div className="mb-3">
+                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.taskName')}</p>
+                <input value={createName} onChange={(e) => setCreateName(e.target.value)} placeholder={t('dialog.taskNamePlaceholder')} className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac" />
+              </div>
+              <div className="mb-3">
+                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.message')}</p>
+                <textarea value={createMessage} onChange={(e) => setCreateMessage(e.target.value)} placeholder={t('dialog.messagePlaceholder')} rows={3} className="w-full resize-none rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac" />
+              </div>
+              <div className="mb-5">
+                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.schedule')}</p>
+                <input value={createSchedule} onChange={(e) => setCreateSchedule(e.target.value)} placeholder="0 7 * * *" className="w-full rounded-lg border border-black/10 px-3 py-2 font-mono text-[13px] outline-none focus:border-clawx-ac" />
+                <p className="mt-1 text-[11px] text-[#8e8e93]">{t('dialog.cronHelp')}</p>
+              </div>
+              <div className="mb-3 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.deliveryMode')}</p>
+                  <select
+                    aria-label={t('dialog.deliveryModeAria')}
+                    value={createDeliveryMode}
+                    onChange={(e) => setCreateDeliveryMode(e.target.value)}
+                    className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
+                  >
+                    <option value="none">{t('dialog.deliveryModes.none')}</option>
+                    <option value="announce">{t('dialog.deliveryModes.announce')}</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.deliveryChannel')}</p>
+                  <input
+                    value={createDeliveryChannel}
+                    onChange={(e) => setCreateDeliveryChannel(e.target.value)}
                   placeholder="feishu"
                   className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
                 />
               </label>
-            </div>
-            <div className="mb-3 grid grid-cols-2 gap-3">
-              <label className="block">
-                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Delivery target</p>
-                <input
-                  value={createDeliveryTo}
-                  onChange={(e) => setCreateDeliveryTo(e.target.value)}
+              </div>
+              <div className="mb-3 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.deliveryTarget')}</p>
+                  <input
+                    value={createDeliveryTo}
+                    onChange={(e) => setCreateDeliveryTo(e.target.value)}
                   placeholder="release-room"
                   className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
                 />
-              </label>
-              <label className="block">
-                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Failure alert after</p>
-                <input
-                  value={createFailureAlertAfter}
-                  onChange={(e) => setCreateFailureAlertAfter(e.target.value)}
+                </label>
+                <label className="block">
+                  <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.failureAlertAfter')}</p>
+                  <input
+                    value={createFailureAlertAfter}
+                    onChange={(e) => setCreateFailureAlertAfter(e.target.value)}
                   placeholder="3"
                   className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
                 />
               </label>
-            </div>
-            <div className="mb-5 grid grid-cols-2 gap-3">
-              <label className="block">
-                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Failure alert cooldown</p>
-                <input
-                  value={createFailureAlertCooldownSeconds}
-                  onChange={(e) => setCreateFailureAlertCooldownSeconds(e.target.value)}
+              </div>
+              <div className="mb-5 grid grid-cols-2 gap-3">
+                <label className="block">
+                  <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.failureAlertCooldown')}</p>
+                  <input
+                    value={createFailureAlertCooldownSeconds}
+                    onChange={(e) => setCreateFailureAlertCooldownSeconds(e.target.value)}
                   placeholder="600"
                   className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
                 />
-              </label>
-              <label className="block">
-                <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Failure alert channel</p>
-                <input
-                  value={createFailureAlertChannel}
-                  onChange={(e) => setCreateFailureAlertChannel(e.target.value)}
+                </label>
+                <label className="block">
+                  <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('dialog.failureAlertChannel')}</p>
+                  <input
+                    value={createFailureAlertChannel}
+                    onChange={(e) => setCreateFailureAlertChannel(e.target.value)}
                   placeholder="ops-alerts"
                   className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
                 />
               </label>
             </div>
-            <label className="mb-5 flex items-center gap-2 text-[13px] text-[#3c3c43]">
-              <input
-                aria-label="Best effort delivery"
-                type="checkbox"
-                checked={createDeliveryBestEffort}
-                onChange={(e) => setCreateDeliveryBestEffort(e.target.checked)}
-              />
-              Best effort delivery
-            </label>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => { setCreateOpen(false); resetWizard(); }} className="flex-1 rounded-xl border border-black/10 py-2 text-[13px] text-[#3c3c43] hover:bg-[#f2f2f7]">取消</button>
-              <button type="button" onClick={() => void handleCreate()} disabled={createLoading || !createName.trim() || !createMessage.trim()} className="flex-1 rounded-xl bg-clawx-ac py-2 text-[13px] font-medium text-white hover:bg-[#0056b3] disabled:opacity-50">
-                {createLoading ? (editingJob ? '保存中...' : '创建中...') : (editingJob ? '保存修改' : '确认创建')}
-              </button>
+              <label className="mb-5 flex items-center gap-2 text-[13px] text-[#3c3c43]">
+                <input
+                  aria-label={t('dialog.bestEffortAria')}
+                  type="checkbox"
+                  checked={createDeliveryBestEffort}
+                  onChange={(e) => setCreateDeliveryBestEffort(e.target.checked)}
+                />
+                {t('dialog.bestEffort')}
+              </label>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setCreateOpen(false); resetWizard(); }} className="flex-1 rounded-xl border border-black/10 py-2 text-[13px] text-[#3c3c43] hover:bg-[#f2f2f7]">取消</button>
+                <button type="button" onClick={() => void handleCreate()} disabled={createLoading || !createName.trim() || !createMessage.trim()} className="flex-1 rounded-xl bg-clawx-ac py-2 text-[13px] font-medium text-white hover:bg-[#0056b3] disabled:opacity-50">
+                  {createLoading ? (editingJob ? t('dialog.savingChanges') : t('dialog.creating')) : (editingJob ? t('dialog.saveChanges') : t('dialog.confirmCreate'))}
+                </button>
+              </div>
             </div>
-          </div>
         </div>
       )}
     </div>
@@ -468,7 +473,8 @@ function OverviewTab({
   onDelete: (id: string) => void;
   onEdit: (job: CronJob) => void;
 }) {
-  const { t } = useTranslation('cron');
+  const { t, i18n } = useTranslation('cron');
+  const resolvedLanguage = i18n?.resolvedLanguage;
   if (loading) return <div className="flex flex-1 items-center justify-center text-[14px] text-[#8e8e93]">{t('common.loading')}</div>;
   if (error) return <div className="flex flex-1 items-center justify-center text-[14px] text-[#ef4444]">{error}</div>;
   const filteredJobs = jobs.filter((job) => {
@@ -504,15 +510,15 @@ function OverviewTab({
               </div>
               <p className="mt-0.5 truncate text-[12px] text-[#8e8e93]">{job.message}</p>
               <div className="mt-1 flex items-center gap-3 text-[11px] text-[#c6c6c8]">
-                <span>⏱ {formatSchedule(job.schedule)}</span>
+                <span>⏱ {formatSchedule(job.schedule, t)}</span>
                 {job.nextRun && (
                   <span>
-                    {t('overview.timestamps.next')}: {formatTime(job.nextRun)}
+                    {t('overview.timestamps.next')}: {formatTime(job.nextRun, resolvedLanguage, t('common.unknown'))}
                   </span>
                 )}
                 {job.lastRun && (
                   <span>
-                    {t('overview.timestamps.last')}: {formatTime(job.lastRun.time)}
+                    {t('overview.timestamps.last')}: {formatTime(job.lastRun.time, resolvedLanguage, t('common.unknown'))}
                   </span>
                 )}
               </div>
@@ -561,6 +567,8 @@ function OverviewTab({
 /* ─── Schedule Tab ─── */
 
 function ScheduleTab({ jobs }: { jobs: CronJob[] }) {
+  const { t, i18n } = useTranslation('cron');
+  const resolvedLanguage = i18n?.resolvedLanguage;
   const upcoming = jobs
     .filter((j) => j.enabled && j.nextRun)
     .sort((a, b) => new Date(a.nextRun!).getTime() - new Date(b.nextRun!).getTime())
@@ -585,7 +593,7 @@ function ScheduleTab({ jobs }: { jobs: CronJob[] }) {
         <div className="flex shrink-0 border-b border-black/[0.06]">
           {DAYS.map((day, i) => (
             <div key={day} className={cn('flex-1 py-3 text-center text-[12px] font-medium', i < 5 ? 'text-[#3c3c43]' : 'text-[#c6c6c8]')}>
-              {day}
+              {t(`scheduleDetails.weekdays.${day}`)}
             </div>
           ))}
         </div>
@@ -595,8 +603,8 @@ function ScheduleTab({ jobs }: { jobs: CronJob[] }) {
           {!hasAnyJob ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
               <span className="text-[32px]">📅</span>
-              <p className="text-[13px] text-[#8e8e93]">暂无定时任务</p>
-              <p className="text-[12px] text-[#c6c6c8]">创建任务后将显示在对应星期列</p>
+              <p className="text-[13px] text-[#8e8e93]">{t('scheduleDetails.empty.title')}</p>
+              <p className="text-[12px] text-[#c6c6c8]">{t('scheduleDetails.empty.description')}</p>
             </div>
           ) : (
             DAYS.map((day, dayIdx) => (
@@ -617,7 +625,7 @@ function ScheduleTab({ jobs }: { jobs: CronJob[] }) {
                       >
                         <p className="text-[12px] font-semibold leading-tight text-[#1c1c1e]">{job.name}</p>
                         <p className="mt-0.5 text-[10px]" style={{ color }}>
-                          {hour !== undefined ? `${String(hour).padStart(2, '0')}:00` : formatSchedule(job.schedule)}
+                          {hour !== undefined ? `${String(hour).padStart(2, '0')}:00` : formatSchedule(job.schedule, t)}
                         </p>
                         <span className={cn('mt-1 inline-block h-1.5 w-1.5 rounded-full', job.enabled ? 'bg-[#10b981]' : 'bg-[#d1d5db]')} />
                       </div>
@@ -631,26 +639,26 @@ function ScheduleTab({ jobs }: { jobs: CronJob[] }) {
       </div>
 
       {/* Right: upcoming panel */}
-      <div className="flex w-[220px] shrink-0 flex-col border-l border-black/[0.06] bg-[#f9f9f9]">
-        <div className="border-b border-black/[0.06] px-4 py-3">
-          <p className="text-[12px] font-semibold text-[#3c3c43]">即将执行</p>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {upcoming.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
-              <span className="text-[24px]">⏰</span>
-              <p className="text-[12px] text-[#c6c6c8]">暂无排期</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-0">
-              {upcoming.map((job) => (
-                <div key={job.id} className="border-b border-black/[0.04] px-4 py-3">
-                  <p className="truncate text-[13px] font-medium text-[#000000]">{job.name}</p>
-                  <p className="mt-0.5 text-[11px] text-clawx-ac">{formatTime(job.nextRun)}</p>
-                  <p className="mt-0.5 font-mono text-[10px] text-[#c6c6c8]">{formatSchedule(job.schedule)}</p>
-                </div>
-              ))}
-            </div>
+        <div className="flex w-[220px] shrink-0 flex-col border-l border-black/[0.06] bg-[#f9f9f9]">
+          <div className="border-b border-black/[0.06] px-4 py-3">
+            <p className="text-[12px] font-semibold text-[#3c3c43]">{t('scheduleDetails.upcoming.title')}</p>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {upcoming.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1 py-8 text-center">
+                <span className="text-[24px]">⏰</span>
+                <p className="text-[12px] text-[#c6c6c8]">{t('scheduleDetails.upcoming.emptyTitle')}</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-0">
+                {upcoming.map((job) => (
+                  <div key={job.id} className="border-b border-black/[0.04] px-4 py-3">
+                    <p className="truncate text-[13px] font-medium text-[#000000]">{job.name}</p>
+                    <p className="mt-0.5 text-[11px] text-clawx-ac">{formatTime(job.nextRun, resolvedLanguage, t('common.unknown'))}</p>
+                    <p className="mt-0.5 font-mono text-[10px] text-[#c6c6c8]">{formatSchedule(job.schedule, t)}</p>
+                  </div>
+                ))}
+              </div>
           )}
         </div>
       </div>
@@ -660,8 +668,8 @@ function ScheduleTab({ jobs }: { jobs: CronJob[] }) {
 
 /* ─── Pipelines Tab ─── */
 
-function formatDuration(ms?: number): string {
-  if (!ms) return '—';
+function formatDuration(ms: number | undefined, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (!ms) return t('common.unknown');
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
@@ -679,6 +687,8 @@ interface RunEntry {
 }
 
 function RunDetailPanel({ job, onClose }: { job: CronJob; onClose: () => void }) {
+  const { t, i18n } = useTranslation('cron');
+  const resolvedLanguage = i18n?.resolvedLanguage;
   const [runs, setRuns] = useState<RunEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -696,25 +706,25 @@ function RunDetailPanel({ job, onClose }: { job: CronJob; onClose: () => void })
     <tr>
       <td colSpan={6} className="bg-[#f9fafb] px-8 pb-4 pt-2">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[12px] font-semibold text-[#3c3c43]">运行详情</span>
-          <button type="button" onClick={onClose} className="text-[11px] text-[#8e8e93] hover:text-[#3c3c43]">收起</button>
+          <span className="text-[12px] font-semibold text-[#3c3c43]">{t('pipelines.details.title')}</span>
+          <button type="button" onClick={onClose} className="text-[11px] text-[#8e8e93] hover:text-[#3c3c43]">{t('pipelines.buttons.collapse')}</button>
         </div>
         <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-black/[0.06] bg-white px-3 py-3 text-[12px] text-[#3c3c43]">
           <div>
-            <span className="text-[#8e8e93]">Delivery: </span>
-            <span>{formatDelivery(job)}</span>
+            <span className="text-[#8e8e93]">{t('pipelines.details.labels.delivery')} </span>
+            <span>{formatDelivery(job, t('overview.labels.chatOnly'))}</span>
           </div>
           <div>
-            <span className="text-[#8e8e93]">Session target: </span>
-            <span>{formatSessionTarget(job.sessionTarget)}</span>
+            <span className="text-[#8e8e93]">{t('pipelines.details.labels.sessionTarget')} </span>
+            <span>{formatSessionTarget(job.sessionTarget, t('overview.labels.sessionTargetDefault'))}</span>
           </div>
           <div>
-            <span className="text-[#8e8e93]">Schedule: </span>
-            <span>{formatSchedule(job.schedule)}</span>
+            <span className="text-[#8e8e93]">{t('pipelines.details.labels.schedule')} </span>
+            <span>{formatSchedule(job.schedule, t)}</span>
           </div>
           <div>
-            <span className="text-[#8e8e93]">Next run: </span>
-            <span>{job.nextRun ? formatTime(job.nextRun) : '—'}</span>
+            <span className="text-[#8e8e93]">{t('pipelines.details.labels.nextRun')} </span>
+            <span>{job.nextRun ? formatTime(job.nextRun, resolvedLanguage, t('common.unknown')) : t('common.unknown')}</span>
           </div>
         </div>
         {job.lastRun?.error ? (
@@ -723,14 +733,20 @@ function RunDetailPanel({ job, onClose }: { job: CronJob; onClose: () => void })
           </div>
         ) : null}
         {loading ? (
-          <p className="text-[12px] text-[#8e8e93]">加载中...</p>
+          <p className="text-[12px] text-[#8e8e93]">{t('pipelines.details.loading')}</p>
         ) : runs.length === 0 ? (
-          <p className="text-[12px] text-[#c6c6c8]">暂无历史记录</p>
+          <p className="text-[12px] text-[#c6c6c8]">{t('pipelines.details.noRecords')}</p>
         ) : (
           <table className="w-full border-collapse text-[12px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['执行时间', '状态', '耗时', '模型', '摘要'].map((h) => (
+                {[
+                  t('pipelines.table.lastRun'),
+                  t('pipelines.table.status'),
+                  t('pipelines.table.duration'),
+                  t('pipelines.table.model'),
+                  t('pipelines.table.summary'),
+                ].map((h) => (
                   <th key={h} className="pb-1.5 text-left text-[10px] font-semibold uppercase tracking-[0.4px] text-[#c6c6c8]">{h}</th>
                 ))}
               </tr>
@@ -738,21 +754,21 @@ function RunDetailPanel({ job, onClose }: { job: CronJob; onClose: () => void })
             <tbody>
               {runs.map((r, i) => {
                 const isOk = (r.status || '').toLowerCase() !== 'error';
-                const summary = r.summary || r.error || (isOk ? '执行完成' : '执行失败');
+                const summary = r.summary || r.error || (isOk ? t('pipelines.details.summarySuccess') : t('pipelines.details.summaryFailed'));
                 return (
                   <tr key={r.sessionId ?? i} className="border-b border-black/[0.04]">
                     <td className="py-2 pr-4 text-[#3c3c43]">
-                      {r.ts ? new Date(r.ts).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      {r.ts ? new Date(r.ts).toLocaleString(resolveDateLocale(resolvedLanguage), { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : t('common.unknown')}
                     </td>
                     <td className="py-2 pr-4">
                       {isOk ? (
-                        <span className="rounded-full bg-[#dcfce7] px-2 py-0.5 text-[10px] font-medium text-[#059669]">成功</span>
+                        <span className="rounded-full bg-[#dcfce7] px-2 py-0.5 text-[10px] font-medium text-[#059669]">{t('pipelines.details.status.success')}</span>
                       ) : (
-                        <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-[10px] font-medium text-[#ef4444]">失败</span>
+                        <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-[10px] font-medium text-[#ef4444]">{t('pipelines.details.status.failed')}</span>
                       )}
                     </td>
-                    <td className="py-2 pr-4 font-mono text-[#8e8e93]">{formatDuration(r.durationMs)}</td>
-                    <td className="py-2 pr-4 text-[#8e8e93]">{r.model ?? '—'}</td>
+                    <td className="py-2 pr-4 font-mono text-[#8e8e93]">{formatDuration(r.durationMs, t)}</td>
+                    <td className="py-2 pr-4 text-[#8e8e93]">{r.model ?? t('common.unknown')}</td>
                     <td className="py-2 max-w-[320px] truncate text-[#3c3c43]" title={summary}>{summary}</td>
                   </tr>
                 );
@@ -780,6 +796,8 @@ function PipelinesTab({
   onTrigger: (id: string) => void;
   onEdit: (job: CronJob) => void;
 }) {
+  const { t, i18n } = useTranslation('cron');
+  const resolvedLanguage = i18n?.resolvedLanguage;
   const ran = jobs.filter((j) => j.lastRun);
   const succeeded = ran.filter((j) => j.lastRun?.success).length;
   const failed = ran.filter((j) => !j.lastRun?.success).length;
@@ -791,18 +809,18 @@ function PipelinesTab({
     return tb - ta;
   });
 
-  if (loading) return <div className="flex flex-1 items-center justify-center text-[14px] text-[#8e8e93]">加载中...</div>;
+  if (loading) return <div className="flex flex-1 items-center justify-center text-[14px] text-[#8e8e93]">{t('common.loading')}</div>;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Stats bar */}
       <div className="flex shrink-0 items-center gap-6 border-b border-black/[0.06] px-8 py-4">
-        <StatPill label="任务总数" value={String(jobs.length)} color="#3c3c43" />
-        <StatPill label="已执行" value={String(ran.length)} color="var(--ac)" />
-        <StatPill label="成功" value={String(succeeded)} color="#10b981" />
-        <StatPill label="失败" value={String(failed)} color={failed > 0 ? '#ef4444' : '#c6c6c8'} />
+        <StatPill label={t('pipelines.stats.total')} value={String(jobs.length)} color="#3c3c43" />
+        <StatPill label={t('pipelines.stats.ran')} value={String(ran.length)} color="var(--ac)" />
+        <StatPill label={t('pipelines.stats.success')} value={String(succeeded)} color="#10b981" />
+        <StatPill label={t('pipelines.stats.failed')} value={String(failed)} color={failed > 0 ? '#ef4444' : '#c6c6c8'} />
         {successRate !== null && (
-          <StatPill label="成功率" value={`${successRate}%`} color={successRate >= 80 ? '#10b981' : successRate >= 50 ? '#f59e0b' : '#ef4444'} />
+          <StatPill label={t('pipelines.stats.successRate')} value={`${successRate}%`} color={successRate >= 80 ? '#10b981' : successRate >= 50 ? '#f59e0b' : '#ef4444'} />
         )}
       </div>
 
@@ -810,15 +828,22 @@ function PipelinesTab({
       {jobs.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
           <span className="text-[40px]">🔁</span>
-          <p className="text-[14px] text-[#8e8e93]">暂无执行记录</p>
-          <p className="text-[12px] text-[#c6c6c8]">创建任务并执行后，流水线记录将显示在这里</p>
+          <p className="text-[14px] text-[#8e8e93]">{t('pipelines.empty.title')}</p>
+          <p className="text-[12px] text-[#c6c6c8]">{t('pipelines.empty.description')}</p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-8 py-4">
           <table className="w-full border-collapse text-[13px]">
             <thead>
               <tr className="border-b border-black/[0.06]">
-                {['任务名称', '调度', '上次执行', '耗时', '状态', '操作'].map((h) => (
+                {[
+                  t('pipelines.table.task'),
+                  t('pipelines.table.schedule'),
+                  t('pipelines.table.lastRun'),
+                  t('pipelines.table.duration'),
+                  t('pipelines.table.status'),
+                  t('pipelines.table.actions'),
+                ].map((h) => (
                   <th key={h} className="pb-2 text-left text-[11px] font-semibold uppercase tracking-[0.5px] text-[#8e8e93]">{h}</th>
                 ))}
               </tr>
@@ -835,11 +860,11 @@ function PipelinesTab({
                           <span className={cn('h-2 w-2 shrink-0 rounded-full', job.enabled ? 'bg-[#10b981]' : 'bg-[#d1d5db]')} />
                           <span className="font-medium text-[#000000]">{job.name}</span>
                         </div>
-                        <p className="mt-0.5 truncate pl-4 text-[11px] text-[#3c3c43]">Trigger → Agent → Delivery</p>
-                        <p className="mt-0.5 truncate pl-4 text-[11px] text-[#8e8e93]">{`Delivery: ${formatDelivery(job)}`}</p>
+                        <p className="mt-0.5 truncate pl-4 text-[11px] text-[#3c3c43]">{t('pipelines.labels.triggerHint')}</p>
+                        <p className="mt-0.5 truncate pl-4 text-[11px] text-[#8e8e93]">{`${t('pipelines.details.labels.delivery')} ${formatDelivery(job, t('overview.labels.chatOnly'))}`}</p>
                         {typeof job.failureAlertAfter === 'number' && (
                           <p className="mt-0.5 truncate pl-4 text-[11px] text-[#8e8e93]">
-                            {`Alert after ${job.failureAlertAfter} failures${job.failureAlertChannel ? ` → ${job.failureAlertChannel}` : ''}`}
+                            {`${t('pipelines.labels.alertAfter', { count: job.failureAlertAfter })}${job.failureAlertChannel ? ` → ${job.failureAlertChannel}` : ''}`}
                           </p>
                         )}
                         {run?.error && (
@@ -848,18 +873,18 @@ function PipelinesTab({
                       </td>
                       <td className="py-3 pr-4">
                         <code className="rounded bg-[#f2f2f7] px-1.5 py-0.5 font-mono text-[11px] text-[#3c3c43]">
-                          {formatSchedule(job.schedule)}
+                          {formatSchedule(job.schedule, t)}
                         </code>
                       </td>
-                      <td className="py-3 pr-4 text-[#3c3c43]">{run ? formatTime(run.time) : <span className="text-[#c6c6c8]">从未执行</span>}</td>
-                      <td className="py-3 pr-4 font-mono text-[#3c3c43]">{run ? formatDuration(run.duration) : '—'}</td>
+                      <td className="py-3 pr-4 text-[#3c3c43]">{run ? formatTime(run.time, resolvedLanguage, t('common.unknown')) : <span className="text-[#c6c6c8]">{t('pipelines.details.labels.neverRan')}</span>}</td>
+                      <td className="py-3 pr-4 font-mono text-[#3c3c43]">{run ? formatDuration(run.duration, t) : t('common.unknown')}</td>
                       <td className="py-3 pr-4">
                         {!run ? (
-                          <span className="text-[12px] text-[#c6c6c8]">—</span>
+                          <span className="text-[12px] text-[#c6c6c8]">{t('common.unknown')}</span>
                         ) : run.success ? (
-                          <span className="rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[11px] font-medium text-[#059669]">成功</span>
+                          <span className="rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[11px] font-medium text-[#059669]">{t('pipelines.details.status.success')}</span>
                         ) : (
-                          <span className="rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-medium text-[#ef4444]">失败</span>
+                          <span className="rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-medium text-[#ef4444]">{t('pipelines.details.status.failed')}</span>
                         )}
                       </td>
                       <td className="py-3">
@@ -869,7 +894,7 @@ function PipelinesTab({
                             onClick={() => onTrigger(job.id)}
                             className="rounded-md border border-black/10 px-2.5 py-1 text-[12px] text-[#3c3c43] hover:bg-[#f2f2f7]"
                           >
-                            ▶ 执行
+                            ▶ {t('pipelines.buttons.run')}
                           </button>
                           <button
                             type="button"
@@ -883,7 +908,7 @@ function PipelinesTab({
                             onClick={() => onExpandedJobChange(isExpanded ? null : job.id)}
                             className={cn('rounded-md border px-2.5 py-1 text-[12px] transition-colors', isExpanded ? 'border-clawx-ac/30 bg-clawx-ac/5 text-clawx-ac' : 'border-black/10 text-[#3c3c43] hover:bg-[#f2f2f7]')}
                           >
-                            {isExpanded ? '收起' : '详情'}
+                            {isExpanded ? t('pipelines.buttons.collapse') : t('pipelines.buttons.details')}
                           </button>
                         </div>
                       </td>

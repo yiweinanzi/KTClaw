@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { invokeIpc } from '@/lib/api-client';
 import type { RawMessage, AttachedFileMeta } from '@/stores/chat';
-import { extractText, extractThinking, extractImages, extractToolGroups, formatTimestamp } from './message-utils';
+import { extractText, extractThinking, extractImages, extractToolGroups, formatTimestamp, isSystemInjectedUserMessage } from './message-utils';
 
 interface ChatMessageProps {
   message: RawMessage;
@@ -54,12 +54,19 @@ export const ChatMessage = memo(function ChatMessage({
   const tools = extractToolGroups(message);
   const visibleThinking = showThinking ? thinking : null;
   const visibleTools = tools;
+  const hasOnlyCronToolActivity = visibleTools.length > 0
+    && visibleTools.every((tool) => tool.name.trim().toLowerCase() === 'cron');
 
   const attachedFiles = message._attachedFiles || [];
   const [lightboxImg, setLightboxImg] = useState<{ src: string; fileName: string; filePath?: string; base64?: string; mimeType?: string } | null>(null);
 
   // Never render tool result messages in chat UI
   if (isToolResult) return null;
+
+  // Hide system-injected user messages (e.g. scheduled reminder triggers) —
+  // the assistant's response already contains the user-facing content.
+  if (isSystemInjectedUserMessage(message)) return null;
+  if (hasOnlyCronToolActivity && !hasText && !visibleThinking && images.length === 0 && attachedFiles.length === 0) return null;
 
   const hasStreamingToolStatus = isStreaming && streamingTools.length > 0;
   if (!hasText && !visibleThinking && images.length === 0 && visibleTools.length === 0 && attachedFiles.length === 0 && !hasStreamingToolStatus) return null;

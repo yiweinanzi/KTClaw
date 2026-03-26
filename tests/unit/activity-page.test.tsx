@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { axe } from 'vitest-axe';
 import { Activity } from '@/pages/Activity';
 import { hostApiFetch } from '@/lib/host-api';
 
@@ -27,12 +28,12 @@ describe('Activity page structured log view', () => {
     vi.restoreAllMocks();
   });
 
-  it('parses logs, shows summary cards, supports filters, and toggles raw details', async () => {
+  it('parses logs, supports filters, and toggles raw details', async () => {
     const deferred = createDeferred<{ content: string }>();
     vi.mocked(hostApiFetch).mockReturnValueOnce(deferred.promise);
 
-    render(<Activity />);
-    expect(screen.getByText('正在加载活动日志...')).toBeInTheDocument();
+    const { container } = render(<Activity />);
+    expect(screen.getByTestId('activity-loading-skeleton')).toBeInTheDocument();
 
     deferred.resolve({
       content: [
@@ -43,20 +44,17 @@ describe('Activity page structured log view', () => {
       ].join('\n'),
     });
 
-    expect(await screen.findByRole('heading', { name: '活动日志' })).toBeInTheDocument();
-    expect(screen.getByText('总条目')).toBeInTheDocument();
-    expect(screen.getByText('4')).toBeInTheDocument();
-    expect(screen.getAllByText('错误').length).toBeGreaterThan(0);
-    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1 })).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(4);
 
-    const searchInput = screen.getByLabelText('搜索日志');
+    const searchInput = screen.getByRole('textbox');
     fireEvent.change(searchInput, { target: { value: 'planner' } });
     expect(screen.getByText('agent planner failed')).toBeInTheDocument();
     expect(screen.queryByText('System boot completed')).not.toBeInTheDocument();
 
     fireEvent.change(searchInput, { target: { value: '' } });
 
-    const categorySelect = screen.getByLabelText('分类筛选');
+    const [levelSelect, categorySelect] = screen.getAllByRole('combobox');
     fireEvent.change(categorySelect, { target: { value: 'channel' } });
     expect(screen.getByText('channel feishu inbound id=abc123')).toBeInTheDocument();
     expect(screen.queryByText('cron heartbeat delayed by 12s')).not.toBeInTheDocument();
@@ -66,20 +64,24 @@ describe('Activity page structured log view', () => {
     expect(screen.queryByText('channel feishu inbound id=abc123')).not.toBeInTheDocument();
 
     fireEvent.change(categorySelect, { target: { value: 'all' } });
-
-    const levelSelect = screen.getByLabelText('级别筛选');
     fireEvent.change(levelSelect, { target: { value: 'error' } });
     expect(screen.getByText('agent planner failed')).toBeInTheDocument();
     expect(screen.queryByText('channel feishu inbound id=abc123')).not.toBeInTheDocument();
 
     fireEvent.change(levelSelect, { target: { value: 'all' } });
 
-    const showRawButtons = await screen.findAllByRole('button', { name: '查看原始日志' });
-    fireEvent.click(showRawButtons[0]);
-    await waitFor(() => {
-      expect(screen.getByText('原始日志')).toBeInTheDocument();
-    });
-    expect(screen.getByText('2026-03-24T10:00:00Z [INFO] System boot completed')).toBeInTheDocument();
+    const firstArticle = screen.getAllByRole('article')[0];
+    fireEvent.click(within(firstArticle).getByRole('button'));
+    expect(
+      await screen.findByText('2026-03-24T10:00:00Z [INFO] System boot completed'),
+    ).toBeInTheDocument();
+    expect(
+      await axe(container, {
+        rules: {
+          'heading-order': { enabled: false },
+        },
+      }),
+    ).toHaveNoViolations();
   });
 
   it('groups multiline log continuations into a single structured entry', async () => {
@@ -94,13 +96,15 @@ describe('Activity page structured log view', () => {
 
     render(<Activity />);
 
-    expect(await screen.findByText('2')).toBeInTheDocument();
-    expect(screen.getByText('agent planner failed')).toBeInTheDocument();
+    expect(await screen.findByText('agent planner failed')).toBeInTheDocument();
+    expect(screen.getAllByRole('article')).toHaveLength(2);
 
-    const rawButtons = await screen.findAllByRole('button', { name: '查看原始日志' });
-    fireEvent.click(rawButtons[1]);
+    const secondArticle = screen.getAllByRole('article')[1];
+    fireEvent.click(within(secondArticle).getByRole('button'));
 
-    expect(await screen.findByText(/Error: tool timeout while waiting for shell result/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Error: tool timeout while waiting for shell result/i),
+    ).toBeInTheDocument();
     expect(screen.getAllByText(/at runTool \(planner\.ts:42:13\)/i).length).toBeGreaterThan(0);
   });
 
@@ -117,7 +121,7 @@ describe('Activity page structured log view', () => {
     });
 
     expect(screen.getByText('System boot completed')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '实时刷新：开启' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { pressed: true })).toBeInTheDocument();
     expect(hostApiFetch).toHaveBeenCalledTimes(1);
 
     await act(async () => {
@@ -125,16 +129,16 @@ describe('Activity page structured log view', () => {
     });
     expect(hostApiFetch).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole('button', { name: '实时刷新：开启' }));
-    expect(screen.getByRole('button', { name: '实时刷新：关闭' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { pressed: true }));
+    expect(screen.getByRole('button', { pressed: false })).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10000);
     });
     expect(hostApiFetch).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole('button', { name: '实时刷新：关闭' }));
-    expect(screen.getByRole('button', { name: '实时刷新：开启' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { pressed: false }));
+    expect(screen.getByRole('button', { pressed: true })).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -153,7 +157,7 @@ describe('Activity page structured log view', () => {
 
     render(<Activity />);
 
-    expect(await screen.findByText('暂无活动日志。')).toBeInTheDocument();
+    expect(await screen.findByTestId('activity-feedback-empty')).toBeInTheDocument();
   });
 
   it('renders an error state when logs request fails', async () => {
@@ -161,7 +165,7 @@ describe('Activity page structured log view', () => {
 
     render(<Activity />);
 
-    expect(await screen.findByText('加载活动日志失败。')).toBeInTheDocument();
+    expect(await screen.findByTestId('activity-feedback-error')).toBeInTheDocument();
     expect(screen.getByText('network down')).toBeInTheDocument();
   });
 });

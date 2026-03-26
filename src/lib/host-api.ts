@@ -62,6 +62,12 @@ function parseUnifiedProxyResponse<T>(
   });
 
   if (data.status === 204) return undefined as T;
+  if (data.ok === false) {
+    const errorMsg = typeof data.json === 'object' && data.json !== null && 'error' in (data.json as Record<string, unknown>)
+      ? String((data.json as Record<string, unknown>).error)
+      : `HTTP ${data.status ?? 'unknown'}`;
+    throw new Error(errorMsg);
+  }
   if (data.json !== undefined) return data.json as T;
   return data.text as T;
 }

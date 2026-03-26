@@ -2340,3 +2340,168 @@ Focus: Wave 2 runtime/kanban deeper linkage + keep Cron/Sidebar locale work buil
 - P0 i18n still has substantial shell cleanup left in TaskKanban and Sidebar, plus further Cron strings beyond the currently-consumed keys
 - runtime / registry still needs deeper skill bridge / tool execution path / richer tree drill-down beyond the first structured history batch
 - Channels still needs deeper multi-user isolation / capability runtime work
+
+---
+
+[2026-03-26 02:35 +08:00] Session 30: Wave 5 Guardrails + Costs Stream + Runtime Execution Path
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (Wave 5 update/UX/a11y/governance + remaining Costs/runtime drill-down)
+
+### Completed
+1. `electron/main/updater.ts` + Settings update flow
+   - recomputed `nextEligibleAt` when the update channel changes or persisted policy is replayed under a different channel/jitter
+   - kept rollout delay persistence but removed the stale stable-window cooldown behavior on beta/dev switches
+   - exposed a real update-channel selector in the Settings auto-update section and covered it in `tests/unit/settings-center.test.tsx`
+
+2. Wave 5 UX / a11y / governance stabilization
+   - moved the shared `toast` export to `src/lib/toast.ts` so `src/components/ui/Toast.tsx` is component-only again
+   - switched the touched Settings/Sidebar call sites onto the local toast wrapper
+   - fixed the pre-existing React Compiler memoization lint failure in `src/pages/TaskKanban/index.tsx`
+   - expanded `lint:a11y` / `test:a11y` to cover Cron and added a `vitest-axe` assertion to `tests/unit/cron-page.test.tsx`
+   - documented `lint:a11y`, `test:a11y`, and `governance:check` in `README.md` and `README.zh-CN.md`
+
+3. `src/pages/Costs/index.tsx`
+   - subscribed to `gateway:notification` and appended assistant/tool-result usage entries into the realtime table without waiting for polling
+   - realtime KPIs/model distribution now update immediately from pushed usage events
+   - expanded `tests/unit/costs-page.test.tsx` to cover host-event-driven live usage updates
+
+4. `src/pages/TaskKanban/index.tsx`
+   - runtime detail drill-down now renders `executionRecords` plus runtime `skillSnapshot` / `toolSnapshot`
+   - added regression coverage in `tests/unit/task-kanban.test.tsx` for the execution-path/capability panel
+
+5. Test drift cleanup
+   - stabilized `tests/unit/cron-page.test.tsx`, `tests/unit/workbench-sidebar.test.tsx`, and `tests/unit/sidebar-session-pinning.test.tsx` against the current UI strings
+   - kept the ongoing non-i18n business work buildable without reopening the broader locale-closure task
+
+### Verification
+- `pnpm run typecheck` -> pass
+- `pnpm exec tsc -p tsconfig.node.json --noEmit` -> pass
+- `pnpm run lint` -> pass
+- `pnpm run lint:a11y` -> pass
+- `pnpm run test:a11y` -> pass
+- `pnpm exec vitest run tests/unit/openclaw-updater.test.ts tests/unit/settings-center.test.tsx tests/unit/sidebar-session-pinning.test.tsx tests/unit/task-kanban.test.tsx tests/unit/costs-page.test.tsx tests/unit/costs-routes.test.ts tests/unit/cron-page.test.tsx --project node --project jsdom` -> pass
+- `pnpm run governance:check` -> pass
+- `pnpm run build:vite` -> pass
+
+### Remaining
+- Prompt item 1 i18n closure is still intentionally deferred per user instruction
+- Channels still needs deeper auth-gate / multi-user isolation work beyond the current scoped delete + send/test guardrails
+- Runtime / registry still likely has room for deeper skill-bridge surfacing beyond the newly rendered execution path / capability snapshot
+
+---
+
+[2026-03-26 09:07 +08:00] Session 31: Channels Scope Guard + Runtime Linked Execution Drill-down
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (remaining Channels isolation + runtime/registry bridge)
+
+### Completed
+1. `electron/api/routes/channels.ts`
+   - tightened `/api/channels/:id/send` and `/api/channels/:id/test` to resolve exact scoped channel ids first
+   - bare `channelType` ids are now rejected with `409 Channel account is ambiguous` when multiple configured accounts exist for the same family
+   - downstream gateway payloads now always use the resolved scoped `channelId`
+
+2. `tests/unit/channels-routes.test.ts`
+   - added coverage for the ambiguous multi-account bare-id case
+   - existing scoped/unknown/rate-limit regressions continue to pass
+
+3. `electron/services/session-runtime-manager.ts`
+   - runtime `executionRecords` now preserve `linkedRuntimeId` / `linkedRuntimeSessionKey`
+   - child runtime spawn links the latest skill/subagent-like parent execution record to the spawned child runtime
+   - `refreshRecord()` now merges previously-linked runtime metadata back onto recomputed execution records instead of dropping it on refresh
+
+4. `src/pages/TaskKanban/index.tsx`
+   - runtime detail adds clickable `Lineage` navigation for root/parent/current runs
+   - execution-path cards can now expose an `Open linked runtime …` action when an execution record is linked to a spawned child runtime
+
+5. Tests
+   - expanded `tests/unit/session-runtime-manager.test.ts`
+   - expanded `tests/unit/task-kanban.test.tsx`
+
+### Verification
+- `pnpm run lint` -> pass
+- `pnpm exec vitest run tests/unit/channels-routes.test.ts tests/unit/session-runtime-manager.test.ts tests/unit/task-kanban.test.tsx tests/unit/costs-page.test.tsx tests/unit/openclaw-updater.test.ts tests/unit/settings-center.test.tsx --project node --project jsdom` -> pass
+- `pnpm run build:vite` -> pass
+
+### Remaining
+- Prompt item 1 i18n closure is still intentionally deferred per user instruction
+- Memory still does not clearly expose a dedicated QMD collection source despite `extraPaths` / health / AI analysis being in place
+- Channels still may need stricter scoped-account validation on config/read/delete/login surfaces, not only send/test
+- Runtime / registry can still go deeper than the current linked execution cards: richer registry interaction and broader skill bridge semantics remain
+
+---
+
+[2026-03-26 09:20 +08:00] Session 32: Channels Scoped Config Guard + Memory QMD Collections
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (remaining Channels isolation + Memory QMD source discovery)
+
+### Completed
+1. `electron/api/routes/channels.ts`
+   - added shared scoped-account validation using configured agent ids
+   - `/api/channels/config` POST, `/api/channels/config/:type` GET/DELETE, and `/api/channels/whatsapp/start` now reject unknown scoped `accountId` values with `404 Scoped channel account not found`
+   - existing send/test ambiguity guard from Session 31 remains intact
+
+2. `tests/unit/channels-routes.test.ts`
+   - added coverage for unknown scoped account rejection on config save/read/delete and WhatsApp login start
+   - added a positive scoped-account happy-path case
+
+3. `electron/api/routes/memory.ts`
+   - Memory config now parses `memory.qmd.paths`
+   - `/api/memory` now enumerates QMD collection files as read-only browser sources with `qmd/<collection>/...` relative paths
+   - QMD session files under `~/.openclaw/agents/<id>/qmd/sessions/` are also exposed as read-only sources when present
+
+4. `tests/unit/openclaw-memory-status.test.ts`
+   - added route coverage for QMD collection source enumeration via `memory.qmd.paths`
+
+5. `tests/unit/memory-page.test.tsx`
+   - added UI coverage proving QMD collection files show up in the browser as read-only entries
+
+### Verification
+- `pnpm run typecheck` -> pass
+- `pnpm run lint` -> pass
+- `pnpm exec vitest run tests/unit/channels-routes.test.ts tests/unit/session-runtime-manager.test.ts tests/unit/task-kanban.test.tsx tests/unit/openclaw-memory-status.test.ts tests/unit/memory-page.test.tsx tests/unit/costs-page.test.tsx --project node --project jsdom` -> pass
+- `pnpm run build:vite` -> pass
+
+### Remaining
+- Prompt item 1 i18n closure is still intentionally deferred per user instruction
+- Runtime / registry may still be deepened beyond linked execution drill-down into fuller registry-level interaction semantics
+- Wave 5 UX foundation could still be propagated to more pages, but the concrete update/a11y/governance gates and core business gaps named in the current non-i18n backlog have been advanced substantially
+
+---
+
+[2026-03-26 09:27 +08:00] Session 33: Costs By-Model Drill-down + Full Suite Green
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE (final non-i18n closure sweep)
+
+### Completed
+1. `src/pages/Costs/index.tsx`
+   - dashboard now consumes `/api/costs/by-model`
+   - added a dedicated `Model Costs` detail table so the existing backend model aggregation is no longer a dead surface
+
+2. `tests/unit/costs-page.test.tsx`
+   - added regression coverage for the dashboard model-cost table
+
+3. i18n parity baseline
+   - aligned `teamOverview.time.*` and `memoryBrowser.time.*` plural keys in `src/i18n/locales/zh/common.json` and `src/i18n/locales/zh/settings.json`
+   - `pnpm test` now passes end-to-end again
+
+### Verification
+- `pnpm run typecheck` -> pass
+- `pnpm run lint` -> pass
+- `pnpm exec vitest run tests/unit/channels-routes.test.ts tests/unit/session-runtime-manager.test.ts tests/unit/task-kanban.test.tsx tests/unit/openclaw-memory-status.test.ts tests/unit/memory-page.test.tsx tests/unit/costs-page.test.tsx --project node --project jsdom` -> pass
+- `pnpm run build:vite` -> pass
+- `pnpm test` -> pass
+
+### Remaining
+- Docs / Help system remains disabled per explicit user direction
+- Large-scale i18n shell cleanup outside the targeted parity fix remains a separate deferred track, not part of the active non-i18n business closure
+
+---
+
+[2026-03-26 09:27 +08:00] Progress Sync
+Focus: PLAN-2026-03-24-PLATFORM-CLOSURE
+
+### Summary
+- `Prompt.md` 已同步到当前状态：4-16 的非禁用 / 非延期业务项按当前口径已基本收口
+- `continue/task.json` 已补齐 Session 30-33 并更新时间戳
+- 当前提交基线为 `2ff6b84 feat: advance platform closure backlog`
+
+### Current Remainder
+- 大范围 i18n 收口仍按用户要求延后
+- `Docs / Help` 继续保持停用
+- 若后续继续深挖，主要剩增强型事项：更深的 runtime / registry 交互语义，以及把 Wave 5 的共享 UX 基础层继续推广到更多页面

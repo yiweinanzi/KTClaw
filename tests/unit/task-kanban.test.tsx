@@ -34,6 +34,16 @@ function readStoredTicket(id: string): Record<string, unknown> | undefined {
   return tickets.find((ticket) => ticket.id === id);
 }
 
+const respondButtonName = /^(Respond|回复)$/i;
+const reviewButtonName = /^(Review|审查)$/i;
+const approvalDialogName = /approval review/i;
+const approveButtonName = /^(Approve|批准)$/i;
+const startWorkButtonName = /^(Start work|开始处理)$/i;
+const followUpMessageName = /^(Follow-up message|追问消息)$/i;
+const sendFollowUpButtonName = /^(Send follow-up|发送追问)$/i;
+const stopRuntimeButtonName = /^(Stop runtime|停止 runtime)$/i;
+const retryWorkButtonName = /^(Retry work|重试处理)$/i;
+
 describe('TaskKanban', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -54,7 +64,7 @@ describe('TaskKanban', () => {
 
     render(<TaskKanban />);
 
-    expect(screen.getByRole('button', { name: 'Respond' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: respondButtonName })).toBeInTheDocument();
   });
 
   it('opens structured toolInput questions with context and prefills the previous answer', async () => {
@@ -81,7 +91,7 @@ describe('TaskKanban', () => {
 
     render(<TaskKanban />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Respond' }));
+    fireEvent.click(screen.getByRole('button', { name: respondButtonName }));
     await screen.findByText('Pick one');
 
     expect(screen.getByText('Command: rm -rf /tmp/unsafe')).toBeInTheDocument();
@@ -104,13 +114,13 @@ describe('TaskKanban', () => {
 
     render(<TaskKanban />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(screen.getByRole('button', { name: reviewButtonName }));
 
-    expect(await screen.findByRole('dialog', { name: 'Tool approval review' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: approvalDialogName })).toBeInTheDocument();
     expect(screen.getByText(/rm -rf \/tmp\/unsafe/)).toBeInTheDocument();
     expect(screen.getByText(/危险操作/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.click(screen.getByRole('button', { name: approveButtonName }));
 
     expect(approvalsStoreState.approveItem).toHaveBeenCalledWith('approval-shell', undefined);
   });
@@ -118,8 +128,8 @@ describe('TaskKanban', () => {
   it('does not submit on Enter while IME composition is active', () => {
     render(<TaskKanban />);
 
-    fireEvent.click(screen.getByRole('button', { name: '+ 新建任务' }));
-    expect(screen.getByRole('heading', { name: '新建任务' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '+ 创建任务' }));
+    expect(screen.getByRole('heading', { name: '创建任务' })).toBeInTheDocument();
 
     const [titleInput] = screen.getAllByRole('textbox');
     fireEvent.change(titleInput, { target: { value: 'IME title' } });
@@ -127,13 +137,13 @@ describe('TaskKanban', () => {
     fireEvent.compositionStart(titleInput);
     fireEvent.keyDown(titleInput, { key: 'Enter' });
 
-    expect(screen.getByRole('heading', { name: '新建任务' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '创建任务' })).toBeInTheDocument();
     expect(titleInput).toHaveValue('IME title');
 
     fireEvent.compositionEnd(titleInput);
     fireEvent.keyDown(titleInput, { key: 'Enter' });
 
-    expect(screen.queryByRole('heading', { name: '新建任务' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '创建任务' })).not.toBeInTheDocument();
     expect(screen.getByText('IME title')).toBeInTheDocument();
   });
 
@@ -193,7 +203,7 @@ describe('TaskKanban', () => {
     fireEvent.click(screen.getByText('Ship runtime task'));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Start work' }));
+      fireEvent.click(screen.getByRole('button', { name: startWorkButtonName }));
     });
 
     expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/spawn', expect.objectContaining({ method: 'POST' }));
@@ -244,12 +254,12 @@ describe('TaskKanban', () => {
 
     render(<TaskKanban />);
     fireEvent.click(screen.getByText('Investigate costs'));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Follow-up message' }), {
+    fireEvent.change(screen.getByRole('textbox', { name: followUpMessageName }), {
       target: { value: 'Follow up on anomalies' },
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Send follow-up' }));
+      fireEvent.click(screen.getByRole('button', { name: sendFollowUpButtonName }));
     });
     expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-2/steer', expect.objectContaining({ method: 'POST' }));
     await waitFor(() => {
@@ -257,7 +267,7 @@ describe('TaskKanban', () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Stop runtime' }));
+      fireEvent.click(screen.getByRole('button', { name: stopRuntimeButtonName }));
     });
     expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-2/kill', expect.objectContaining({ method: 'POST' }));
     expect(screen.getByText(/Runtime killed|Manually stopped/)).toBeInTheDocument();
@@ -372,6 +382,133 @@ describe('TaskKanban', () => {
     }));
   });
 
+  it('keeps a reminder ticket scheduled after the setup runtime completes and binds the created cron job', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-reminder-scheduled',
+        title: '40秒后叫我喝水',
+        description: '帮我设置一个40秒后的提醒',
+        status: 'in-progress',
+        priority: 'medium',
+        workState: 'working',
+        runtimeSessionId: 'runtime-reminder-setup',
+        runtimeSessionKey: 'agent:main:main:subagent:runtime-reminder-setup',
+        workStartedAt: '2026-03-26T13:32:00.000Z',
+        cronBaselineJobIds: [],
+        createdAt: '2026-03-26T13:32:00.000Z',
+        updatedAt: '2026-03-26T13:32:00.000Z',
+      },
+    ]));
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sessions/subagents/runtime-reminder-setup/wait') {
+        return {
+          success: true,
+          session: {
+            id: 'runtime-reminder-setup',
+            status: 'completed',
+            result: '提醒已设置！40秒后会提醒你喝水。',
+            transcript: ['提醒已设置！40秒后会提醒你喝水。'],
+          },
+        };
+      }
+      if (path === '/api/cron/jobs') {
+        return [
+          {
+            id: 'job-drink-water',
+            name: '40秒后叫我喝水',
+            message: '40秒后提醒我喝水',
+            schedule: { kind: 'at', at: '2026-03-26T13:32:40.000Z' },
+            delivery: { mode: 'none' },
+            sessionTarget: 'main',
+            enabled: true,
+            createdAt: '2026-03-26T13:32:01.000Z',
+            updatedAt: '2026-03-26T13:32:01.000Z',
+            nextRun: '2026-03-26T13:32:40.000Z',
+          },
+        ];
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(readStoredTicket('ticket-reminder-scheduled')).toEqual(expect.objectContaining({
+      status: 'in-progress',
+      workState: 'scheduled',
+      workResult: '提醒已设置！40秒后会提醒你喝水。',
+      cronJobId: 'job-drink-water',
+    }));
+  });
+
+  it('moves a one-shot reminder ticket to done only after the cron run completes', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-reminder-done',
+        title: '40秒后叫我喝水',
+        description: '帮我设置一个40秒后的提醒',
+        status: 'in-progress',
+        priority: 'medium',
+        workState: 'scheduled',
+        workResult: '提醒已设置！40秒后会提醒你喝水。',
+        cronJobId: 'job-drink-water',
+        cronScheduleKind: 'at',
+        workStartedAt: '2026-03-26T13:32:00.000Z',
+        createdAt: '2026-03-26T13:32:00.000Z',
+        updatedAt: '2026-03-26T13:32:00.000Z',
+      },
+    ]));
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/cron/jobs') {
+        return [
+          {
+            id: 'job-drink-water',
+            name: '40秒后叫我喝水',
+            message: '40秒后提醒我喝水',
+            schedule: { kind: 'at', at: '2026-03-26T13:32:40.000Z' },
+            delivery: { mode: 'none' },
+            sessionTarget: 'main',
+            enabled: true,
+            createdAt: '2026-03-26T13:32:01.000Z',
+            updatedAt: '2026-03-26T13:32:40.000Z',
+          },
+        ];
+      }
+      if (path === '/api/cron/runs/job-drink-water') {
+        return {
+          runs: [
+            {
+              status: 'ok',
+              summary: '到时间了，记得喝水。',
+              ts: Date.parse('2026-03-26T13:32:40.000Z'),
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(readStoredTicket('ticket-reminder-done')).toEqual(expect.objectContaining({
+      status: 'done',
+      workState: 'done',
+      workResult: '到时间了，记得喝水。',
+      cronJobId: 'job-drink-water',
+    }));
+  });
+
   it.each(['error', 'killed', 'stopped'] as const)(
     'maps %s runtime state into failed work while preserving retry controls',
     async (runtimeStatus) => {
@@ -413,7 +550,7 @@ describe('TaskKanban', () => {
       }));
 
       fireEvent.click(screen.getByText(`Runtime ${runtimeStatus}`));
-      expect(screen.getByRole('button', { name: 'Retry work' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: retryWorkButtonName })).toBeInTheDocument();
     },
   );
 
@@ -466,9 +603,9 @@ describe('TaskKanban', () => {
 
     const shellExecCard = within(approvalsPanel).getByText('ShellExec').closest('div.rounded-lg');
     expect(shellExecCard).not.toBeNull();
-    fireEvent.click(within(shellExecCard as HTMLElement).getByRole('button', { name: 'Review' }));
+    fireEvent.click(within(shellExecCard as HTMLElement).getByRole('button', { name: reviewButtonName }));
 
-    expect(await screen.findByRole('dialog', { name: 'Tool approval review' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: approvalDialogName })).toBeInTheDocument();
   });
 
   it('retries runtime work as a child session and preserves lineage metadata', async () => {
@@ -507,7 +644,7 @@ describe('TaskKanban', () => {
     fireEvent.click(screen.getByText('Retry runtime task'));
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Retry work' }));
+      fireEvent.click(screen.getByRole('button', { name: retryWorkButtonName }));
     });
 
     const [, init] = hostApiFetchMock.mock.calls[0] as [string, { body?: string }];
@@ -696,5 +833,264 @@ describe('TaskKanban', () => {
       expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-child-1');
     });
     expect((await screen.findAllByText('Child run output')).length).toBeGreaterThan(0);
+  });
+
+  it('renders execution records for the selected runtime detail', async () => {
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-runtime-execution',
+        title: 'Inspect execution path',
+        description: 'Show tool execution records',
+        status: 'review',
+        priority: 'medium',
+        workState: 'done',
+        runtimeSessionId: 'runtime-parent',
+        runtimeSessionKey: 'agent:planner-1:main:subagent:runtime-parent',
+        runtimeChildSessionIds: ['runtime-child-1'],
+        runtimeHistory: [
+          {
+            role: 'assistant',
+            content: 'Parent output',
+          },
+        ],
+        runtimeTranscript: ['Parent output'],
+        createdAt: '2026-03-25T00:00:00.000Z',
+        updatedAt: '2026-03-25T00:00:00.000Z',
+      },
+    ]));
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sessions/subagents') {
+        return {
+          success: true,
+          sessions: [
+            {
+              id: 'runtime-parent',
+              sessionKey: 'agent:planner-1:main:subagent:runtime-parent',
+              status: 'completed',
+              transcript: ['Parent output'],
+              childRuntimeIds: ['runtime-child-1'],
+            },
+            {
+              id: 'runtime-child-1',
+              sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+              status: 'completed',
+              transcript: ['Child output'],
+            },
+          ],
+        };
+      }
+      if (path === '/api/sessions/subagents/runtime-child-1') {
+        return {
+          success: true,
+          session: {
+            id: 'runtime-child-1',
+            sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+            status: 'completed',
+            history: [
+              {
+                role: 'assistant',
+                content: 'Child output',
+              },
+            ],
+            transcript: ['Child output'],
+            executionRecords: [
+              {
+                id: 'tool-1',
+                toolName: 'ShellExec',
+                status: 'completed',
+                summary: 'Listed the workspace files.',
+                durationMs: 1200,
+              },
+              {
+                id: 'tool-2',
+                toolName: 'skill:planner-review',
+                status: 'completed',
+                summary: 'Delegated planner review.',
+              },
+            ],
+            skillSnapshot: ['planner-review'],
+            toolSnapshot: [{ server: 'filesystem', name: 'read_file' }],
+          },
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+    fireEvent.click(screen.getByText('Inspect execution path'));
+    fireEvent.click(await screen.findByRole('button', { name: /runtime-child-1/i }));
+
+    await waitFor(() => {
+      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-child-1');
+    });
+    expect(screen.getByText('Execution path')).toBeInTheDocument();
+    expect(screen.getByText('ShellExec')).toBeInTheDocument();
+    expect(screen.getByText('Listed the workspace files.')).toBeInTheDocument();
+    expect(screen.getByText(/1\.2s/)).toBeInTheDocument();
+    expect(screen.getByText('Runtime capabilities')).toBeInTheDocument();
+    expect(screen.getByText('planner-review')).toBeInTheDocument();
+    expect(screen.getByText('filesystem.read_file')).toBeInTheDocument();
+  });
+
+  it('navigates to the parent runtime from the lineage panel', async () => {
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-runtime-lineage',
+        title: 'Inspect lineage navigation',
+        description: 'Open parent runtime',
+        status: 'review',
+        priority: 'medium',
+        workState: 'done',
+        runtimeSessionId: 'runtime-child',
+        runtimeParentSessionId: 'runtime-parent',
+        runtimeRootSessionId: 'runtime-root',
+        runtimeSessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child',
+        runtimeHistory: [
+          {
+            role: 'assistant',
+            content: 'Child output',
+          },
+        ],
+        runtimeTranscript: ['Child output'],
+        createdAt: '2026-03-25T00:00:00.000Z',
+        updatedAt: '2026-03-25T00:00:00.000Z',
+      },
+    ]));
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sessions/subagents/runtime-parent') {
+        return {
+          success: true,
+          session: {
+            id: 'runtime-parent',
+            sessionKey: 'agent:planner-1:main:subagent:runtime-parent',
+            status: 'completed',
+            history: [
+              {
+                role: 'assistant',
+                content: 'Parent output',
+              },
+            ],
+            transcript: ['Parent output'],
+            parentRuntimeId: 'runtime-root',
+            rootRuntimeId: 'runtime-root',
+          },
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+    fireEvent.click(screen.getByText('Inspect lineage navigation'));
+    fireEvent.click(screen.getByRole('button', { name: /runtime-parent/i }));
+
+    await waitFor(() => {
+      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-parent');
+    });
+    expect(await screen.findByText('Parent output')).toBeInTheDocument();
+  });
+
+  it('opens the linked runtime from an execution record card', async () => {
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-runtime-linked-execution',
+        title: 'Linked execution runtime',
+        description: 'Open linked child runtime',
+        status: 'review',
+        priority: 'medium',
+        workState: 'done',
+        runtimeSessionId: 'runtime-parent',
+        runtimeSessionKey: 'agent:planner-1:main:subagent:runtime-parent',
+        runtimeChildSessionIds: ['runtime-child-1'],
+        runtimeHistory: [
+          {
+            role: 'assistant',
+            content: 'Parent output',
+          },
+        ],
+        runtimeTranscript: ['Parent output'],
+        createdAt: '2026-03-25T00:00:00.000Z',
+        updatedAt: '2026-03-25T00:00:00.000Z',
+      },
+    ]));
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sessions/subagents') {
+        return {
+          success: true,
+          sessions: [
+            {
+              id: 'runtime-parent',
+              sessionKey: 'agent:planner-1:main:subagent:runtime-parent',
+              status: 'completed',
+              transcript: ['Parent output'],
+              childRuntimeIds: ['runtime-child-1'],
+            },
+            {
+              id: 'runtime-child-1',
+              sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+              status: 'completed',
+              transcript: ['Child execution output'],
+            },
+          ],
+        };
+      }
+      if (path === '/api/sessions/subagents/runtime-child-1') {
+        return {
+          success: true,
+          session: {
+            id: 'runtime-child-1',
+            sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-1',
+            status: 'completed',
+            history: [
+              {
+                role: 'assistant',
+                content: 'Child execution output',
+              },
+            ],
+            transcript: ['Child execution output'],
+            executionRecords: [
+              {
+                id: 'tool-linked',
+                toolName: 'skill:planner-review',
+                status: 'completed',
+                summary: 'Opened a linked child runtime.',
+                linkedRuntimeId: 'runtime-child-linked',
+              },
+            ],
+          },
+        };
+      }
+      if (path === '/api/sessions/subagents/runtime-child-linked') {
+        return {
+          success: true,
+          session: {
+            id: 'runtime-child-linked',
+            sessionKey: 'agent:planner-1:main:subagent:runtime-parent:subagent:runtime-child-linked',
+            status: 'completed',
+            history: [
+              {
+                role: 'assistant',
+                content: 'Linked child output',
+              },
+            ],
+            transcript: ['Linked child output'],
+          },
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+    fireEvent.click(screen.getByText('Linked execution runtime'));
+    fireEvent.click(await screen.findByRole('button', { name: /runtime-child-1/i }));
+
+    fireEvent.click(await screen.findByRole('button', { name: /open linked runtime runtime-child-linked/i }));
+
+    await waitFor(() => {
+      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/sessions/subagents/runtime-child-linked');
+    });
+    expect(await screen.findByText('Linked child output')).toBeInTheDocument();
   });
 });

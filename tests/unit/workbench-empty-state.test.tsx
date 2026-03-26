@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { axe } from 'vitest-axe';
 import { WorkbenchEmptyState } from '@/components/workbench/workbench-empty-state';
 import { useChatStore } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
@@ -14,9 +15,9 @@ describe('WorkbenchEmptyState', () => {
     useChatStore.setState({ sendMessage: sendMessageMock, setComposerDraft: setComposerDraftMock, composerDraft: '' });
   });
 
-  it('renders a quick action toolbar with persistent selected-action controls and 2x2 suggestion cards', () => {
+  it('renders a quick action toolbar with persistent selected-action controls and 2x2 suggestion cards', async () => {
     useGatewayStore.setState({ status: { state: 'running', port: 18789 } });
-    render(<WorkbenchEmptyState />);
+    const { container } = render(<WorkbenchEmptyState />);
 
     expect(screen.getByRole('heading')).toBeInTheDocument();
 
@@ -35,6 +36,8 @@ describe('WorkbenchEmptyState', () => {
     for (const card of suggestionCards) {
       expect(card).not.toBeDisabled();
     }
+
+    expect(await axe(container)).toHaveNoViolations();
   });
 
   it('opens a prompt panel and refills the composer instead of sending immediately', () => {

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, BookOpen, FolderOpen, GitCommit, Info, Plus, RefreshCw, RotateCw, Save, Trash2, X, Zap } from 'lucide-react';
+import { AlertCircle, AlertTriangle, BookOpen, Code, Eye, FolderOpen, GitCommit, Info, Plus, RefreshCw, RotateCw, Save, Trash2, X, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { hostApiFetch } from '@/lib/host-api';
 import { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
@@ -8,7 +10,7 @@ import { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
 type MemoryFileCategory = 'evergreen' | 'daily' | 'other';
 type HealthSeverity = 'critical' | 'warning' | 'info' | 'ok';
 type Tab = 'overview' | 'browser' | 'guide' | 'extras';
-type SortKey = 'date' | 'name' | 'size';
+type FileTab = 'config' | 'logs';
 
 interface SnapshotResult {
   success: boolean;
@@ -52,6 +54,7 @@ interface MemoryFileInfo {
 interface MemoryScopeInfo {
   id: string;
   label: string;
+  agentName?: string;
   workspaceDir: string;
 }
 
@@ -308,6 +311,35 @@ function OverviewTab({
   );
 }
 
+function MarkdownViewer({ content, highlights }: { content: string; highlights?: MemoryFileHighlight[] }) {
+  void highlights; // future: overlay highlight spans
+  if (!content.trim()) {
+    return <span className="text-[#8e8e93] text-[12px]">（空文件）</span>;
+  }
+  return (
+    <div className="prose prose-sm max-w-none text-[13px] leading-relaxed text-[#000000]
+      [&_h1]:text-[17px] [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
+      [&_h2]:text-[15px] [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1.5
+      [&_h3]:text-[13px] [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1
+      [&_p]:my-1.5 [&_p]:leading-relaxed
+      [&_ul]:my-1.5 [&_ul]:pl-5 [&_li]:my-0.5
+      [&_ol]:my-1.5 [&_ol]:pl-5
+      [&_code]:bg-[#f2f2f7] [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[11px] [&_code]:font-mono
+      [&_pre]:bg-[#f2f2f7] [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:overflow-x-auto
+      [&_pre_code]:bg-transparent [&_pre_code]:p-0
+      [&_blockquote]:border-l-2 [&_blockquote]:border-[#007aff] [&_blockquote]:pl-3 [&_blockquote]:text-[#3c3c43]
+      [&_hr]:border-[#e5e5ea]
+      [&_table]:text-[12px] [&_table]:border-collapse
+      [&_th]:border [&_th]:border-[#c6c6c8] [&_th]:px-2 [&_th]:py-1 [&_th]:bg-[#f2f2f7]
+      [&_td]:border [&_td]:border-[#c6c6c8] [&_td]:px-2 [&_td]:py-1
+      [&_a]:text-[#007aff] [&_a]:underline
+      [&_strong]:font-semibold
+    ">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+    </div>
+  );
+}
+
 function BrowserTab({
   files,
   scopes,
@@ -331,21 +363,35 @@ function BrowserTab({
 }) {
   const { t } = useTranslation('common');
   const relativeTime = useRelativeTime();
-  const [sort, setSort] = useState<SortKey>('date');
+  const [fileTab, setFileTab] = useState<FileTab>('config');
   const [selected, setSelected] = useState<MemoryFileInfo | null>(null);
   const [editing, setEditing] = useState(false);
+  const [rawView, setRawView] = useState(false);
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const sortedFiles = useMemo(() => {
-    return [...files].sort((a, b) => {
-      if (sort === 'name') return a.label.localeCompare(b.label);
-      if (sort === 'size') return b.sizeBytes - a.sizeBytes;
-      return new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime();
-    });
-  }, [files, sort]);
+  // Config files: evergreen category (MEMORY.md, SOUL.md, AGENTS.md, etc.)
+  const configFiles = useMemo(() => {
+    return files
+      .filter((f) => f.category === 'evergreen')
+      .sort((a, b) => {
+        // MEMORY.md always first
+        if (a.relativePath === 'MEMORY.md') return -1;
+        if (b.relativePath === 'MEMORY.md') return 1;
+        return a.label.localeCompare(b.label);
+      });
+  }, [files]);
+
+  // Memory logs: daily category (YYYY-MM-DD.md)
+  const logFiles = useMemo(() => {
+    return files
+      .filter((f) => f.category === 'daily')
+      .sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+  }, [files]);
+
+  const visibleFiles = fileTab === 'config' ? configFiles : logFiles;
 
   useEffect(() => {
     if (!selected) return;
@@ -365,7 +411,17 @@ function BrowserTab({
   const handleSelect = (file: MemoryFileInfo) => {
     setSelected(file);
     setEditing(false);
+    setRawView(false);
     setDraft(file.content);
+    setSaveError(null);
+  };
+
+  const handleFileTabChange = (tab: FileTab) => {
+    setFileTab(tab);
+    setSelected(null);
+    setEditing(false);
+    setRawView(false);
+    setDraft('');
     setSaveError(null);
   };
 
@@ -377,6 +433,7 @@ function BrowserTab({
 
   const handleCancel = () => {
     setEditing(false);
+    setRawView(false);
     setDraft(selected?.content ?? '');
     setSaveError(null);
   };
@@ -414,6 +471,8 @@ function BrowserTab({
 
   const hasUnsavedChanges = editing && selected !== null && draft !== selected.content;
 
+  const isMarkdownFile = selected ? /\.md$/i.test(selected.relativePath) : false;
+
   return (
     <div className="flex h-full min-h-0 gap-3" style={{ height: 'calc(100vh - 200px)' }}>
       <div className="flex w-[220px] shrink-0 flex-col gap-2">
@@ -425,7 +484,7 @@ function BrowserTab({
         >
           {scopes.map((scope) => (
             <option key={scope.id} value={scope.id}>
-              {scope.label}
+              {scope.agentName ?? scope.label}
             </option>
           ))}
         </select>
@@ -438,26 +497,39 @@ function BrowserTab({
           className="w-full rounded-lg border border-black/[0.08] bg-white px-3 py-2 text-[12px] outline-none focus:border-clawx-ac"
         />
         {searchSummary?.query && <div className="text-[11px] text-[#8e8e93]">{searchSummary.totalHits} hits</div>}
-        <div className="flex gap-1">
-          {(['date', 'name', 'size'] as SortKey[]).map((key) => (
+
+        {/* Sub-tabs: 配置文件 / 记忆日志 */}
+        <div className="flex rounded-lg bg-[#f2f2f7] p-0.5">
+          {([['config', '配置文件'], ['logs', '记忆日志']] as [FileTab, string][]).map(([key, label]) => (
             <button
               key={key}
               type="button"
-              onClick={() => setSort(key)}
+              onClick={() => handleFileTabChange(key)}
               className={cn(
-                'flex-1 rounded-md py-1 text-[11px] font-medium transition-colors',
-                sort === key ? 'bg-clawx-ac text-white' : 'bg-white text-[#8e8e93] hover:bg-[#f2f2f7]',
+                'flex-1 rounded-md py-1.5 text-[11px] font-medium transition-all',
+                fileTab === key
+                  ? 'bg-white text-[#000000] shadow-sm'
+                  : 'text-[#8e8e93] hover:text-[#3c3c43]',
               )}
             >
-              {t(`sort.${key}`)}
+              {label}
+              <span className={cn(
+                'ml-1 text-[10px]',
+                fileTab === key ? 'text-clawx-ac' : 'text-[#c6c6c8]',
+              )}>
+                {key === 'config' ? configFiles.length : logFiles.length}
+              </span>
             </button>
           ))}
         </div>
+
         <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
-          {sortedFiles.length === 0 && (
-            <div className="py-8 text-center text-[12px] text-[#8e8e93]">{t('memory.noFiles')}</div>
+          {visibleFiles.length === 0 && (
+            <div className="py-8 text-center text-[12px] text-[#8e8e93]">
+              {fileTab === 'config' ? '暂无配置文件' : '暂无记忆日志'}
+            </div>
           )}
-          {sortedFiles.map((file) => (
+          {visibleFiles.map((file) => (
             <button
               key={file.relativePath}
               type="button"
@@ -510,6 +582,18 @@ function BrowserTab({
                 <div className="text-[11px] text-[#8e8e93]">{selected.relativePath} · {formatBytes(selected.sizeBytes)}</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                {/* Rendered / Raw toggle for markdown files */}
+                {isMarkdownFile && !editing && (
+                  <button
+                    type="button"
+                    onClick={() => setRawView((v) => !v)}
+                    title={rawView ? '切换渲染视图' : '切换原始文本'}
+                    className="flex items-center gap-1 rounded-lg bg-[#f2f2f7] px-2.5 py-1.5 text-[12px] font-medium text-[#3c3c43] hover:bg-[#e5e5ea]"
+                  >
+                    {rawView ? <Eye className="h-3 w-3" /> : <Code className="h-3 w-3" />}
+                    {rawView ? '渲染' : '原文'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => void handleCopy()}
@@ -563,6 +647,10 @@ function BrowserTab({
                   className="h-full w-full resize-none p-4 font-mono text-[12px] leading-5 text-[#000000] outline-none"
                   spellCheck={false}
                 />
+              ) : isMarkdownFile && !rawView ? (
+                <div className="p-4 overflow-auto">
+                  <MarkdownViewer content={selected.content} highlights={selected.search?.highlights} />
+                </div>
               ) : (
                 <pre className="whitespace-pre-wrap break-words p-4 font-mono text-[12px] leading-5 text-[#000000]">
                   {selected.content || <span className="text-[#8e8e93]">{t('memory.emptyFile')}</span>}

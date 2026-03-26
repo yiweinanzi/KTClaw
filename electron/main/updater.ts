@@ -28,6 +28,30 @@ export interface UpdateStatus {
   error?: string;
 }
 
+export type UpdateCheckReason = 'manual' | 'startup';
+
+export interface UpdateCheckOptions {
+  reason?: UpdateCheckReason;
+  respectPolicy?: boolean;
+}
+
+export interface PersistedUpdatePolicyState {
+  attemptCount: number;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastCheckReason: UpdateCheckReason | null;
+  lastCheckError: string | null;
+  lastCheckChannel: UpdateChannel;
+  nextEligibleAt: string | null;
+  rolloutDelayMs: number;
+}
+
+export interface UpdatePolicySnapshot extends PersistedUpdatePolicyState {
+  channel: UpdateChannel;
+  checkIntervalMs: number;
+}
+
 export interface UpdaterEvents {
   'status-changed': (status: UpdateStatus) => void;
   'checking-for-update': () => void;
@@ -35,7 +59,56 @@ export interface UpdaterEvents {
   'update-not-available': (info: UpdateInfo) => void;
   'download-progress': (progress: ProgressInfo) => void;
   'update-downloaded': (event: UpdateDownloadedEvent) => void;
+  'auto-install-countdown': (payload: { seconds: number; cancelled?: boolean }) => void;
   'error': (error: Error) => void;
+}
+
+const CHECK_INTERVAL_MS_BY_CHANNEL: Record<UpdateChannel, number> = {
+  stable: 12 * 60 * 60 * 1000,
+  beta: 4 * 60 * 60 * 1000,
+  dev: 60 * 60 * 1000,
+};
+
+const ROLLOUT_JITTER_WINDOW_MS_BY_CHANNEL: Record<UpdateChannel, number> = {
+  stable: 60 * 60 * 1000,
+  beta: 15 * 60 * 1000,
+  dev: 5 * 60 * 1000,
+};
+
+function normalizePolicyState(
+  input: unknown,
+  channel: UpdateChannel,
+  rolloutDelayMs: number,
+): PersistedUpdatePolicyState {
+  const value = input && typeof input === 'object'
+    ? input as Partial<PersistedUpdatePolicyState>
+    : {};
+
+  return {
+    attemptCount: typeof value.attemptCount === 'number' && value.attemptCount >= 0
+      ? value.attemptCount
+      : 0,
+    lastAttemptAt: typeof value.lastAttemptAt === 'string' ? value.lastAttemptAt : null,
+    lastSuccessAt: typeof value.lastSuccessAt === 'string' ? value.lastSuccessAt : null,
+    lastFailureAt: typeof value.lastFailureAt === 'string' ? value.lastFailureAt : null,
+    lastCheckReason: value.lastCheckReason === 'startup' || value.lastCheckReason === 'manual'
+      ? value.lastCheckReason
+      : null,
+    lastCheckError: typeof value.lastCheckError === 'string' ? value.lastCheckError : null,
+    lastCheckChannel: normalizeUpdateChannel(value.lastCheckChannel ?? channel),
+    nextEligibleAt: typeof value.nextEligibleAt === 'string' ? value.nextEligibleAt : null,
+    rolloutDelayMs: typeof value.rolloutDelayMs === 'number' && value.rolloutDelayMs >= 0
+      ? value.rolloutDelayMs
+      : rolloutDelayMs,
+  };
+}
+
+function hashSeedToInt(seed: string): number {
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = ((hash << 5) - hash + seed.charCodeAt(index)) | 0;
+  }
+  return Math.abs(hash);
 }
 
 /**
@@ -64,6 +137,10 @@ export class AppUpdater extends EventEmitter {
   private status: UpdateStatus = { status: 'idle' };
   private autoInstallTimer: NodeJS.Timeout | null = null;
   private autoInstallCountdown = 0;
+  private currentUpdateChannel: UpdateChannel = 'stable';
+  private policySeed = app.getVersion();
+  private policyState: PersistedUpdatePolicyState = normalizePolicyState(null, 'stable', 0);
+  private readonly readyPromise: Promise<void>;
 
   /** Delay (in seconds) before auto-installing a downloaded update. */
   private static readonly AUTO_INSTALL_DELAY_SECONDS = 5;
@@ -94,14 +171,16 @@ export class AppUpdater extends EventEmitter {
       `[Updater] Version: ${version}, channel: ${derivedChannel}, feedChannel: ${getFeedChannel(derivedChannel)}, feedUrl: ${getFeedUrl(derivedChannel)}`
     );
 
-    // Replay persisted update channel so runtime behavior matches Settings.
-    void this.bootstrapChannelFromSettings();
+    // Replay persisted update channel and update policy state so runtime
+    // behavior matches Settings and survives restarts.
+    this.readyPromise = this.bootstrapPersistedState();
 
     this.setupListeners();
   }
 
   private applyChannel(channel: UpdateChannel, persist: boolean): void {
     const normalized = normalizeUpdateChannel(channel);
+    this.currentUpdateChannel = normalized;
     const feedChannel = getFeedChannel(normalized);
     autoUpdater.channel = feedChannel;
     autoUpdater.setFeedURL({
@@ -114,6 +193,11 @@ export class AppUpdater extends EventEmitter {
     void setSetting('updateChannel', normalized).catch((error) => {
       logger.warn('[Updater] Failed to persist update channel:', error);
     });
+  }
+
+  private async bootstrapPersistedState(): Promise<void> {
+    await this.bootstrapChannelFromSettings();
+    await this.bootstrapPolicyStateFromSettings();
   }
 
   private async bootstrapChannelFromSettings(): Promise<void> {
@@ -129,6 +213,70 @@ export class AppUpdater extends EventEmitter {
     }
   }
 
+  private async bootstrapPolicyStateFromSettings(): Promise<void> {
+    try {
+      const [persistedPolicy, machineId] = await Promise.all([
+        getSetting('updatePolicyState').catch(() => null),
+        getSetting('machineId').catch(() => ''),
+      ]);
+      this.policySeed = typeof machineId === 'string' && machineId.trim().length > 0
+        ? machineId
+        : app.getVersion();
+      const rolloutDelayMs = this.computeRolloutDelayMs(this.currentUpdateChannel);
+      this.policyState = normalizePolicyState(persistedPolicy, this.currentUpdateChannel, rolloutDelayMs);
+      if (this.policyState.lastCheckChannel !== this.currentUpdateChannel || this.policyState.rolloutDelayMs !== rolloutDelayMs) {
+        this.policyState = {
+          ...this.policyState,
+          lastCheckChannel: this.currentUpdateChannel,
+          nextEligibleAt: this.recomputeNextEligibleAt(this.currentUpdateChannel),
+          rolloutDelayMs,
+        };
+        await this.persistPolicyState();
+      }
+    } catch (error) {
+      logger.warn('[Updater] Failed to load persisted update policy state:', error);
+      this.policyState = normalizePolicyState(null, this.currentUpdateChannel, this.computeRolloutDelayMs(this.currentUpdateChannel));
+    }
+  }
+
+  private async ensureReady(): Promise<void> {
+    await this.readyPromise;
+  }
+
+  private computeCheckIntervalMs(channel = this.currentUpdateChannel): number {
+    return CHECK_INTERVAL_MS_BY_CHANNEL[channel];
+  }
+
+  private computeRolloutDelayMs(channel = this.currentUpdateChannel): number {
+    const windowMs = ROLLOUT_JITTER_WINDOW_MS_BY_CHANNEL[channel];
+    if (windowMs <= 0) return 0;
+    return hashSeedToInt(`${this.policySeed}:${channel}`) % windowMs;
+  }
+
+  private computeNextEligibleAt(nowMs: number, channel = this.currentUpdateChannel): string {
+    return new Date(nowMs + this.computeCheckIntervalMs(channel) + this.computeRolloutDelayMs(channel)).toISOString();
+  }
+
+  private recomputeNextEligibleAt(channel = this.currentUpdateChannel): string | null {
+    if (!this.policyState.lastAttemptAt) return null;
+    const lastAttemptMs = Date.parse(this.policyState.lastAttemptAt);
+    return Number.isFinite(lastAttemptMs) ? this.computeNextEligibleAt(lastAttemptMs, channel) : null;
+  }
+
+  private shouldSkipPolicyCheck(nowMs: number): boolean {
+    if (!this.policyState.nextEligibleAt) return false;
+    const nextEligibleMs = Date.parse(this.policyState.nextEligibleAt);
+    return Number.isFinite(nextEligibleMs) && nextEligibleMs > nowMs;
+  }
+
+  private async persistPolicyState(): Promise<void> {
+    try {
+      await setSetting('updatePolicyState', this.policyState);
+    } catch (error) {
+      logger.warn('[Updater] Failed to persist update policy state:', error);
+    }
+  }
+
   /**
    * Set the main window for sending update events
    */
@@ -141,6 +289,18 @@ export class AppUpdater extends EventEmitter {
    */
   getStatus(): UpdateStatus {
     return this.status;
+  }
+
+  async waitUntilReady(): Promise<void> {
+    await this.ensureReady();
+  }
+
+  getPolicySnapshot(): UpdatePolicySnapshot {
+    return {
+      ...this.policyState,
+      channel: this.currentUpdateChannel,
+      checkIntervalMs: this.computeCheckIntervalMs(),
+    };
   }
 
   /**
@@ -193,6 +353,7 @@ export class AppUpdater extends EventEmitter {
       error: newStatus.error,
     };
     this.sendToRenderer('update:status-changed', this.status);
+    this.emit('status-changed', this.status);
   }
 
   /**
@@ -212,7 +373,30 @@ export class AppUpdater extends EventEmitter {
    * null without emitting any events, so we must detect this and force a
    * final status so the UI never gets stuck in 'checking'.
    */
-  async checkForUpdates(): Promise<UpdateInfo | null> {
+  async checkForUpdates(options: UpdateCheckOptions = {}): Promise<UpdateInfo | null> {
+    await this.ensureReady();
+    const reason = options.reason ?? 'manual';
+    const respectPolicy = options.respectPolicy ?? reason === 'startup';
+    const startedAtMs = Date.now();
+    const startedAtIso = new Date(startedAtMs).toISOString();
+
+    if (respectPolicy && this.shouldSkipPolicyCheck(startedAtMs)) {
+      logger.info(`[Updater] Skipping ${reason} update check until ${this.policyState.nextEligibleAt}`);
+      return null;
+    }
+
+    this.policyState = {
+      ...this.policyState,
+      attemptCount: this.policyState.attemptCount + 1,
+      lastAttemptAt: startedAtIso,
+      lastCheckReason: reason,
+      lastCheckChannel: this.currentUpdateChannel,
+      lastCheckError: null,
+      rolloutDelayMs: this.computeRolloutDelayMs(),
+      nextEligibleAt: this.computeNextEligibleAt(startedAtMs),
+    };
+    await this.persistPolicyState();
+
     try {
       const result = await autoUpdater.checkForUpdates();
 
@@ -220,6 +404,12 @@ export class AppUpdater extends EventEmitter {
       // without emitting ANY events (not even checking-for-update).
       // Detect this and force an error so the UI never stays silent.
       if (result == null) {
+        this.policyState = {
+          ...this.policyState,
+          lastFailureAt: startedAtIso,
+          lastCheckError: 'Update check skipped (dev mode - app is not packaged)',
+        };
+        await this.persistPolicyState();
         this.updateStatus({
           status: 'error',
           error: 'Update check skipped (dev mode - app is not packaged)',
@@ -232,9 +422,23 @@ export class AppUpdater extends EventEmitter {
         this.updateStatus({ status: 'not-available' });
       }
 
+      this.policyState = {
+        ...this.policyState,
+        lastSuccessAt: startedAtIso,
+        lastCheckError: null,
+        lastCheckChannel: this.currentUpdateChannel,
+      };
+      await this.persistPolicyState();
+
       return result.updateInfo || null;
     } catch (error) {
       logger.error('[Updater] Check for updates failed:', error);
+      this.policyState = {
+        ...this.policyState,
+        lastFailureAt: startedAtIso,
+        lastCheckError: (error as Error).message || String(error),
+      };
+      await this.persistPolicyState();
       this.updateStatus({ status: 'error', error: (error as Error).message || String(error) });
       throw error;
     }
@@ -277,10 +481,12 @@ export class AppUpdater extends EventEmitter {
     this.clearAutoInstallTimer();
     this.autoInstallCountdown = AppUpdater.AUTO_INSTALL_DELAY_SECONDS;
     this.sendToRenderer('update:auto-install-countdown', { seconds: this.autoInstallCountdown });
+    this.emit('auto-install-countdown', { seconds: this.autoInstallCountdown });
 
     this.autoInstallTimer = setInterval(() => {
       this.autoInstallCountdown--;
       this.sendToRenderer('update:auto-install-countdown', { seconds: this.autoInstallCountdown });
+      this.emit('auto-install-countdown', { seconds: this.autoInstallCountdown });
 
       if (this.autoInstallCountdown <= 0) {
         this.clearAutoInstallTimer();
@@ -292,6 +498,7 @@ export class AppUpdater extends EventEmitter {
   cancelAutoInstall(): void {
     this.clearAutoInstallTimer();
     this.sendToRenderer('update:auto-install-countdown', { seconds: -1, cancelled: true });
+    this.emit('auto-install-countdown', { seconds: -1, cancelled: true });
   }
 
   private clearAutoInstallTimer(): void {
@@ -305,7 +512,15 @@ export class AppUpdater extends EventEmitter {
    * Set update channel (stable, beta, dev)
    */
   setChannel(channel: 'stable' | 'beta' | 'dev'): void {
-    this.applyChannel(channel, true);
+    const normalizedChannel = normalizeUpdateChannel(channel);
+    this.applyChannel(normalizedChannel, true);
+    this.policyState = {
+      ...this.policyState,
+      lastCheckChannel: normalizedChannel,
+      nextEligibleAt: this.recomputeNextEligibleAt(normalizedChannel),
+      rolloutDelayMs: this.computeRolloutDelayMs(normalizedChannel),
+    };
+    void this.persistPolicyState();
   }
 
   /**

@@ -6,7 +6,11 @@ import { homedir } from 'os';
 import { execFile, spawnSync } from 'child_process';
 import type { HostApiContext } from '../context';
 import { sendJson, parseJsonBody } from '../route-utils';
-import { extractMemoryFromMessages, type MemoryGuardLevel } from './memory-extract';
+import { extractMemoryFromMessages, extractMemoryWithLlm, type MemoryGuardLevel, type LlmProviderConfig } from './memory-extract';
+import { listAgentsSnapshot } from '../../utils/agent-config';
+import { expandPath } from '../../utils/paths';
+import { getDefaultProviderAccountId, getProviderAccount } from '../../services/providers/provider-store';
+import { getApiKey } from '../../utils/secure-storage';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -40,6 +44,7 @@ interface MemoryFileInfo {
 interface MemoryScopeInfo {
   id: string;
   label: string;
+  agentName: string;
   workspaceDir: string;
 }
 
@@ -58,6 +63,11 @@ interface MemoryConfig {
     cache: { enabled: boolean; maxEntries: number };
     extraPaths: string[];
   };
+  qmdCollections: Array<{
+    name: string;
+    path: string;
+    pattern: string;
+  }>;
   memoryFlush: { enabled: boolean; softThresholdTokens: number };
   configFound: boolean;
 }
@@ -151,10 +161,39 @@ function toRelativeWorkspacePath(workspaceDir: string, fullPath: string): string
 
 async function getMemoryScopes(): Promise<MemoryScopeInfo[]> {
   const scopes: MemoryScopeInfo[] = [];
-  const openclawHome = join(homedir(), '.openclaw');
-  const agentsDir = join(openclawHome, 'agents');
   const seenWorkspace = new Set<string>();
 
+  // Primary source: read real agent list from openclaw.json config
+  let agentNameMap = new Map<string, string>();
+  let agentWorkspaceMap = new Map<string, string>();
+  try {
+    const snapshot = await listAgentsSnapshot();
+    for (const agent of snapshot.agents) {
+      agentNameMap.set(agent.id, agent.name);
+      try {
+        const expandedWorkspace = expandPath(agent.workspace);
+        agentWorkspaceMap.set(agent.id, expandedWorkspace);
+      } catch {
+        // ignore individual expansion errors
+      }
+    }
+  } catch {
+    // listAgentsSnapshot may fail if config is missing; fall through to filesystem scan
+  }
+
+  // Add scopes from agent workspace map (config-driven, with real names)
+  for (const [agentId, workspaceDir] of agentWorkspaceMap) {
+    if (!existsSync(workspaceDir)) continue;
+    const resolvedPath = resolve(workspaceDir);
+    if (seenWorkspace.has(resolvedPath)) continue;
+    seenWorkspace.add(resolvedPath);
+    const agentName = agentNameMap.get(agentId) ?? agentId;
+    scopes.push({ id: agentId, label: agentName, agentName, workspaceDir });
+  }
+
+  // Fallback: scan ~/.openclaw/agents/*/workspace for any agents not already found
+  const openclawHome = join(homedir(), '.openclaw');
+  const agentsDir = join(openclawHome, 'agents');
   if (existsSync(agentsDir)) {
     try {
       const entries = await readdir(agentsDir, { withFileTypes: true });
@@ -166,7 +205,8 @@ async function getMemoryScopes(): Promise<MemoryScopeInfo[]> {
         const resolvedPath = resolve(workspaceDir);
         if (seenWorkspace.has(resolvedPath)) continue;
         seenWorkspace.add(resolvedPath);
-        scopes.push({ id: scopeId, label: scopeId, workspaceDir });
+        const agentName = agentNameMap.get(scopeId) ?? scopeId;
+        scopes.push({ id: scopeId, label: agentName, agentName, workspaceDir });
       }
     } catch {
       // Ignore unreadable agent directories.
@@ -177,18 +217,20 @@ async function getMemoryScopes(): Promise<MemoryScopeInfo[]> {
   if (existsSync(fallbackWorkspace)) {
     const resolvedFallback = resolve(fallbackWorkspace);
     if (!seenWorkspace.has(resolvedFallback)) {
-      scopes.push({ id: 'main', label: 'main', workspaceDir: fallbackWorkspace });
+      const agentName = agentNameMap.get('main') ?? 'Main';
+      scopes.push({ id: 'main', label: agentName, agentName, workspaceDir: fallbackWorkspace });
     }
   }
 
   if (scopes.length === 0) {
-    scopes.push({ id: 'main', label: 'main', workspaceDir: fallbackWorkspace });
+    const agentName = agentNameMap.get('main') ?? 'Main';
+    scopes.push({ id: 'main', label: agentName, agentName, workspaceDir: fallbackWorkspace });
   }
 
   scopes.sort((a, b) => {
     if (a.id === 'main' && b.id !== 'main') return -1;
     if (b.id === 'main' && a.id !== 'main') return 1;
-    return a.id.localeCompare(b.id);
+    return a.label.localeCompare(b.label);
   });
 
   return scopes;
@@ -242,6 +284,7 @@ async function getMemoryFiles(scope: MemoryScopeInfo, config: MemoryConfig): Pro
   const files: MemoryFileInfo[] = [];
   const seen = new Set<string>();
   const workspacePath = scope.workspaceDir;
+  const qmdRootPath = join(dirname(workspacePath), 'qmd');
 
   const addFile = async (
     fullPath: string,
@@ -270,6 +313,56 @@ async function getMemoryFiles(scope: MemoryScopeInfo, config: MemoryConfig): Pro
     } catch {
       // Skip unreadable file entries.
     }
+  };
+
+  const walkFiles = async (rootPath: string): Promise<string[]> => {
+    try {
+      const fileStat = await stat(rootPath);
+      if (fileStat.isFile()) return [rootPath];
+      if (!fileStat.isDirectory()) return [];
+    } catch {
+      return [];
+    }
+
+    const pending = [rootPath];
+    const results: string[] = [];
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const entries = await readdir(current, { withFileTypes: true }).catch(() => []);
+      for (const entry of entries) {
+        const fullPath = join(current, entry.name);
+        if (entry.isDirectory()) {
+          pending.push(fullPath);
+        } else if (entry.isFile()) {
+          results.push(fullPath);
+        }
+      }
+    }
+    return results;
+  };
+
+  const matchesQmdPattern = (relativeFilePath: string, pattern: string): boolean => {
+    const normalizedPattern = pattern.trim().replace(/[\\]+/g, '/').toLowerCase();
+    const normalizedFilePath = relativeFilePath.replace(/[\\]+/g, '/').toLowerCase();
+    if (!normalizedPattern || normalizedPattern === '**/*') return true;
+    if (normalizedPattern.includes('{') && normalizedPattern.includes('}')) {
+      const extGroup = normalizedPattern.match(/\{([^}]+)\}/)?.[1];
+      if (extGroup) {
+        const extensions = extGroup.split(',').map((item) => item.trim().replace(/^\./, ''));
+        const ext = basename(normalizedFilePath).split('.').at(-1) ?? '';
+        return extensions.includes(ext);
+      }
+    }
+    if (normalizedPattern.startsWith('**/*.')) {
+      return normalizedFilePath.endsWith(normalizedPattern.slice(4));
+    }
+    if (normalizedPattern.startsWith('*.')) {
+      return basename(normalizedFilePath).endsWith(normalizedPattern.slice(1));
+    }
+    if (!normalizedPattern.includes('*')) {
+      return basename(normalizedFilePath) === normalizedPattern || normalizedFilePath === normalizedPattern;
+    }
+    return normalizedFilePath.endsWith(normalizedPattern.replace(/^\*\*\//, '').replace(/^\*/, ''));
   };
 
   await addFile(join(workspacePath, 'MEMORY.md'), 'MEMORY.md', true, 'Long-Term Memory');
@@ -316,6 +409,39 @@ async function getMemoryFiles(scope: MemoryScopeInfo, config: MemoryConfig): Pro
     }
 
     await addFile(fullPath, relativePath, writable, humanizeFilename(basename(relativePath)));
+  }
+
+  for (const collection of config.qmdCollections) {
+    const collectionRoot = isAbsolutePath(collection.path)
+      ? resolve(collection.path)
+      : resolve(workspacePath, collection.path);
+    const collectionFiles = await walkFiles(collectionRoot);
+    for (const fullPath of collectionFiles) {
+      const relativeInsideCollection = relative(collectionRoot, fullPath).replace(/[\\]+/g, '/');
+      if (!relativeInsideCollection || relativeInsideCollection.startsWith('../')) continue;
+      if (!matchesQmdPattern(relativeInsideCollection, collection.pattern)) continue;
+      await addFile(
+        fullPath,
+        `qmd/${collection.name}/${relativeInsideCollection}`,
+        false,
+        `${collection.name}: ${humanizeFilename(basename(relativeInsideCollection))}`,
+      );
+    }
+  }
+
+  const qmdSessionsDir = join(qmdRootPath, 'sessions');
+  if (existsSync(qmdSessionsDir)) {
+    const qmdSessionFiles = await walkFiles(qmdSessionsDir);
+    for (const fullPath of qmdSessionFiles) {
+      const relativeInsideSessions = relative(qmdSessionsDir, fullPath).replace(/[\\]+/g, '/');
+      if (!relativeInsideSessions || relativeInsideSessions.startsWith('../')) continue;
+      await addFile(
+        fullPath,
+        `qmd/sessions/${relativeInsideSessions}`,
+        false,
+        `QMD Sessions: ${humanizeFilename(basename(relativeInsideSessions))}`,
+      );
+    }
   }
 
   files.sort((a, b) => {
@@ -395,10 +521,32 @@ const SEARCH_DEFAULTS: MemoryConfig['memorySearch'] = {
   extraPaths: [],
 };
 
+function normalizeQmdCollections(value: unknown): MemoryConfig['qmdCollections'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry === 'string' && entry.trim()) {
+      return [{
+        name: humanizeFilename(basename(entry.trim())),
+        path: entry.trim(),
+        pattern: '**/*.md',
+      }];
+    }
+    if (!entry || typeof entry !== 'object') return [];
+    const row = entry as Record<string, unknown>;
+    const pathValue = typeof row.path === 'string' ? row.path.trim() : '';
+    if (!pathValue) return [];
+    const pattern = typeof row.pattern === 'string' && row.pattern.trim() ? row.pattern.trim() : '**/*.md';
+    const name = typeof row.name === 'string' && row.name.trim()
+      ? row.name.trim()
+      : humanizeFilename(basename(pathValue));
+    return [{ name, path: pathValue, pattern }];
+  });
+}
+
 function getMemoryConfig(workspacePath: string): MemoryConfig {
   const configPath = join(dirname(workspacePath), 'openclaw.json');
   if (!existsSync(configPath)) {
-    return { memorySearch: SEARCH_DEFAULTS, memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
+    return { memorySearch: SEARCH_DEFAULTS, qmdCollections: [], memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
   }
   try {
     const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -424,11 +572,12 @@ function getMemoryConfig(workspacePath: string): MemoryConfig {
         cache: { enabled: cache.enabled ?? true, maxEntries: cache.maxEntries ?? 256 },
         extraPaths: ms.extraPaths ?? [],
       },
+      qmdCollections: normalizeQmdCollections(raw?.memory?.qmd?.paths),
       memoryFlush: { enabled: flush.enabled ?? false, softThresholdTokens: flush.softThresholdTokens ?? 80000 },
       configFound: 'memorySearch' in ad,
     };
   } catch {
-    return { memorySearch: SEARCH_DEFAULTS, memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
+    return { memorySearch: SEARCH_DEFAULTS, qmdCollections: [], memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
   }
 }
 
@@ -768,18 +917,25 @@ export async function handleMemoryRoutes(
     return true;
   }
 
-  // POST /api/memory/extract — heuristic extraction from conversation
+  // POST /api/memory/extract — heuristic or LLM extraction from conversation
   if (url.pathname === '/api/memory/extract' && req.method === 'POST') {
     try {
       const body = await parseJsonBody<{
         messages?: Array<{ role: string; content: unknown }>;
         sessionKey?: string;
         label?: string;
+        scope?: string;
+        agentId?: string;
+        useLlm?: boolean;
       }>(req);
 
       const rawMessages = Array.isArray(body?.messages) ? body.messages : [];
       const sessionKey = typeof body?.sessionKey === 'string' ? body.sessionKey.trim() : '';
       const label = typeof body?.label === 'string' ? body.label.trim() : '';
+      const scopeHint = (typeof body?.scope === 'string' ? body.scope.trim() : '')
+        || (typeof body?.agentId === 'string' ? body.agentId.trim() : '');
+      const useLlm = body?.useLlm === true;
+
       const extendedBody = body as typeof body & {
         guardLevel?: string;
         judge?: {
@@ -794,42 +950,91 @@ export async function handleMemoryRoutes(
       const guardLevel: MemoryGuardLevel = (guardLevelRaw === 'strict' || guardLevelRaw === 'standard' || guardLevelRaw === 'relaxed')
         ? guardLevelRaw
         : 'standard';
-      const judgeInput = extendedBody.judge;
 
-      const extractedResult = await extractMemoryFromMessages(rawMessages, {
-        guardLevel,
-        judge: {
-          enabled: Boolean(judgeInput?.enabled),
-          endpoint: typeof judgeInput?.endpoint === 'string' ? judgeInput.endpoint : undefined,
-          model: typeof judgeInput?.model === 'string' ? judgeInput.model : undefined,
-          apiKey: typeof judgeInput?.apiKey === 'string' ? judgeInput.apiKey : undefined,
-          timeoutMs: typeof judgeInput?.timeoutMs === 'number' ? judgeInput.timeoutMs : undefined,
-        },
-      });
-
-      if (extractedResult.candidates.length === 0) {
-        sendJson(res, 200, {
-          ok: true,
-          skipped: true,
-          reason: 'no_durable_memory_candidates',
-          judge: extractedResult.judge,
-        });
-        return true;
-      }
+      // Resolve scope (workspace) first
+      const scopes = await getMemoryScopes();
+      const activeScope = selectScope(scopes, scopeHint || url.searchParams.get('scope'));
+      const workspacePath = activeScope.workspaceDir;
 
       const now = new Date();
       const dateStr = now.toISOString().slice(0, 10);
       const timeStr = now.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' });
       const title = label || sessionKey || 'Conversation';
+
+      let extractedItems: string[] = [];
+      let usedLlm = false;
+
+      // ── LLM path ──────────────────────────────────────────────
+      if (useLlm) {
+        try {
+          // Look up the default provider account and its API key
+          const defaultAccountId = await getDefaultProviderAccountId();
+          const account = defaultAccountId ? await getProviderAccount(defaultAccountId) : null;
+          const apiKey = defaultAccountId ? (await getApiKey(defaultAccountId)) ?? '' : '';
+
+          if (account && apiKey) {
+            // Determine provider base URL and protocol
+            const providerDef = account.vendorId;
+            const protocol: LlmProviderConfig['protocol'] = (account.apiProtocol === 'anthropic-messages' || providerDef === 'anthropic')
+              ? 'anthropic-messages'
+              : 'openai-completions';
+
+            let endpoint = account.baseUrl ?? '';
+            if (!endpoint) {
+              if (providerDef === 'deepseek') endpoint = 'https://api.deepseek.com/v1';
+              else if (providerDef === 'openai') endpoint = 'https://api.openai.com/v1';
+              else if (providerDef === 'anthropic') endpoint = 'https://api.anthropic.com';
+              else endpoint = 'https://api.openai.com/v1';
+            }
+            const model = account.model ?? 'gpt-4o-mini';
+
+            const llmResult = await extractMemoryWithLlm(rawMessages, { endpoint, model, apiKey, protocol });
+            if (llmResult.items.length > 0) {
+              extractedItems = llmResult.items;
+              usedLlm = true;
+            }
+          }
+        } catch {
+          // LLM failed — fall through to rule-based extraction below
+        }
+      }
+
+      // ── Rule-based path (fallback or default) ─────────────────
+      if (extractedItems.length === 0) {
+        const judgeInput = extendedBody.judge;
+        const extractedResult = await extractMemoryFromMessages(rawMessages, {
+          guardLevel,
+          judge: {
+            enabled: Boolean(judgeInput?.enabled),
+            endpoint: typeof judgeInput?.endpoint === 'string' ? judgeInput.endpoint : undefined,
+            model: typeof judgeInput?.model === 'string' ? judgeInput.model : undefined,
+            apiKey: typeof judgeInput?.apiKey === 'string' ? judgeInput.apiKey : undefined,
+            timeoutMs: typeof judgeInput?.timeoutMs === 'number' ? judgeInput.timeoutMs : undefined,
+          },
+        });
+
+        if (extractedResult.candidates.length === 0) {
+          sendJson(res, 200, {
+            ok: true,
+            skipped: true,
+            reason: useLlm ? 'llm_no_memories_found' : 'no_durable_memory_candidates',
+          });
+          return true;
+        }
+        extractedItems = extractedResult.candidates.slice(0, 6).map((c) => {
+          const prefix = c.action === 'delete' ? '[DELETE] ' : '';
+          return `${prefix}${c.text}`;
+        });
+      }
+
+      // ── Write to daily log ────────────────────────────────────
       const lines: string[] = [`## ${dateStr} ${timeStr} | ${title}`, ''];
-      for (const candidate of extractedResult.candidates.slice(0, 6)) {
-        const prefix = candidate.action === 'delete' ? '[DELETE] ' : '';
-        lines.push(`- ${prefix}${candidate.text}`);
+      for (const item of extractedItems) {
+        lines.push(`- ${item}`);
       }
       lines.push('');
-
       const extracted = lines.join('\n');
-      const workspacePath = getWorkspaceDir();
+
       const memDir = join(workspacePath, 'memory');
       await mkdir(memDir, { recursive: true });
       const targetPath = join(memDir, `${dateStr}.md`);
@@ -845,9 +1050,11 @@ export async function handleMemoryRoutes(
         ok: true,
         extracted,
         filePath: targetPath,
-        candidateCount: extractedResult.candidates.length,
-        judge: extractedResult.judge,
+        scopeId: activeScope.id,
+        candidateCount: extractedItems.length,
+        usedLlm,
       });
+
 
     } catch (err) {
       sendJson(res, 500, { error: String(err) });

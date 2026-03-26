@@ -118,9 +118,30 @@ const mockTranslations: Record<string, string> = {
   'common:sidebar.selectAvatar': 'Select avatar',
   'common:sidebar.nickname': 'Nickname',
   'common:sidebar.nicknamePlaceholder': 'Enter nickname...',
+  'common:sidebar.deleteSelected': 'Delete selected',
+  'common:sidebar.cancelBatch': 'Cancel batch',
+  'common:sidebar.exportSuccess': 'Session export saved',
+  'common:sidebar.exportCancelled': 'Export cancelled',
+  'common:sidebar.exportNoMessages': 'No exportable messages in this session yet',
+  'common:sidebar.exportFailed': 'Session export failed: {{error}}',
+  'common:sidebar.museAssistant': 'Quiet assistant',
+  'common:sidebar.agentMainSessionMissing': 'Could not find the main session for this agent',
+  'common:sidebar.agentDeleted': 'Agent deleted',
+  'common:sidebar.agentCreated': 'Agent created',
+  'common:sidebar.deleteAgent': 'Delete agent',
+  'common:sidebar.avatarCat': 'Cat',
+  'common:sidebar.avatarDog': 'Dog',
+  'common:sidebar.avatarFox': 'Fox',
+  'common:sidebar.avatarBear': 'Bear',
+  'common:sidebar.avatarPanda': 'Panda',
+  'common:sidebar.avatarLion': 'Lion',
+  'common:sidebar.avatarFrog': 'Frog',
+  'common:sidebar.avatarKoala': 'Koala',
+  'common:sidebar.avatarUnicorn': 'Unicorn',
   'common:actions.confirm': 'Confirm',
   'common:actions.delete': 'Delete',
   'common:actions.cancel': 'Cancel',
+  'common:actions.save': 'Save',
   'common:sidebar.deleteSessionConfirm': 'Confirm deletion',
 };
 
@@ -149,6 +170,7 @@ describe('workbench sidebar', () => {
     expect(screen.getByText('Team management')).toBeInTheDocument();
     expect(screen.getByText('Channels')).toBeInTheDocument();
     expect(screen.getByText('Tasks')).toBeInTheDocument();
+    expect(screen.getByText('KaiTianClaw')).toBeInTheDocument();
     expect(screen.getByText('Alpha Session')).toBeInTheDocument();
   });
 
@@ -185,7 +207,7 @@ describe('workbench sidebar', () => {
     );
 
     fireEvent.contextMenu(screen.getByText('Alpha Session'));
-    fireEvent.click(await screen.findByRole('button', { name: /导出 markdown/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /markdown/i }));
 
     await waitFor(() => {
       expect(invokeIpc).toHaveBeenCalledWith(
@@ -222,7 +244,7 @@ describe('workbench sidebar', () => {
     );
 
     fireEvent.contextMenu(screen.getByText('KaiTianClaw'));
-    fireEvent.click(await screen.findByRole('button', { name: /导出 markdown/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /markdown/i }));
 
     await waitFor(() => {
       expect(invokeIpc).toHaveBeenCalledWith(

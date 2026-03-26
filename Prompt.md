@@ -67,7 +67,7 @@ tail -30 continue/progress.txt
 
 ---
 
-## Latest Delta（2026-03-25）
+## Latest Delta（2026-03-26）
 
 - 已新增完成：
   - Wave 2：runtime subagent tree / Kanban retry lineage
@@ -96,12 +96,21 @@ tail -30 continue/progress.txt
   - Session 28c：`AskUserQuestionWizard` 外壳文案迁回 `common` locale，P0 i18n 收口进一步前推到 Cron / TaskKanban / Sidebar
   - Session 29：runtime records 保留 structured `history`，`/api/sessions/subagents/:id` 支持单 run drill-down，TaskKanban detail 可在 parent/latest/child runs 间切换并渲染 thinking/tool 结构化历史
   - Session 29：修复并稳定 Cron / Sidebar 这轮 locale 接线，保证当前改动在 typecheck / lint / build / targeted vitest 下全部通过
+  - Session 30：Wave 5 update policy 补齐 channel 切换后的 `nextEligibleAt` / jitter 重算，并在 Settings auto-update section 暴露 update channel selector
+  - Session 30：Wave 5 a11y / governance 收口到 Cron，`lint:a11y` / `test:a11y` 已覆盖 Activity + Cron + Settings + Workbench empty state，并在 README / README.zh-CN 记录新门禁命令
+  - Session 30：Costs realtime tab 改为在 polling 之外额外消费 `gateway:notification` usage 事件，live usage entries / KPI / model distribution 可即时追加
+  - Session 30：TaskKanban runtime detail 新增 `executionRecords` 与 runtime `skillSnapshot` / `toolSnapshot` 展示，补齐 tool execution path / skill bridge 的前端可见层
+  - Session 31：Channels `/send` / `/test` 在多账号同类型场景下不再接受歧义 bare channelType，请求必须解析到唯一 scoped `channelId`
+  - Session 31：runtime `executionRecords` 现在可链接到 spawned child runtime，TaskKanban detail 支持从 execution card 直接 drill-down 到关联 child run，并补充 lineage 导航
+  - Session 32：Channels `config` / `config/:type` / `whatsapp/start` 已补 scoped account guard，未知 `accountId` 不再静默创建/读取/删除孤儿配置
+  - Session 32：Memory `/api/memory` 已接入 `memory.qmd.paths`，QMD collection files 作为只读 `qmd/<collection>/...` sources 暴露到 Memory browser
+  - Session 33：Costs dashboard 新增 `/api/costs/by-model` 消费与 `Model Costs` 明细表，“更完整图表与明细层”进一步收口
+  - Session 33：locale parity 目前已恢复到全量测试通过；`pnpm test` 再次全绿
 - 因此下面旧清单里，涉及上述能力的"剩余"描述请以本段为准，不要重复实现已完成部分。
 - 当前真正还缺的重点：
-  - P0 i18n：继续清理 Cron / TaskKanban / Sidebar 等剩余历史硬编码文案
-  - Runtime / registry：tool execution path / deeper skill bridge / runtime tree drill-down 进一步深化
-  - Channels：multi-user isolation deeper capability runtime
-  - Wave 5：update / UX / a11y / 工程治理
+  - 大范围 i18n 收口仍按用户要求延后，不作为当前业务闭环阻塞项
+  - 当前 4-16 的非禁用 / 非延期业务项已基本收口
+  - 仍保留的仅是：用户明确延后的大范围 i18n 收口，以及继续保持停用状态的 Docs / Help
 
 
 ---
@@ -122,173 +131,156 @@ tail -30 continue/progress.txt
 
 #### 4. Chat / Workbench 深化
 
-- 已完成：
-  - 流式 reasoning 自动展开 / 收起
-  - reasoning 生成中状态提示
-  - 对话左上角 `{分身名} 正在思考中`
-  - QuickAction 二级 `PromptPanel`
-  - QuickAction 技能映射标签
-  - QuickAction 回填输入框
-  - AskUserQuestion 支持结构化 `toolInput.questions`
-  - AskUserQuestion 支持回填已有答案
-  - AskUserQuestion 展示请求上下文
-  - 工具调用确认 UI：专门 review dialog、完整 tool input、危险操作告警
-  - 文件变更预览：按 turn/tool group 展开 `edit` / `write` / `multiedit` 的输入与结果
+- 已完成：流式 reasoning 自动展开 / 收起
+- 已完成：reasoning 生成中状态提示
+- 已完成：对话左上角 `{分身名} 正在思考中`
+- 已完成：QuickAction 二级 `PromptPanel`
+- 已完成：QuickAction 技能映射标签
+- 已完成：QuickAction 回填输入框
+- 已完成：AskUserQuestion 支持结构化 `toolInput.questions`
+- 已完成：AskUserQuestion 支持回填已有答案
+- 已完成：AskUserQuestion 展示请求上下文
+- 已完成：工具调用确认 UI：专门 review dialog、完整 tool input、危险操作告警
+- 已完成：文件变更预览：按 turn/tool group 展开 `edit` / `write` / `multiedit` 的输入与结果
 
 #### 5. Kanban 深化
 
-- 已完成：
-  - `assigneeRole`
-  - 更完整的 ticket detail panel
-  - 最小 runtime 联动：`Start work / Send follow-up / Stop runtime / Retry work`
-  - 最小 ticket chat history（基于 runtime transcript）
-  - 进行中任务禁止手动拖拽
-  - active runtime ticket 轮询 `/wait`
-  - `running / blocked / waiting_approval / completed / error/killed/stopped` → ticket `workState` / column 状态联动
-  - `completed` 自动进入 review-ready 状态并展示 `workResult`
-  - runtime session records 跨主进程重启持久化与恢复
-  - detail panel 按 runtime `sessionKey` 绑定当前 ticket 的 approvals，可直接 `Review / Respond`
-  - approval lineage session-key binding（当前 run + parent lineage）
-  - active runtime approval polling
-  - detail panel child run list（不再只显示 child count）
+- 已完成：`assigneeRole`
+- 已完成：更完整的 ticket detail panel
+- 已完成：最小 runtime 联动：`Start work / Send follow-up / Stop runtime / Retry work`
+- 已完成：最小 ticket chat history（基于 runtime transcript）
+- 已完成：进行中任务禁止手动拖拽
+- 已完成：active runtime ticket 轮询 `/wait`
+- 已完成：`running / blocked / waiting_approval / completed / error/killed/stopped` → ticket `workState` / column 状态联动
+- 已完成：`completed` 自动进入 review-ready 状态并展示 `workResult`
+- 已完成：runtime session records 跨主进程重启持久化与恢复
+- 已完成：detail panel 按 runtime `sessionKey` 绑定当前 ticket 的 approvals，可直接 `Review / Respond`
+- 已完成：approval lineage session-key binding（当前 run + parent lineage）
+- 已完成：active runtime approval polling
+- 已完成：detail panel child run list（不再只显示 child count）
 - 剩余：
   - 更深的 agent work / retry / 状态联动（runtime tree drill-down 继续深化、更多 lineage / subtree 交互）
 
 #### 6. Cron 深化
 
-- 已完成第一批总览层：
-  - 状态筛选
-  - delivery 配置概览
-  - 配置错误 / 执行错误 banner
-  - 最近更新时间
-- 已完成：
-  - `PipelineWizard`
-  - `PipelineGraph`
-  - `failureAlertAfter`
-  - `failureAlertCooldownSeconds`
-  - `failureAlertChannel`
-  - `deliveryBestEffort`
+- 已完成：状态筛选
+- 已完成：delivery 配置概览
+- 已完成：配置错误 / 执行错误 banner
+- 已完成：最近更新时间
+- 已完成：`PipelineWizard`
+- 已完成：`PipelineGraph`
+- 已完成：`failureAlertAfter`
+- 已完成：`failureAlertCooldownSeconds`
+- 已完成：`failureAlertChannel`
+- 已完成：`deliveryBestEffort`
 
 #### 7. Costs 深化
 
 - 已完成：按 `job / cron` 提供第一批 read-only drill-down
 - 已完成：`TopCrons`
 - 已完成：job cost table
-- 更完整图表与明细层
-- 优化分析：
-  - optimization score
-  - anomaly detection
-  - week-over-week
-  - cache savings
-  - insights
-- realtime usage stream
+- 已完成：更完整图表与明细层（analysis cards + Top Crons + Cron Job Costs + Model Costs）
+- 已完成优化分析：
+  - 已完成：optimization score
+  - 已完成：anomaly detection
+  - 已完成：week-over-week
+  - 已完成：cache savings
+  - 已完成：insights
+- 已完成 realtime usage stream（gateway notification 驱动的即时追加，保留 polling 兜底）
 
 #### 8. Memory 深化
 
-- 按照不同的分身agent，可以看到它们不同的memory，以及它们的其他文件：AGENTS.md、HEARTBEAT.md、IDENTITY.md、SOUL.md、TOOLS.md、USER.md。并且可编辑
-- full-text search
-- 命中数与高亮
-- editor helpers：
-  - copy / download
-  - unsaved changes 提示
-  - reindex after save
-- safer write pipeline：
-  - 路径白名单
-  - mtime 冲突检测
-  - 内容规范化
-  - git snapshot
-  - 原子写入
-- health analysis：
-  - health score
-  - stale daily logs
-  - AI-powered analysis
-- 多路径知识源 / `extraPaths` / QMD collection
+- 已完成：按照不同的分身agent，可以看到它们不同的memory，以及它们的其他文件：AGENTS.md、HEARTBEAT.md、IDENTITY.md、SOUL.md、TOOLS.md、USER.md。并且可编辑
+- 已完成：full-text search
+- 已完成：命中数与高亮
+- 已完成：editor helpers
+  - 已完成：copy / download
+  - 已完成：unsaved changes 提示
+  - 已完成：reindex after save
+- 已完成：safer write pipeline
+  - 已完成：路径白名单
+  - 已完成：mtime 冲突检测
+  - 已完成：内容规范化
+  - 已完成：git snapshot
+  - 已完成：原子写入
+- 已完成：health analysis
+  - 已完成：health score
+  - 已完成：stale daily logs
+  - 已完成：AI-powered analysis
+- 已完成：多路径知识源 / `extraPaths` / QMD collection
 
 #### 9. Multi-agent runtime / tool registry
 
-- 已完成第一批 backend skeleton：
-  - `sessions_spawn`
-  - subagent `list/kill/steer/wait`
-  - thread / session mode、attachments / sandbox / timeout 字段骨架
-  - Gateway-backed runtime adapter：`chat.send` / `chat.abort` / `sessions.list` / `chat.history`
-  - runtime record 持有真实 `sessionKey` / `runId` / `status` / `lastError` / transcript
-  - spawn-time capability snapshot：connected MCP tools + enabled skills
-  - runtime records durable persistence / restart restore
+- 已完成：`sessions_spawn`
+- 已完成：subagent `list/kill/steer/wait`
+- 已完成：thread / session mode、attachments / sandbox / timeout 字段骨架
+- 已完成：Gateway-backed runtime adapter：`chat.send` / `chat.abort` / `sessions.list` / `chat.history`
+- 已完成：runtime record 持有真实 `sessionKey` / `runId` / `status` / `lastError` / transcript
+- 已完成：spawn-time capability snapshot：connected MCP tools + enabled skills
+- 已完成：runtime records durable persistence / restart restore
 - 剩余：
   - 更完整的 subagent tree orchestration
-  - runtime 工具执行路径与 registry 深化
+  - runtime 工具执行路径 / capability snapshot 已可在 TaskKanban detail 查看，后续仍可继续深化 registry 级交互
   - skills 到 runtime 的更深层执行桥接
 
 #### 10. Channels / backend runtime 能力
 
 - IM 消息格式适配与 capability runtime
-- 已完成第一批 `actions/capabilities/schema/status` 抽象
-  - `/api/channels/capabilities`
-  - normalized `status / availableActions / capabilityFlags / configSchemaSummary`
-  - Channels 详情页展示 runtime capabilities 摘要
-- 已完成：
-  - account-scoped delete/connect/disconnect 基础链路
-  - unknown scoped channel send/test guard
-  - supported+configured 动态频道家族列表
-  - Feishu integration foundation：`/api/feishu/status|install|update|doctor` + dedicated onboarding wizard entry
-  - Feishu existing-robot app-internal auth QR flow（Device Flow + token persistence）
-  - Feishu onboarding 单一向导闭环（官方创建页二维码入口、应用内凭证保存、app-scope recheck、用户授权二维码）
-- 本地 API auth gate 深化
-- 多用户隔离与 rate limiting
+- 已完成：`/api/channels/capabilities`
+- 已完成：normalized `status / availableActions / capabilityFlags / configSchemaSummary`
+- 已完成：Channels 详情页展示 runtime capabilities 摘要
+- 已完成：account-scoped delete/connect/disconnect 基础链路
+- 已完成：unknown scoped channel send/test guard
+- 已完成：supported+configured 动态频道家族列表
+- 已完成：Feishu integration foundation：`/api/feishu/status|install|update|doctor` + dedicated onboarding wizard entry
+- 已完成：Feishu existing-robot app-internal auth QR flow（Device Flow + token persistence）
+- 已完成：Feishu onboarding 单一向导闭环（官方创建页二维码入口、应用内凭证保存、app-scope recheck、用户授权二维码）
+- 已完成：本地 API auth gate 深化
+- 已完成：多用户隔离与 rate limiting
 
 #### 11. Agent detail page
 
-- 独立 agent 详情页
-- metadata / hierarchy
-- `reportsTo / directReports`
-- cron 关联视图（backend-owned relation endpoint + Cron pipeline deep link 第一批已完成）
-- avatar upload / remove
+- 已完成：独立 agent 详情页
+- 已完成：metadata / hierarchy
+- 已完成：`reportsTo / directReports`
+- 已完成：cron 关联视图（backend-owned relation endpoint + Cron pipeline deep link 第一批已完成）
+- 已完成：avatar upload / remove
 
 #### 12. Settings 深化
 
-- 全局 logo / icon 上传
-- agent 图片 override
-- `Re-run Setup`
-- `Reset All Settings`
-- `Clear Server Data`
+- 已完成：全局 logo / icon 上传
+- 已完成：agent 图片 override
+- 已完成：`Re-run Setup`
+- 已完成：`Reset All Settings`
+- 已完成：`Clear Server Data`
 
-#### 13. Docs / Help system
-
-- 当前按用户要求保持停用
-- 仅在用户再次明确要求时恢复
-- 恢复时需补齐：
-  - `/docs`
-  - 章节导航
-  - 页面内搜索
-  - deep link
-  - 内置文档体系
 
 ### P2
 
 #### 14. 应用自动更新链路一致性
 
-- 决定是否补 Host API update route
-- 继续保证 update 链路一致
-- 渐进发布 / 多 channel 策略继续补齐：
-  - rollout delay / jitter
-  - beta check interval
-  - attempt state persistence
+- 已完成：决定是否补 Host API update route
+- 已完成：继续保证 update 链路一致
+- 已完成：渐进发布 / 多 channel 策略补齐
+  - 已完成：rollout delay / jitter
+  - 已完成：beta check interval
+  - 已完成：attempt state persistence
 
 #### 15. 通用 UX 收尾
 
-- unified toast
-- 持久可关闭反馈
-- skeleton
-- motion token
+- 已完成：unified toast
+- 已完成：持久可关闭反馈
+- 已完成：skeleton
+- 已完成：motion token
 - empty-state illustration
 - mobile chat adaptation
 
 #### 16. a11y / 工程治理
 
-- a11y 自动化防回归
-- a11y lint / test gate
-- docs governance
-- boundary / dead-code / cycle 脚本化检查
+- 已完成：a11y 自动化防回归
+- 已完成：a11y lint / test gate
+- 已完成：docs governance
+- 已完成：boundary / dead-code / cycle 脚本化检查
 
 ---
 
