@@ -16,9 +16,16 @@ import {
   validateChannelConfig,
   validateChannelCredentials,
 } from '../../utils/channel-config';
-import { assignChannelToAgent, clearAllBindingsForChannel, clearChannelBinding, listConfiguredAgentIds } from '../../utils/agent-config';
+import {
+  assignChannelToAgent,
+  clearAllBindingsForChannel,
+  clearChannelBinding,
+  listAgentsSnapshot,
+  listConfiguredAgentIds,
+} from '../../utils/agent-config';
 import { logger } from '../../utils/logger';
 import { whatsAppLoginManager } from '../../utils/whatsapp-login';
+import { createChannelConversationBindingStore } from '../../services/channel-conversation-bindings';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
 import { getOpenClawConfigDir } from '../../utils/paths';
@@ -275,6 +282,13 @@ type WorkbenchConversationMessage = {
 };
 
 const FEISHU_PLUGIN_ROOT = join(homedir(), '.openclaw', 'extensions', 'feishu-openclaw-plugin');
+const channelConversationBindings = createChannelConversationBindingStore();
+const TEST_FEISHU_SNAPSHOT_KEY = '__clawxTestFeishuWorkbenchSnapshot';
+
+type FeishuConversationIdParts = {
+  accountId: string;
+  externalConversationId: string;
+};
 
 type NormalizedChannelCapability = {
   channelId: string;
@@ -473,11 +487,38 @@ async function importFeishuPluginModule(relativePath: string): Promise<Record<st
   return import(pathToFileURL(fullPath).href) as Promise<Record<string, unknown>>;
 }
 
+function readInjectedFeishuWorkbenchSnapshotForTests():
+  | {
+    sessions: WorkbenchSession[];
+    messagesByConversationId: Map<string, WorkbenchConversationMessage[]>;
+  }
+  | null {
+  const injected = (globalThis as Record<string, unknown>)[TEST_FEISHU_SNAPSHOT_KEY];
+  if (!injected || typeof injected !== 'object') {
+    return null;
+  }
+  const row = injected as {
+    sessions?: unknown;
+    messagesByConversationId?: unknown;
+  };
+  const sessions = Array.isArray(row.sessions)
+    ? row.sessions as WorkbenchSession[]
+    : [];
+  const messagesByConversationId = row.messagesByConversationId instanceof Map
+    ? row.messagesByConversationId as Map<string, WorkbenchConversationMessage[]>
+    : new Map<string, WorkbenchConversationMessage[]>();
+  return { sessions, messagesByConversationId };
+}
+
 async function fetchFeishuWorkbenchSnapshot(): Promise<{
   sessions: WorkbenchSession[];
   messagesByConversationId: Map<string, WorkbenchConversationMessage[]>;
 }> {
   if (process.env.VITEST || process.env.NODE_ENV === 'test') {
+    const injected = readInjectedFeishuWorkbenchSnapshotForTests();
+    if (injected) {
+      return injected;
+    }
     return { sessions: [], messagesByConversationId: new Map() };
   }
   if (!existsSync(FEISHU_PLUGIN_ROOT)) {
@@ -753,6 +794,293 @@ async function sendFeishuConversationMessage(params: {
   });
 }
 
+function parseFeishuConversationId(conversationId: string): FeishuConversationIdParts | null {
+  if (!conversationId.startsWith('feishu:')) {
+    return null;
+  }
+  const parts = conversationId.split(':');
+  if (parts.length < 3) {
+    return null;
+  }
+  const accountId = parts[1]?.trim();
+  const externalConversationId = parts.slice(2).join(':').trim();
+  if (!accountId || !externalConversationId) {
+    return null;
+  }
+  return { accountId, externalConversationId };
+}
+
+function extractFirstStringValue(
+  row: Record<string, unknown>,
+  keys: string[],
+): string | undefined {
+  for (const key of keys) {
+    const candidate = row[key];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return undefined;
+}
+
+function coerceIsoTimestamp(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const asNumber = Number(trimmed);
+    if (Number.isFinite(asNumber)) {
+      return coerceIsoTimestamp(asNumber);
+    }
+    const asDate = Date.parse(trimmed);
+    if (Number.isFinite(asDate)) {
+      return new Date(asDate).toISOString();
+    }
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined;
+  }
+  const ts = value > 1_000_000_000_000 ? value : value * 1000;
+  const asDate = new Date(ts);
+  return Number.isNaN(asDate.getTime()) ? undefined : asDate.toISOString();
+}
+
+function coerceDurationMs(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value.trim());
+    if (Number.isFinite(numeric) && numeric >= 0) {
+      return numeric;
+    }
+  }
+  return undefined;
+}
+
+function extractRuntimeText(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (Array.isArray(value)) {
+    const text = value
+      .map((item) => extractRuntimeText(item))
+      .filter((item): item is string => Boolean(item))
+      .join('\n')
+      .trim();
+    return text || undefined;
+  }
+  if (typeof value !== 'object' || value == null) {
+    return undefined;
+  }
+
+  const row = value as Record<string, unknown>;
+  const direct = extractFirstStringValue(row, ['text', 'message', 'content', 'summary', 'result']);
+  if (direct) {
+    return direct;
+  }
+  if ('content' in row) {
+    return extractRuntimeText(row.content);
+  }
+  return undefined;
+}
+
+function normalizeRuntimeWorkbenchRole(rawRole: unknown): WorkbenchConversationMessage['role'] {
+  const role = typeof rawRole === 'string' ? rawRole.trim().toLowerCase() : '';
+  if (role === 'user' || role === 'human') return 'human';
+  if (role === 'assistant' || role === 'agent' || role === 'model') return 'agent';
+  if (role === 'tool' || role === 'toolresult' || role === 'tool_result') return 'tool';
+  if (role === 'system') return 'system';
+  return 'agent';
+}
+
+function extractHistoryItems(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (typeof payload !== 'object' || payload == null) {
+    return [];
+  }
+  const row = payload as Record<string, unknown>;
+  if (Array.isArray(row.messages)) {
+    return row.messages;
+  }
+  if (Array.isArray(row.history)) {
+    return row.history;
+  }
+  return [];
+}
+
+function mapRuntimeHistoryItemToWorkbenchMessage(
+  item: unknown,
+  index: number,
+): WorkbenchConversationMessage | null {
+  if (typeof item === 'string') {
+    const text = item.trim();
+    if (!text) return null;
+    return {
+      id: `runtime-${index}`,
+      role: 'agent',
+      authorName: 'KTClaw',
+      content: text,
+    };
+  }
+  if (typeof item !== 'object' || item == null) {
+    return null;
+  }
+
+  const row = item as Record<string, unknown>;
+  const role = normalizeRuntimeWorkbenchRole(row.role);
+  const content = extractRuntimeText(row.content ?? row.message ?? row.text ?? row.output ?? row.result);
+  const summary = extractFirstStringValue(row, ['summary']);
+  const id = extractFirstStringValue(row, ['id', 'message_id', 'toolCallId', 'tool_call_id']) ?? `runtime-${index}`;
+  const toolName = extractFirstStringValue(row, ['toolName', 'tool_name', 'name']);
+  const authorName = extractFirstStringValue(row, ['authorName', 'author'])
+    ?? (role === 'human' ? 'Feishu User' : role === 'agent' ? 'KTClaw' : undefined);
+  const createdAt = coerceIsoTimestamp(
+    row.createdAt
+    ?? row.create_time
+    ?? row.timestamp
+    ?? row.ts
+    ?? row.time,
+  );
+  const details = typeof row.details === 'object' && row.details != null
+    ? row.details as Record<string, unknown>
+    : null;
+  const durationMs = coerceDurationMs(
+    row.durationMs
+    ?? row.duration
+    ?? details?.durationMs
+    ?? details?.duration,
+  );
+
+  if (!content && !summary && role !== 'tool') {
+    return null;
+  }
+
+  return {
+    id,
+    role,
+    ...(authorName ? { authorName } : {}),
+    ...(createdAt ? { createdAt } : {}),
+    ...(content ? { content } : {}),
+    ...(toolName ? { toolName } : {}),
+    ...(durationMs !== undefined ? { durationMs } : {}),
+    ...(summary ? { summary } : {}),
+  };
+}
+
+function mapRuntimeHistoryToWorkbenchMessages(payload: unknown): WorkbenchConversationMessage[] {
+  return extractHistoryItems(payload)
+    .map((item, index) => mapRuntimeHistoryItemToWorkbenchMessage(item, index))
+    .filter((item): item is WorkbenchConversationMessage => item != null);
+}
+
+async function resolveFeishuBindingForConversation(
+  conversationId: string,
+  preferredAgentId?: string,
+  options?: {
+    createIfMissing?: boolean;
+  },
+): Promise<{ agentId: string; sessionKey: string } | null> {
+  const parsedConversation = parseFeishuConversationId(conversationId);
+  if (!parsedConversation) {
+    return null;
+  }
+
+  const existing = await channelConversationBindings.get(
+    'feishu',
+    parsedConversation.accountId,
+    parsedConversation.externalConversationId,
+  );
+  if (existing?.sessionKey) {
+    return {
+      agentId: existing.agentId || inferAgentIdFromAccountId(parsedConversation.accountId),
+      sessionKey: existing.sessionKey,
+    };
+  }
+
+  if (options?.createIfMissing === false) {
+    return null;
+  }
+
+  const snapshot = await listAgentsSnapshot().catch(() => null);
+  const snapshotAgents = Array.isArray(snapshot?.agents)
+    ? snapshot.agents
+    : [];
+  const ownerFromChannel = typeof snapshot?.channelOwners?.feishu === 'string'
+    ? snapshot.channelOwners.feishu.trim()
+    : '';
+  const defaultAgentId = typeof snapshot?.defaultAgentId === 'string'
+    ? snapshot.defaultAgentId.trim()
+    : '';
+  const configuredAgentIds = snapshotAgents
+    .map((agent) => (typeof agent?.id === 'string' ? agent.id.trim() : ''))
+    .filter(Boolean);
+  const fallbackAgentIds = configuredAgentIds.length > 0
+    ? configuredAgentIds
+    : await listConfiguredAgentIds().catch(() => []);
+  const candidates = [
+    ownerFromChannel,
+    preferredAgentId?.trim() || '',
+    inferAgentIdFromAccountId(parsedConversation.accountId),
+    defaultAgentId,
+    'main',
+  ].filter(Boolean);
+  const resolvedAgentId = candidates.find((candidate) => fallbackAgentIds.includes(candidate))
+    || candidates[0]
+    || 'main';
+  const resolvedAgentSummary = snapshotAgents.find((agent) => {
+    return typeof agent?.id === 'string' && agent.id.trim() === resolvedAgentId;
+  }) as { mainSessionKey?: unknown } | undefined;
+  const summaryMainSessionKey = typeof resolvedAgentSummary?.mainSessionKey === 'string'
+    ? resolvedAgentSummary.mainSessionKey.trim()
+    : '';
+  const sessionKey = summaryMainSessionKey || `agent:${resolvedAgentId}:main`;
+  const persisted = await channelConversationBindings.upsert({
+    channelType: 'feishu',
+    accountId: parsedConversation.accountId,
+    externalConversationId: parsedConversation.externalConversationId,
+    agentId: resolvedAgentId,
+    sessionKey,
+  });
+
+  return {
+    agentId: persisted.agentId,
+    sessionKey: persisted.sessionKey,
+  };
+}
+
+function buildFeishuConversationPayload(
+  conversationId: string,
+  discoveredConversation: WorkbenchSession | null,
+  resolvedAgentId?: string,
+): {
+  id: string;
+  title: string;
+  syncState: WorkbenchSession['syncState'];
+  participantSummary?: string;
+  visibleAgentId?: string;
+} {
+  const parsedConversation = parseFeishuConversationId(conversationId);
+  const fallbackTitle = parsedConversation?.externalConversationId || conversationId;
+  const fallbackSummary = parsedConversation?.accountId === 'default'
+    ? 'synced group chat'
+    : 'synced private chat';
+  const visibleAgentId = resolvedAgentId
+    || discoveredConversation?.visibleAgentId
+    || (parsedConversation ? inferAgentIdFromAccountId(parsedConversation.accountId) : undefined);
+
+  return {
+    id: conversationId,
+    title: discoveredConversation?.title || fallbackTitle,
+    syncState: discoveredConversation?.syncState || 'synced',
+    participantSummary: discoveredConversation?.participantSummary || fallbackSummary,
+    ...(visibleAgentId ? { visibleAgentId } : {}),
+  };
+}
+
 function resolveRequestedCapability(
   capabilities: NormalizedChannelCapability[],
   requestedChannelId: string,
@@ -864,21 +1192,56 @@ export async function handleChannelRoutes(
       }
       if (conversationId.startsWith('feishu:')) {
         const liveSnapshot = await fetchFeishuWorkbenchSnapshot().catch(() => ({ sessions: [], messagesByConversationId: new Map() }));
-        const conversation = liveSnapshot.sessions.find((session) => session.id === conversationId) ?? null;
-        if (conversation) {
+        const discoveredConversation = liveSnapshot.sessions.find((session) => session.id === conversationId) ?? null;
+        let binding = await resolveFeishuBindingForConversation(
+          conversationId,
+          discoveredConversation?.visibleAgentId,
+          { createIfMissing: false },
+        ).catch(() => null);
+
+        const shouldCreateBindingOnRead = Boolean(discoveredConversation);
+
+        if (!binding && shouldCreateBindingOnRead) {
+          binding = await resolveFeishuBindingForConversation(
+            conversationId,
+            discoveredConversation?.visibleAgentId,
+            { createIfMissing: true },
+          ).catch(() => null);
+        }
+
+        if (binding?.sessionKey) {
+          const runtimePayload = await ctx.gatewayManager.rpc<unknown>('chat.history', {
+            sessionKey: binding.sessionKey,
+            limit: 200,
+          }).catch(() => null);
+          const runtimeMessages = runtimePayload
+            ? mapRuntimeHistoryToWorkbenchMessages(runtimePayload)
+            : [];
+          const fallbackMessages = liveSnapshot.messagesByConversationId.get(conversationId) ?? [];
+
           sendJson(res, 200, {
             success: true,
-            conversation: {
-              id: conversation.id,
-              title: conversation.title,
-              syncState: conversation.syncState,
-              participantSummary: conversation.participantSummary,
-              visibleAgentId: conversation.visibleAgentId,
-            },
+            conversation: buildFeishuConversationPayload(conversationId, discoveredConversation, binding.agentId),
+            messages: runtimeMessages.length > 0 ? runtimeMessages : fallbackMessages,
+          });
+          return true;
+        }
+
+        if (discoveredConversation) {
+          sendJson(res, 200, {
+            success: true,
+            conversation: buildFeishuConversationPayload(conversationId, discoveredConversation),
             messages: liveSnapshot.messagesByConversationId.get(conversationId) ?? [],
           });
           return true;
         }
+
+        sendJson(res, 200, {
+          success: true,
+          conversation: null,
+          messages: [],
+        });
+        return true;
       }
       const [channelType] = conversationId.split('-');
       const statusSnapshot = await ctx.gatewayManager.rpc<ChannelsStatusSnapshot>('channels.status', { probe: true }).catch(() => null);
