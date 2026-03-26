@@ -1475,14 +1475,6 @@ export async function handleChannelRoutes(
         sendJson(res, 400, { success: false, error: 'text is required' });
         return true;
       }
-      if (body.conversationId?.startsWith('feishu:')) {
-        const result = await sendFeishuConversationMessage({
-          conversationId: body.conversationId,
-          text: body.text.trim(),
-        });
-        sendJson(res, 200, { success: true, message: '娑堟伅宸插彂閫?', ...result });
-        return true;
-      }
       const status = ctx.gatewayManager.getStatus();
       if (status.state !== 'running') {
         sendJson(res, 503, { success: false, error: 'Gateway is not running' });
@@ -1499,6 +1491,35 @@ export async function handleChannelRoutes(
       const rateResult = checkChannelRateLimit(rateKey, CHANNEL_RATE_LIMITS.send);
       if (!rateResult.allowed) {
         sendRateLimitError(res, rateResult.retryAfterSeconds);
+        return true;
+      }
+      if (body.conversationId?.startsWith('feishu:')) {
+        const binding = await resolveFeishuBindingForConversation(
+          body.conversationId,
+          undefined,
+          { createIfMissing: true },
+        ).catch(() => null);
+
+        if (binding?.sessionKey) {
+          const result = await ctx.gatewayManager.rpc<Record<string, unknown>>('chat.send', {
+            sessionKey: binding.sessionKey,
+            message: body.text.trim(),
+            deliver: false,
+            idempotencyKey: randomUUID(),
+          });
+          sendJson(res, 200, {
+            success: true,
+            runId: extractFirstStringValue(result, ['runId', 'run_id']),
+            sessionKey: binding.sessionKey,
+          });
+          return true;
+        }
+
+        const result = await sendFeishuConversationMessage({
+          conversationId: body.conversationId,
+          text: body.text.trim(),
+        });
+        sendJson(res, 200, { success: true, message: '娑堟伅宸插彂閫?', ...result });
         return true;
       }
       const port = status.port ?? 3000;

@@ -481,4 +481,75 @@ describe('channel sync workbench routes', () => {
       messages: [],
     });
   });
+
+  it('routes bound feishu conversation sends through runtime chat.send', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    mocks.bindingGet.mockResolvedValue({
+      channelType: 'feishu',
+      accountId: 'default',
+      externalConversationId: 'oc_bound_send',
+      agentId: 'main',
+      sessionKey: 'agent:main:main',
+      updatedAt: Date.now(),
+    });
+    mocks.parseJsonBody.mockResolvedValue({
+      text: '你好',
+      conversationId: 'feishu:default:oc_bound_send',
+    });
+
+    const gatewayRpc = vi.fn(async (method: string) => {
+      if (method === 'chat.send') {
+        return {
+          runId: 'run-feishu-send-1',
+        };
+      }
+      if (method === 'channels.status') {
+        return {
+          channels: {
+            feishu: { configured: true, running: true },
+          },
+          channelAccounts: {
+            feishu: [
+              {
+                accountId: 'default',
+                configured: true,
+                connected: true,
+                name: 'R&D DevOps Group',
+              },
+            ],
+          },
+          channelDefaultAccountId: {
+            feishu: 'default',
+          },
+        };
+      }
+      throw new Error(`Unexpected RPC method: ${method}`);
+    });
+
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: gatewayRpc,
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('POST'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/feishu-default/send'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(gatewayRpc).toHaveBeenCalledWith('chat.send', expect.objectContaining({
+      sessionKey: 'agent:main:main',
+      message: '你好',
+      deliver: false,
+    }));
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, expect.objectContaining({
+      success: true,
+    }));
+  });
 });
