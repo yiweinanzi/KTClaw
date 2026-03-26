@@ -309,4 +309,64 @@ describe('SessionRuntimeManager', () => {
       parentSessionKey: root.sessionKey,
     }));
   });
+
+  it('links a parent skill execution record to the spawned child runtime', async () => {
+    const historyBySessionKey = new Map<string, unknown[]>();
+    const gatewayRpcMock = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'chat.send') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        const message = String(params?.message ?? '');
+        if (message === 'Root task') {
+          historyBySessionKey.set(sessionKey, [
+            {
+              role: 'assistant',
+              content: [
+                { type: 'tool_use', id: 'tool-skill-1', name: 'skill:planner-review', input: { prompt: 'Review the plan' } },
+                { type: 'tool_result', id: 'tool-skill-1', name: 'skill:planner-review', content: 'Delegated planner review.' },
+              ],
+            },
+          ]);
+        } else {
+          historyBySessionKey.set(sessionKey, [{ role: 'assistant', content: message }]);
+        }
+        return { runId: `run-${sessionKey.split(':').at(-1)}` };
+      }
+      if (method === 'sessions.list') {
+        return {
+          sessions: [...historyBySessionKey.keys()].map((sessionKey) => ({
+            sessionKey,
+            status: 'running',
+          })),
+        };
+      }
+      if (method === 'chat.history') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        return {
+          messages: historyBySessionKey.get(sessionKey) ?? [],
+        };
+      }
+      throw new Error(`Unexpected gateway RPC: ${method}`);
+    });
+
+    const manager = new SessionRuntimeManager({ rpc: gatewayRpcMock } as never);
+    const root = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      prompt: 'Root task',
+    });
+    const child = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      parentRuntimeId: root.id,
+      prompt: 'Child task',
+    });
+
+    const listed = await manager.list();
+    const linkedRoot = listed.find((record) => record.id === root.id);
+
+    expect(linkedRoot?.executionRecords).toEqual([
+      expect.objectContaining({
+        toolName: 'skill:planner-review',
+        linkedRuntimeId: child.id,
+      }),
+    ]);
+  });
 });

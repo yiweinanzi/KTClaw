@@ -321,9 +321,18 @@ export const useSettingsStore = create<SettingsState>()(
       setProxyHttpsServer: (proxyHttpsServer) => set({ proxyHttpsServer }),
       setProxyAllServer: (proxyAllServer) => set({ proxyAllServer }),
       setProxyBypassRules: (proxyBypassRules) => set({ proxyBypassRules }),
-      setUpdateChannel: (updateChannel) => set({ updateChannel }),
-      setAutoCheckUpdate: (autoCheckUpdate) => set({ autoCheckUpdate }),
-      setAutoDownloadUpdate: (autoDownloadUpdate) => set({ autoDownloadUpdate }),
+      setUpdateChannel: (updateChannel) => {
+        set({ updateChannel });
+        void persistSettingValue('updateChannel', updateChannel).catch(() => { });
+      },
+      setAutoCheckUpdate: (autoCheckUpdate) => {
+        set({ autoCheckUpdate });
+        void persistSettingValue('autoCheckUpdate', autoCheckUpdate).catch(() => { });
+      },
+      setAutoDownloadUpdate: (autoDownloadUpdate) => {
+        set({ autoDownloadUpdate });
+        void persistSettingValue('autoDownloadUpdate', autoDownloadUpdate).catch(() => { });
+      },
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       setContextRailCollapsed: (contextRailCollapsed) => set({ contextRailCollapsed }),
       setRightPanelMode: (rightPanelMode) => set({ rightPanelMode }),

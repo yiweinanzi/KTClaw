@@ -96,12 +96,21 @@ tail -30 continue/progress.txt
   - Session 28c：`AskUserQuestionWizard` 外壳文案迁回 `common` locale，P0 i18n 收口进一步前推到 Cron / TaskKanban / Sidebar
   - Session 29：runtime records 保留 structured `history`，`/api/sessions/subagents/:id` 支持单 run drill-down，TaskKanban detail 可在 parent/latest/child runs 间切换并渲染 thinking/tool 结构化历史
   - Session 29：修复并稳定 Cron / Sidebar 这轮 locale 接线，保证当前改动在 typecheck / lint / build / targeted vitest 下全部通过
+  - Session 30：Wave 5 update policy 补齐 channel 切换后的 `nextEligibleAt` / jitter 重算，并在 Settings auto-update section 暴露 update channel selector
+  - Session 30：Wave 5 a11y / governance 收口到 Cron，`lint:a11y` / `test:a11y` 已覆盖 Activity + Cron + Settings + Workbench empty state，并在 README / README.zh-CN 记录新门禁命令
+  - Session 30：Costs realtime tab 改为在 polling 之外额外消费 `gateway:notification` usage 事件，live usage entries / KPI / model distribution 可即时追加
+  - Session 30：TaskKanban runtime detail 新增 `executionRecords` 与 runtime `skillSnapshot` / `toolSnapshot` 展示，补齐 tool execution path / skill bridge 的前端可见层
+  - Session 31：Channels `/send` / `/test` 在多账号同类型场景下不再接受歧义 bare channelType，请求必须解析到唯一 scoped `channelId`
+  - Session 31：runtime `executionRecords` 现在可链接到 spawned child runtime，TaskKanban detail 支持从 execution card 直接 drill-down 到关联 child run，并补充 lineage 导航
+  - Session 32：Channels `config` / `config/:type` / `whatsapp/start` 已补 scoped account guard，未知 `accountId` 不再静默创建/读取/删除孤儿配置
+  - Session 32：Memory `/api/memory` 已接入 `memory.qmd.paths`，QMD collection files 作为只读 `qmd/<collection>/...` sources 暴露到 Memory browser
+  - Session 33：Costs dashboard 新增 `/api/costs/by-model` 消费与 `Model Costs` 明细表，“更完整图表与明细层”进一步收口
+  - Session 33：locale parity 目前已恢复到全量测试通过；`pnpm test` 再次全绿
 - 因此下面旧清单里，涉及上述能力的"剩余"描述请以本段为准，不要重复实现已完成部分。
 - 当前真正还缺的重点：
   - P0 i18n：继续清理 Cron / TaskKanban / Sidebar 等剩余历史硬编码文案
-  - Runtime / registry：tool execution path / deeper skill bridge / runtime tree drill-down 进一步深化
-  - Channels：multi-user isolation deeper capability runtime
-  - Wave 5：update / UX / a11y / 工程治理
+  - 当前 4-16 的非禁用 / 非延期业务项已基本收口
+  - 仍保留的仅是：用户明确延后的大范围 i18n 收口，以及继续保持停用状态的 Docs / Help
 
 
 ---
@@ -175,13 +184,13 @@ tail -30 continue/progress.txt
 - 已完成：`TopCrons`
 - 已完成：job cost table
 - 更完整图表与明细层
-- 优化分析：
+- 已完成优化分析：
   - optimization score
   - anomaly detection
   - week-over-week
   - cache savings
   - insights
-- realtime usage stream
+- 已完成 realtime usage stream（gateway notification 驱动的即时追加，保留 polling 兜底）
 
 #### 8. Memory 深化
 
@@ -216,7 +225,7 @@ tail -30 continue/progress.txt
   - runtime records durable persistence / restart restore
 - 剩余：
   - 更完整的 subagent tree orchestration
-  - runtime 工具执行路径与 registry 深化
+  - runtime 工具执行路径 / capability snapshot 已可在 TaskKanban detail 查看，后续仍可继续深化 registry 级交互
   - skills 到 runtime 的更深层执行桥接
 
 #### 10. Channels / backend runtime 能力

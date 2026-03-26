@@ -32,6 +32,8 @@ export interface RuntimeToolExecutionRecord {
   input?: unknown;
   output?: unknown;
   details?: unknown;
+  linkedRuntimeId?: string;
+  linkedRuntimeSessionKey?: string;
 }
 
 export interface RuntimeSessionRecord {
@@ -161,7 +163,9 @@ export class SessionRuntimeManager {
     };
     this.sessions.set(record.id, record);
     if (parentRuntime) {
+      const linkedExecutionRecords = this.linkParentExecutionRecord(parentRuntime, record);
       this.patchRecord(parentRuntime.id, {
+        executionRecords: linkedExecutionRecords,
         childRuntimeIds: [...new Set([...parentRuntime.childRuntimeIds, record.id])],
         updatedAt: now,
       });
@@ -497,6 +501,8 @@ export class SessionRuntimeManager {
       input: row.input ?? row.arguments,
       output: row.output ?? row.content ?? row.result,
       details: row.details,
+      linkedRuntimeId: this.extractFirstString(row, ['linkedRuntimeId']),
+      linkedRuntimeSessionKey: this.extractFirstString(row, ['linkedRuntimeSessionKey']),
     };
   }
 
@@ -605,6 +611,54 @@ export class SessionRuntimeManager {
       input: update.input ?? existing.input,
       output: update.output ?? existing.output,
       details: update.details ?? existing.details,
+      linkedRuntimeId: update.linkedRuntimeId ?? existing.linkedRuntimeId,
+      linkedRuntimeSessionKey: update.linkedRuntimeSessionKey ?? existing.linkedRuntimeSessionKey,
+    });
+  }
+
+  private linkParentExecutionRecord(
+    parentRuntime: RuntimeSessionRecord,
+    childRuntime: RuntimeSessionRecord,
+  ): RuntimeToolExecutionRecord[] {
+    const nextRecords = parentRuntime.executionRecords.map((execution) => ({ ...execution }));
+    for (let index = nextRecords.length - 1; index >= 0; index -= 1) {
+      const record = nextRecords[index];
+      if (record.linkedRuntimeId) continue;
+      const toolName = record.toolName.trim().toLowerCase();
+      if (!toolName.startsWith('skill:') && !toolName.includes('subagent') && !toolName.includes('spawn')) {
+        continue;
+      }
+      nextRecords[index] = {
+        ...record,
+        linkedRuntimeId: childRuntime.id,
+        linkedRuntimeSessionKey: childRuntime.sessionKey,
+      };
+      break;
+    }
+    return nextRecords;
+  }
+
+  private mergeExecutionRecordLinks(
+    nextRecords: RuntimeToolExecutionRecord[],
+    existingRecords: RuntimeToolExecutionRecord[],
+  ): RuntimeToolExecutionRecord[] {
+    if (nextRecords.length === 0 || existingRecords.length === 0) {
+      return nextRecords;
+    }
+
+    const existingByKey = new Map<string, RuntimeToolExecutionRecord>();
+    for (const record of existingRecords) {
+      existingByKey.set(record.toolCallId ?? record.id, record);
+    }
+
+    return nextRecords.map((record) => {
+      const existing = existingByKey.get(record.toolCallId ?? record.id);
+      if (!existing) return record;
+      return {
+        ...record,
+        linkedRuntimeId: record.linkedRuntimeId ?? existing.linkedRuntimeId,
+        linkedRuntimeSessionKey: record.linkedRuntimeSessionKey ?? existing.linkedRuntimeSessionKey,
+      };
     });
   }
 
@@ -796,7 +850,10 @@ export class SessionRuntimeManager {
         ?? existing.lastError,
       history: history.history.length > 0 ? history.history : existing.history,
       transcript: history.transcript.length > 0 ? history.transcript : options.fallbackTranscript,
-      executionRecords: history.executionRecords.length > 0 ? history.executionRecords : existing.executionRecords,
+      executionRecords: this.mergeExecutionRecordLinks(
+        history.executionRecords.length > 0 ? history.executionRecords : existing.executionRecords,
+        existing.executionRecords,
+      ),
       updatedAt: this.resolveUpdatedAt([
         sessionSnapshot?.updatedAt,
         history.updatedAt,

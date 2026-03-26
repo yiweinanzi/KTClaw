@@ -1,9 +1,13 @@
 import js from '@eslint/js';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import tsParser from '@typescript-eslint/parser';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
+
+const jsxA11yRecommendedRules =
+  jsxA11y.flatConfigs?.recommended?.rules ?? jsxA11y.configs.recommended.rules;
 
 export default [
   {
@@ -47,6 +51,20 @@ export default [
       ],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_' }],
       '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+  {
+    files: [
+      'src/pages/Activity/index.tsx',
+      'src/pages/Cron/index.tsx',
+      'src/pages/Settings/index.tsx',
+      'src/components/workbench/workbench-empty-state.tsx',
+    ],
+    plugins: {
+      'jsx-a11y': jsxA11y,
+    },
+    rules: {
+      ...jsxA11yRecommendedRules,
     },
   },
   {

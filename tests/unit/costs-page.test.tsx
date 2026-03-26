@@ -3,8 +3,16 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { Costs } from '@/pages/Costs';
 import { hostApiFetch } from '@/lib/host-api';
 
+const { subscribeHostEventMock } = vi.hoisted(() => ({
+  subscribeHostEventMock: vi.fn(),
+}));
+
 vi.mock('@/lib/host-api', () => ({
   hostApiFetch: vi.fn(),
+}));
+
+vi.mock('@/lib/host-events', () => ({
+  subscribeHostEvent: subscribeHostEventMock,
 }));
 
 describe('Costs page usage display', () => {
@@ -76,6 +84,25 @@ describe('Costs page usage display', () => {
     },
   ];
 
+  const modelSummaryRows = [
+    {
+      model: 'gpt-5.2',
+      totalTokens: 2150,
+      inputTokens: 1200,
+      outputTokens: 800,
+      costUsd: 0.1234,
+      count: 1,
+    },
+    {
+      model: 'claude-sonnet-4',
+      totalTokens: 715,
+      inputTokens: 300,
+      outputTokens: 400,
+      costUsd: 0.0044,
+      count: 1,
+    },
+  ];
+
   const cronRows = [
     {
       cronJobId: 'job-nightly-digest',
@@ -132,6 +159,7 @@ describe('Costs page usage display', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    subscribeHostEventMock.mockImplementation(() => () => undefined);
     vi.mocked(hostApiFetch).mockImplementation(async (path) => {
       if (path === '/api/usage/recent-token-history?limit=200') {
         return recentEntries;
@@ -141,6 +169,9 @@ describe('Costs page usage display', () => {
       }
       if (path === '/api/costs/by-agent') {
         return agentRows;
+      }
+      if (path === '/api/costs/by-model') {
+        return modelSummaryRows;
       }
       if (path === '/api/costs/by-cron') {
         return cronRows;
@@ -172,6 +203,11 @@ describe('Costs page usage display', () => {
     const dashboardCells = within(agentTable);
     expect(dashboardCells.getByText('planner-agent')).toBeInTheDocument();
     expect(dashboardCells.getByText('$0.9000')).toBeInTheDocument();
+    expect(screen.getByText('Model Costs')).toBeInTheDocument();
+    const modelTable = screen.getByRole('table', { name: 'Model cost table' });
+    const modelCells = within(modelTable);
+    expect(modelCells.getByText('gpt-5.2')).toBeInTheDocument();
+    expect(modelCells.getByText('$0.1234')).toBeInTheDocument();
     expect(screen.getByText('Cron Job Costs')).toBeInTheDocument();
     const cronTable = screen.getByRole('table', { name: 'Cron job costs table' });
     const cronCells = within(cronTable);
@@ -225,5 +261,53 @@ describe('Costs page usage display', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('appends realtime usage from gateway notifications without waiting for the polling timer', async () => {
+    let gatewayNotificationHandler: ((payload: unknown) => void) | undefined;
+    subscribeHostEventMock.mockImplementation((eventName: string, handler: (payload: unknown) => void) => {
+      if (eventName === 'gateway:notification') {
+        gatewayNotificationHandler = handler;
+      }
+      return () => undefined;
+    });
+
+    render(<Costs />);
+
+    expect(await screen.findByText('planner-agent')).toBeInTheDocument();
+    expect(vi.mocked(hostApiFetch).mock.calls.filter(
+      ([path]) => path === '/api/usage/recent-token-history?limit=200',
+    )).toHaveLength(1);
+
+    act(() => {
+      gatewayNotificationHandler?.({
+        method: 'agent',
+        params: {
+          sessionKey: 'session-live',
+          agentId: 'live-agent',
+          timestamp: '2026-03-23T14:00:00Z',
+          message: {
+            role: 'assistant',
+            model: 'gpt-5.4',
+            provider: 'openai',
+            usage: {
+              input: 100,
+              output: 50,
+              cacheRead: 0,
+              cacheWrite: 0,
+              total: 150,
+              cost: { total: 0.05 },
+            },
+          },
+        },
+      });
+    });
+
+    expect(screen.getByText('live-agent')).toBeInTheDocument();
+    expect(screen.getAllByText('gpt-5.4').length).toBeGreaterThan(0);
+    expect(screen.getByText('$0.1778')).toBeInTheDocument();
+    expect(vi.mocked(hostApiFetch).mock.calls.filter(
+      ([path]) => path === '/api/usage/recent-token-history?limit=200',
+    )).toHaveLength(1);
   });
 });

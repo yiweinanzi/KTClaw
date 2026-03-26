@@ -58,6 +58,11 @@ interface MemoryConfig {
     cache: { enabled: boolean; maxEntries: number };
     extraPaths: string[];
   };
+  qmdCollections: Array<{
+    name: string;
+    path: string;
+    pattern: string;
+  }>;
   memoryFlush: { enabled: boolean; softThresholdTokens: number };
   configFound: boolean;
 }
@@ -242,6 +247,7 @@ async function getMemoryFiles(scope: MemoryScopeInfo, config: MemoryConfig): Pro
   const files: MemoryFileInfo[] = [];
   const seen = new Set<string>();
   const workspacePath = scope.workspaceDir;
+  const qmdRootPath = join(dirname(workspacePath), 'qmd');
 
   const addFile = async (
     fullPath: string,
@@ -270,6 +276,56 @@ async function getMemoryFiles(scope: MemoryScopeInfo, config: MemoryConfig): Pro
     } catch {
       // Skip unreadable file entries.
     }
+  };
+
+  const walkFiles = async (rootPath: string): Promise<string[]> => {
+    try {
+      const fileStat = await stat(rootPath);
+      if (fileStat.isFile()) return [rootPath];
+      if (!fileStat.isDirectory()) return [];
+    } catch {
+      return [];
+    }
+
+    const pending = [rootPath];
+    const results: string[] = [];
+    while (pending.length > 0) {
+      const current = pending.pop()!;
+      const entries = await readdir(current, { withFileTypes: true }).catch(() => []);
+      for (const entry of entries) {
+        const fullPath = join(current, entry.name);
+        if (entry.isDirectory()) {
+          pending.push(fullPath);
+        } else if (entry.isFile()) {
+          results.push(fullPath);
+        }
+      }
+    }
+    return results;
+  };
+
+  const matchesQmdPattern = (relativeFilePath: string, pattern: string): boolean => {
+    const normalizedPattern = pattern.trim().replace(/[\\]+/g, '/').toLowerCase();
+    const normalizedFilePath = relativeFilePath.replace(/[\\]+/g, '/').toLowerCase();
+    if (!normalizedPattern || normalizedPattern === '**/*') return true;
+    if (normalizedPattern.includes('{') && normalizedPattern.includes('}')) {
+      const extGroup = normalizedPattern.match(/\{([^}]+)\}/)?.[1];
+      if (extGroup) {
+        const extensions = extGroup.split(',').map((item) => item.trim().replace(/^\./, ''));
+        const ext = basename(normalizedFilePath).split('.').at(-1) ?? '';
+        return extensions.includes(ext);
+      }
+    }
+    if (normalizedPattern.startsWith('**/*.')) {
+      return normalizedFilePath.endsWith(normalizedPattern.slice(4));
+    }
+    if (normalizedPattern.startsWith('*.')) {
+      return basename(normalizedFilePath).endsWith(normalizedPattern.slice(1));
+    }
+    if (!normalizedPattern.includes('*')) {
+      return basename(normalizedFilePath) === normalizedPattern || normalizedFilePath === normalizedPattern;
+    }
+    return normalizedFilePath.endsWith(normalizedPattern.replace(/^\*\*\//, '').replace(/^\*/, ''));
   };
 
   await addFile(join(workspacePath, 'MEMORY.md'), 'MEMORY.md', true, 'Long-Term Memory');
@@ -316,6 +372,39 @@ async function getMemoryFiles(scope: MemoryScopeInfo, config: MemoryConfig): Pro
     }
 
     await addFile(fullPath, relativePath, writable, humanizeFilename(basename(relativePath)));
+  }
+
+  for (const collection of config.qmdCollections) {
+    const collectionRoot = isAbsolutePath(collection.path)
+      ? resolve(collection.path)
+      : resolve(workspacePath, collection.path);
+    const collectionFiles = await walkFiles(collectionRoot);
+    for (const fullPath of collectionFiles) {
+      const relativeInsideCollection = relative(collectionRoot, fullPath).replace(/[\\]+/g, '/');
+      if (!relativeInsideCollection || relativeInsideCollection.startsWith('../')) continue;
+      if (!matchesQmdPattern(relativeInsideCollection, collection.pattern)) continue;
+      await addFile(
+        fullPath,
+        `qmd/${collection.name}/${relativeInsideCollection}`,
+        false,
+        `${collection.name}: ${humanizeFilename(basename(relativeInsideCollection))}`,
+      );
+    }
+  }
+
+  const qmdSessionsDir = join(qmdRootPath, 'sessions');
+  if (existsSync(qmdSessionsDir)) {
+    const qmdSessionFiles = await walkFiles(qmdSessionsDir);
+    for (const fullPath of qmdSessionFiles) {
+      const relativeInsideSessions = relative(qmdSessionsDir, fullPath).replace(/[\\]+/g, '/');
+      if (!relativeInsideSessions || relativeInsideSessions.startsWith('../')) continue;
+      await addFile(
+        fullPath,
+        `qmd/sessions/${relativeInsideSessions}`,
+        false,
+        `QMD Sessions: ${humanizeFilename(basename(relativeInsideSessions))}`,
+      );
+    }
   }
 
   files.sort((a, b) => {
@@ -395,10 +484,32 @@ const SEARCH_DEFAULTS: MemoryConfig['memorySearch'] = {
   extraPaths: [],
 };
 
+function normalizeQmdCollections(value: unknown): MemoryConfig['qmdCollections'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (typeof entry === 'string' && entry.trim()) {
+      return [{
+        name: humanizeFilename(basename(entry.trim())),
+        path: entry.trim(),
+        pattern: '**/*.md',
+      }];
+    }
+    if (!entry || typeof entry !== 'object') return [];
+    const row = entry as Record<string, unknown>;
+    const pathValue = typeof row.path === 'string' ? row.path.trim() : '';
+    if (!pathValue) return [];
+    const pattern = typeof row.pattern === 'string' && row.pattern.trim() ? row.pattern.trim() : '**/*.md';
+    const name = typeof row.name === 'string' && row.name.trim()
+      ? row.name.trim()
+      : humanizeFilename(basename(pathValue));
+    return [{ name, path: pathValue, pattern }];
+  });
+}
+
 function getMemoryConfig(workspacePath: string): MemoryConfig {
   const configPath = join(dirname(workspacePath), 'openclaw.json');
   if (!existsSync(configPath)) {
-    return { memorySearch: SEARCH_DEFAULTS, memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
+    return { memorySearch: SEARCH_DEFAULTS, qmdCollections: [], memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
   }
   try {
     const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
@@ -424,11 +535,12 @@ function getMemoryConfig(workspacePath: string): MemoryConfig {
         cache: { enabled: cache.enabled ?? true, maxEntries: cache.maxEntries ?? 256 },
         extraPaths: ms.extraPaths ?? [],
       },
+      qmdCollections: normalizeQmdCollections(raw?.memory?.qmd?.paths),
       memoryFlush: { enabled: flush.enabled ?? false, softThresholdTokens: flush.softThresholdTokens ?? 80000 },
       configFound: 'memorySearch' in ad,
     };
   } catch {
-    return { memorySearch: SEARCH_DEFAULTS, memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
+    return { memorySearch: SEARCH_DEFAULTS, qmdCollections: [], memoryFlush: { enabled: false, softThresholdTokens: 80000 }, configFound: false };
   }
 }
 

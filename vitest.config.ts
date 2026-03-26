@@ -12,6 +12,7 @@ const nodeTestInclude = [
   'tests/unit/mcp-*.test.ts',
   'tests/unit/session-*.test.ts',
   'tests/unit/openclaw-*.test.ts',
+  'tests/unit/ralph-codex-*.test.ts',
   'tests/unit/token-usage*.test.ts',
 ];
 

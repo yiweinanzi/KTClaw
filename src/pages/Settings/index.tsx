@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import { SettingsMemoryKnowledgePanel } from '@/components/settings-center/settings-memory-knowledge-panel';
 import { SettingsMigrationPanel } from '@/components/settings-center/settings-migration-panel';
 import { SettingsMigrationWizard } from '@/components/settings-center/settings-migration-wizard';
@@ -66,6 +66,8 @@ export function Settings() {
   const updateInfo = useUpdateStore((state) => state.updateInfo);
   const updateProgress = useUpdateStore((state) => state.progress);
   const updateError = useUpdateStore((state) => state.error);
+  const updatePolicy = useUpdateStore((state) => state.policy);
+  const updateSetChannel = useUpdateStore((state) => state.setChannel);
   const checkForUpdates = useUpdateStore((state) => state.checkForUpdates);
   const downloadUpdate = useUpdateStore((state) => state.downloadUpdate);
   const installUpdate = useUpdateStore((state) => state.installUpdate);
@@ -275,6 +277,8 @@ export function Settings() {
                 updateInfo,
                 updateProgress,
                 updateError,
+                updatePolicy,
+                updateSetChannel,
                 checkForUpdates,
                 downloadUpdate,
                 installUpdate,
@@ -340,7 +344,9 @@ type RenderSectionArgs = {
   updateInfo: import('@/stores/update').UpdateInfo | null;
   updateProgress: import('@/stores/update').ProgressInfo | null;
   updateError: string | null;
-  checkForUpdates: () => Promise<void>;
+  updatePolicy: import('@/stores/update').UpdatePolicySnapshot | null;
+  updateSetChannel: (channel: 'stable' | 'beta' | 'dev') => Promise<void>;
+  checkForUpdates: (options?: { reason?: 'manual' | 'startup'; respectPolicy?: boolean }) => Promise<void>;
   downloadUpdate: () => Promise<void>;
   installUpdate: () => void;
   initUpdate: () => Promise<void>;
@@ -392,6 +398,8 @@ function renderActiveSection(args: RenderSectionArgs) {
           updateInfo={args.updateInfo}
           updateProgress={args.updateProgress}
           updateError={args.updateError}
+          updatePolicy={args.updatePolicy}
+          updateSetChannel={args.updateSetChannel}
           checkForUpdates={args.checkForUpdates}
           downloadUpdate={args.downloadUpdate}
           installUpdate={args.installUpdate}
@@ -1992,6 +2000,8 @@ function AutoUpdateSection({
   updateInfo,
   updateProgress,
   updateError,
+  updatePolicy,
+  updateSetChannel,
   checkForUpdates,
   downloadUpdate,
   installUpdate,
@@ -2007,12 +2017,18 @@ function AutoUpdateSection({
   updateInfo: UpdateInfo | null;
   updateProgress: ProgressInfo | null;
   updateError: string | null;
-  checkForUpdates: () => Promise<void>;
+  updatePolicy: import('@/stores/update').UpdatePolicySnapshot | null;
+  updateSetChannel: (channel: 'stable' | 'beta' | 'dev') => Promise<void>;
+  checkForUpdates: (options?: { reason?: 'manual' | 'startup'; respectPolicy?: boolean }) => Promise<void>;
   downloadUpdate: () => Promise<void>;
   installUpdate: () => void;
   initUpdate: () => Promise<void>;
 }) {
   useEffect(() => { void initUpdate(); }, [initUpdate]);
+
+  const nextEligibleLabel = updatePolicy?.nextEligibleAt
+    ? new Date(updatePolicy.nextEligibleAt).toLocaleString('zh-CN')
+    : 'Immediate';
 
   const statusLabel: Record<UpdateStatus, string> = {
     idle: '空闲',
@@ -2110,6 +2126,44 @@ function AutoUpdateSection({
             void updateSetAutoDownload(v);
           }}
         />
+        <div className="mt-3 rounded-xl bg-[#f2f2f7] px-4 py-3 text-[12px] text-[#3c3c43]">
+          <label className="block">
+            <span className="text-[#8e8e93]">Update channel</span>
+            <select
+              aria-label="Update channel"
+              value={updatePolicy?.channel ?? 'stable'}
+              onChange={(event) => {
+                void updateSetChannel(event.target.value as 'stable' | 'beta' | 'dev');
+              }}
+              className="mt-2 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#111827] outline-none focus:border-clawx-ac"
+            >
+              <option value="stable">Stable</option>
+              <option value="beta">Beta</option>
+              <option value="dev">Dev</option>
+            </select>
+          </label>
+        </div>
+        <div className="mt-3 rounded-xl bg-[#f2f2f7] px-4 py-3 text-[12px] text-[#3c3c43]">
+          <p className="font-medium text-[#111827]">Update policy</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div>
+              <span className="text-[#8e8e93]">Channel</span>
+              <p className="mt-0.5">{updatePolicy?.channel ?? 'stable'}</p>
+            </div>
+            <div>
+              <span className="text-[#8e8e93]">Attempts</span>
+              <p className="mt-0.5">{updatePolicy?.attemptCount ?? 0}</p>
+            </div>
+            <div>
+              <span className="text-[#8e8e93]">Next eligible check</span>
+              <p className="mt-0.5">{nextEligibleLabel}</p>
+            </div>
+            <div>
+              <span className="text-[#8e8e93]">Rollout delay / jitter</span>
+              <p className="mt-0.5">{Math.round((updatePolicy?.rolloutDelayMs ?? 0) / 60000)} min</p>
+            </div>
+          </div>
+        </div>
       </SettingsSectionCard>
     </>
   );

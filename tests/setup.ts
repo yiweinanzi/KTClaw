@@ -4,10 +4,13 @@
  */
 import { afterEach, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
+import { expect } from 'vitest';
+import * as axeMatchers from 'vitest-axe/matchers';
 import i18n from '@/i18n';
 
 // Force Chinese locale so test assertions that match Chinese strings continue to pass
 void i18n.changeLanguage('zh');
+expect.extend(axeMatchers);
 
 if (typeof window !== 'undefined') {
   // Mock window.electron API for renderer/jsdom tests.

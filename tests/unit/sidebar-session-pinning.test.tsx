@@ -107,9 +107,19 @@ vi.mock('@/lib/api-client', () => ({
   invokeIpc: vi.fn(),
 }));
 
+const mockTranslations: Record<string, string> = {
+  'common:sidebar.pinSession': 'Pin session',
+  'common:sidebar.unpinSession': 'Unpin session',
+  'common:sidebar.exportMarkdown': 'Export Markdown',
+  'common:sidebar.batchSelect': 'Batch select',
+  'common:sidebar.toggleSidebar': 'Toggle sidebar',
+  'common:sidebar.newSession': 'New session',
+  'common:sidebar.openSearch': 'Open search',
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => mockTranslations[key] ?? key,
   }),
 }));
 
@@ -156,7 +166,7 @@ describe('sidebar session pinning', () => {
     expectButtonBefore(pinnedNewButton, pinnedOldButton);
     expectButtonBefore(pinnedOldButton, recentUnpinnedButton);
     expectButtonBefore(recentUnpinnedButton, unpinnedOldButton);
-    expect(screen.getAllByLabelText('Pinned session')).toHaveLength(2);
+    expect(screen.getAllByLabelText(/^(Pinned session|置顶会话)$/)).toHaveLength(2);
   });
 
   it('adds pin and unpin actions to the session context menu and persists updates', () => {
@@ -172,15 +182,15 @@ describe('sidebar session pinning', () => {
     );
 
     fireEvent.contextMenu(screen.getByText('Session One'));
-    fireEvent.click(screen.getByRole('button', { name: '置顶会话' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Pin session|置顶会话)$/ }));
 
     expect(parsePinnedStorage()).toEqual(['session-one']);
-    expect(screen.getByLabelText('Pinned session')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^(Pinned session|置顶会话)$/)).toBeInTheDocument();
 
     fireEvent.contextMenu(screen.getByText('Session One'));
-    fireEvent.click(screen.getByRole('button', { name: '取消置顶' }));
+    fireEvent.click(screen.getByRole('button', { name: /^(Unpin session|取消置顶)$/ }));
 
     expect(parsePinnedStorage()).toEqual([]);
-    expect(screen.queryByLabelText('Pinned session')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^(Pinned session|置顶会话)$/)).not.toBeInTheDocument();
   });
 });

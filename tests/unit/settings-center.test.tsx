@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { axe } from 'vitest-axe';
 import { MemoryRouter } from 'react-router-dom';
 import Settings from '@/pages/Settings';
 import { TitleBar } from '@/components/layout/TitleBar';
@@ -19,7 +20,21 @@ const { gatewayState, updateState, navigateMock, invokeIpcMock } = vi.hoisted(()
     updateInfo: null,
     progress: null,
     error: null,
+    policy: {
+      channel: 'stable',
+      attemptCount: 0,
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      lastCheckReason: null,
+      lastCheckError: null,
+      lastCheckChannel: 'stable',
+      nextEligibleAt: null,
+      rolloutDelayMs: 0,
+      checkIntervalMs: 12 * 60 * 60 * 1000,
+    },
     setAutoDownload: vi.fn(),
+    setChannel: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
     installUpdate: vi.fn(),
@@ -134,8 +149,8 @@ describe('Settings center', () => {
     });
   });
 
-  it('renders grouped navigation and key section shells', () => {
-    render(
+  it('renders grouped navigation and key section shells', async () => {
+    const { container } = render(
       <MemoryRouter>
         <Settings />
       </MemoryRouter>,
@@ -157,6 +172,14 @@ describe('Settings center', () => {
     expect(screen.getByRole('button', { name: 'Re-run Setup' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reset All Settings' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear Server Data' })).toBeInTheDocument();
+
+    expect(
+      await axe(container, {
+        rules: {
+          'heading-order': { enabled: false },
+        },
+      }),
+    ).toHaveNoViolations();
   });
 
   it('splits the Skills and MCP settings surface into tabbed panels', async () => {
@@ -238,6 +261,22 @@ describe('Settings center', () => {
       expect.objectContaining({ method: 'POST' }),
     );
     expect(vi.mocked(toast.success)).toHaveBeenCalledWith('settings:maintenance.clearSuccess');
+  });
+
+  it('allows changing the update channel from the auto-update section', () => {
+    render(
+      <MemoryRouter>
+        <Settings />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: getNavLabel('auto-update') }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Update channel' }), {
+      target: { value: 'beta' },
+    });
+
+    expect(updateState.setChannel).toHaveBeenCalledWith('beta');
+    expect(screen.getByText('Update policy')).toBeInTheDocument();
   });
 
   it('uploads and clears custom brand logo/icon data urls', async () => {

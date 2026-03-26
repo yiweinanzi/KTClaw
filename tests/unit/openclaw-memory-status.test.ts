@@ -97,6 +97,7 @@ describe('GET /api/memory and POST /api/memory/reindex', () => {
     const analystWorkspace = join(homeDir, '.openclaw', 'agents', 'analyst', 'workspace');
     await mkdir(join(analystWorkspace, 'memory'), { recursive: true });
     await mkdir(join(analystWorkspace, 'knowledge'), { recursive: true });
+    await mkdir(join(analystWorkspace, 'docs'), { recursive: true });
     writeFileSync(join(analystWorkspace, 'memory', 'notes.md'), 'analyst notes', 'utf-8');
     writeFileSync(join(analystWorkspace, 'AGENTS.md'), 'agent profile', 'utf-8');
     writeFileSync(join(analystWorkspace, 'HEARTBEAT.md'), 'heartbeat', 'utf-8');
@@ -105,9 +106,15 @@ describe('GET /api/memory and POST /api/memory/reindex', () => {
     writeFileSync(join(analystWorkspace, 'TOOLS.md'), 'tools', 'utf-8');
     writeFileSync(join(analystWorkspace, 'USER.md'), 'user', 'utf-8');
     writeFileSync(join(analystWorkspace, 'knowledge', 'brief.md'), 'extra scope notes', 'utf-8');
+    writeFileSync(join(analystWorkspace, 'docs', 'plan.qmd'), 'qmd collection note', 'utf-8');
     writeFileSync(
       join(homeDir, '.openclaw', 'agents', 'analyst', 'openclaw.json'),
       JSON.stringify({
+        memory: {
+          qmd: {
+            paths: [{ name: 'team-docs', path: 'docs', pattern: '**/*.qmd' }],
+          },
+        },
         agents: {
           defaults: {
             memorySearch: {
@@ -152,6 +159,7 @@ describe('GET /api/memory and POST /api/memory/reindex', () => {
         'TOOLS.md',
         'USER.md',
         'knowledge/brief.md',
+        'qmd/team-docs/plan.qmd',
       ]),
     );
   });

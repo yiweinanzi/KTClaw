@@ -299,6 +299,14 @@ async function initialize(): Promise<void> {
   // Register update handlers
   registerUpdateHandlers(appUpdater, window);
 
+  appUpdater.on('status-changed', (status) => {
+    hostEventBus.emit('update:status', status);
+  });
+
+  appUpdater.on('auto-install-countdown', (payload) => {
+    hostEventBus.emit('update:auto-install-countdown', payload);
+  });
+
   // Note: Auto-check for updates is driven by the renderer (update store init)
   // so it respects the user's "Auto-check for updates" setting.
 

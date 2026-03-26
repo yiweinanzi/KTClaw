@@ -10,6 +10,7 @@ import { useApprovalsStore, type ApprovalItem } from '@/stores/approvals';
 import type { AgentSummary } from '@/types/agent';
 import type { RawMessage } from '@/stores/chat';
 import { ChatMessage } from '@/pages/Chat/ChatMessage';
+import { useTranslation } from 'react-i18next';
 import { AskUserQuestionWizard } from './AskUserQuestionWizard';
 
 /* ─── Types ─── */
@@ -52,6 +53,21 @@ interface RuntimeSessionResponse {
   rootRuntimeId?: string;
   depth?: number;
   childRuntimeIds?: string[];
+  executionRecords?: Array<{
+    id: string;
+    toolCallId?: string;
+    toolName: string;
+    status: 'running' | 'completed' | 'error';
+    summary?: string;
+    durationMs?: number;
+    input?: unknown;
+    output?: unknown;
+    details?: unknown;
+    linkedRuntimeId?: string;
+    linkedRuntimeSessionKey?: string;
+  }>;
+  toolSnapshot?: Array<{ server: string; name: string }>;
+  skillSnapshot?: string[];
   status?: string;
   history?: RawMessage[];
   transcript?: string[];
@@ -99,29 +115,31 @@ function createTicket(input: { title: string; description: string; priority: Tic
 
 /* ─── Constants ─── */
 
-const COLUMNS: { key: TicketStatus; label: string }[] = [
-  { key: 'backlog',     label: 'Backlog 积压' },
-  { key: 'todo',        label: 'To Do 待办' },
-  { key: 'in-progress', label: 'In Progress' },
-  { key: 'review',      label: 'Review 审查' },
-  { key: 'done',        label: 'Done 完成' },
-];
+const COLUMN_KEYS: TicketStatus[] = ['backlog', 'todo', 'in-progress', 'review', 'done'];
 
-const PRIORITY_STYLES: Record<TicketPriority, { dot: string; text: string; bg: string; label: string }> = {
-  high:   { dot: '#ef4444', text: '#ef4444', bg: '#fef2f2', label: '高优' },
-  medium: { dot: '#f59e0b', text: '#d97706', bg: '#fffbeb', label: '中优' },
-  low:    { dot: '#10b981', text: '#059669', bg: '#f0fdf4', label: '低优' },
-};
+function getColumns(t: (key: string, options?: Record<string, unknown>) => string): { key: TicketStatus; label: string }[] {
+  return COLUMN_KEYS.map((key) => ({ key, label: t(`kanban.columns.${key}`) }));
+}
 
-const WORK_STATE_STYLES: Record<WorkState, { label: string; color: string }> = {
-  idle:     { label: '',       color: '' },
-  starting: { label: 'Starting', color: '#f59e0b' },
-  working:  { label: 'Working', color: '#3b82f6' },
-  blocked:  { label: 'Blocked', color: '#f97316' },
-  waiting_approval: { label: 'Waiting Approval', color: '#7c3aed' },
-  done:     { label: 'Done', color: '#10b981' },
-  failed:   { label: 'Failed',   color: '#ef4444' },
-};
+function getPriorityStyles(t: (key: string, options?: Record<string, unknown>) => string): Record<TicketPriority, { dot: string; text: string; bg: string; label: string }> {
+  return {
+    high: { dot: '#ef4444', text: '#ef4444', bg: '#fef2f2', label: t('kanban.priorities.high') },
+    medium: { dot: '#f59e0b', text: '#d97706', bg: '#fffbeb', label: t('kanban.priorities.medium') },
+    low: { dot: '#10b981', text: '#059669', bg: '#f0fdf4', label: t('kanban.priorities.low') },
+  };
+}
+
+function getWorkStateStyles(t: (key: string, options?: Record<string, unknown>) => string): Record<WorkState, { label: string; color: string }> {
+  return {
+    idle: { label: '', color: '' },
+    starting: { label: t('kanban.workState.starting'), color: '#f59e0b' },
+    working: { label: t('kanban.workState.working'), color: '#3b82f6' },
+    blocked: { label: t('kanban.workState.blocked'), color: '#f97316' },
+    waiting_approval: { label: t('kanban.workState.waitingApproval'), color: '#7c3aed' },
+    done: { label: t('kanban.workState.done'), color: '#10b981' },
+    failed: { label: t('kanban.workState.failed'), color: '#ef4444' },
+  };
+}
 
 const ACTIVE_RUNTIME_WORK_STATES = new Set<WorkState>(['starting', 'working', 'blocked', 'waiting_approval']);
 const RUNTIME_WAIT_POLL_MS = 3000;
@@ -270,6 +288,15 @@ function hasRuntimeTicketChanges(ticket: KanbanTicket, updates: Partial<KanbanTi
   return false;
 }
 
+function formatExecutionDuration(durationMs?: number): string | null {
+  if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs <= 0) {
+    return null;
+  }
+  if (durationMs < 1000) return `${durationMs}ms`;
+  if (durationMs < 60_000) return `${(durationMs / 1000).toFixed(1)}s`;
+  return `${Math.floor(durationMs / 60_000)}m ${Math.floor((durationMs % 60_000) / 1000)}s`;
+}
+
 function buildRuntimeHistoryFromTranscript(transcript?: string[]): RawMessage[] {
   return (transcript ?? [])
     .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
@@ -310,6 +337,8 @@ function agentColor(idx: number) { return AGENT_COLORS[idx % AGENT_COLORS.length
 /* ─── Main component ─── */
 
 export function TaskKanban() {
+  const { t } = useTranslation('common');
+  const columns = getColumns(t);
   const [tickets, setTickets] = useState<KanbanTicket[]>(() => loadTickets());
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -327,13 +356,14 @@ export function TaskKanban() {
   useEffect(() => { saveTickets(tickets); }, [tickets]);
 
   const updateTicket = useCallback((id: string, updates: Partial<KanbanTicket>) => {
+    const updatedAt = new Date().toISOString();
     setTickets((prev) =>
-      prev.map((t) => t.id === id ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t)
+      prev.map((ticket) => (ticket.id === id ? { ...ticket, ...updates, updatedAt } : ticket))
     );
-    if (detailTicket?.id === id) {
-      setDetailTicket((prev) => prev ? { ...prev, ...updates, updatedAt: new Date().toISOString() } : prev);
-    }
-  }, [detailTicket?.id]);
+    setDetailTicket((prev) => (
+      prev?.id === id ? { ...prev, ...updates, updatedAt } : prev
+    ));
+  }, [setDetailTicket]);
 
   const deleteTicket = (id: string) => {
     setTickets((prev) => prev.filter((t) => t.id !== id));
@@ -513,15 +543,15 @@ export function TaskKanban() {
         {/* Header */}
         <div className="flex shrink-0 items-start justify-between px-8 pb-5 pt-8">
           <div>
-            <h1 className="text-[26px] font-semibold text-[#000000]">任务看板 Kanban</h1>
-            <p className="mt-1 text-[13px] text-[#8e8e93]">{activeCount} active tasks</p>
+            <h1 className="text-[26px] font-semibold text-[#000000]">{t('kanban.title')}</h1>
+            <p className="mt-1 text-[13px] text-[#8e8e93]">{t('kanban.subtitle', { count: activeCount })}</p>
           </div>
           <button
             type="button"
             onClick={() => setCreateOpen(true)}
             className="flex items-center gap-1.5 rounded-lg bg-[#ef4444] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#dc2626]"
           >
-            + 新建任务
+            + {t('kanban.newTask')}
           </button>
         </div>
 
@@ -546,7 +576,7 @@ export function TaskKanban() {
                 : 'border border-black/10 bg-white text-[#3c3c43] hover:bg-[#f2f2f7]',
             )}
           >
-            全部任务
+            {t('kanban.allTasks')}
           </button>
           {agents.map((agent, idx) => (
             <button
@@ -568,7 +598,7 @@ export function TaskKanban() {
 
         {/* Kanban columns */}
         <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-8 pb-6">
-          {COLUMNS.map((col) => {
+          {columns.map((col) => {
             const colTickets = filtered.filter((t) => t.status === col.key);
             const isOver = dragOverCol === col.key;
             return (
@@ -593,7 +623,8 @@ export function TaskKanban() {
                 >
                   {colTickets.length === 0 ? (
                     <div className="flex items-center justify-center py-8 text-[13px] text-[#c6c6c8]">
-                      拖拽到此处                    </div>
+                      {t('kanban.emptyColumn')}
+                    </div>
                   ) : (
                     colTickets.map((ticket) => (
                       <div key={ticket.id} role="listitem">
@@ -656,11 +687,12 @@ function TicketCard({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
-  const p = PRIORITY_STYLES[ticket.priority];
+  const { t } = useTranslation('common');
+  const p = getPriorityStyles(t)[ticket.priority];
   const agentIdx = agents.findIndex((a) => a.id === ticket.assigneeId);
   const agent = agentIdx >= 0 ? agents[agentIdx] : null;
   const color = agent ? agentColor(agentIdx) : '#8e8e93';
-  const ws = WORK_STATE_STYLES[ticket.workState];
+  const ws = getWorkStateStyles(t)[ticket.workState];
   const isDragLocked = ACTIVE_RUNTIME_WORK_STATES.has(ticket.workState);
 
   return (
@@ -716,6 +748,8 @@ function CreateModal({
   onClose: () => void;
   onCreate: (input: { title: string; description: string; priority: TicketPriority; assigneeId?: string; assigneeRole?: string }) => void;
 }) {
+  const { t } = useTranslation('common');
+  const priorityStyles = getPriorityStyles(t);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TicketPriority>('medium');
@@ -748,9 +782,9 @@ function CreateModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" role="dialog" aria-modal="true" aria-labelledby="create-modal-title">
       <div className="w-[420px] rounded-2xl bg-white p-6 shadow-xl">
-        <h2 id="create-modal-title" className="mb-4 text-[16px] font-semibold text-[#000000]">新建任务</h2>
+        <h2 id="create-modal-title" className="mb-4 text-[16px] font-semibold text-[#000000]">{t('kanban.createModal.title')}</h2>
         <div className="mb-3">
-          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">任务标题</p>
+          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('kanban.createModal.taskTitle')}</p>
           <input
             ref={inputRef}
             value={title}
@@ -776,25 +810,25 @@ function CreateModal({
               e.preventDefault();
               handleSubmit();
             }}
-            placeholder="简短描述任务目标..."
+            placeholder={t('kanban.createModal.taskTitlePlaceholder')}
             className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
           />
         </div>
         <div className="mb-3">
-          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">任务描述</p>
+          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('kanban.createModal.taskDescription')}</p>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="详细说明..."
+            placeholder={t('kanban.createModal.taskDescriptionPlaceholder')}
             rows={3}
             className="w-full resize-none rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
           />
         </div>
         <div className="mb-3">
-          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Priority</p>
+          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('kanban.createModal.priority')}</p>
           <div className="flex gap-2">
             {(['high', 'medium', 'low'] as TicketPriority[]).map((p) => {
-              const s = PRIORITY_STYLES[p];
+              const s = priorityStyles[p];
               return (
                 <button
                   key={p}
@@ -814,13 +848,13 @@ function CreateModal({
         </div>
         {agents.length > 0 && (
           <div className="mb-5">
-            <p className="mb-1.5 text-[13px] font-medium text-[#000000]">指派 Agent</p>
+            <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('kanban.createModal.assignee')}</p>
             <select
               value={assigneeId}
               onChange={(e) => setAssigneeId(e.target.value)}
               className="w-full appearance-none rounded-lg border border-black/10 bg-white px-3 py-2 text-[13px] text-[#000000] outline-none focus:border-clawx-ac"
             >
-              <option value="">Unassigned</option>
+              <option value="">{t('kanban.createModal.unassigned')}</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}</option>
               ))}
@@ -828,11 +862,11 @@ function CreateModal({
           </div>
         )}
         <div className="mb-5">
-          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">Assignee Role</p>
+          <p className="mb-1.5 text-[13px] font-medium text-[#000000]">{t('kanban.createModal.assigneeRole')}</p>
           <input
             value={assigneeRole}
             onChange={(e) => setAssigneeRole(e.target.value)}
-            placeholder="例如：planner / reviewer / operator"
+            placeholder={t('kanban.createModal.assigneeRolePlaceholder')}
             className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13px] outline-none focus:border-clawx-ac"
           />
         </div>
@@ -844,7 +878,7 @@ function CreateModal({
             disabled={!title.trim()}
             className="flex-1 rounded-xl bg-[#ef4444] py-2 text-[13px] font-medium text-white hover:bg-[#dc2626] disabled:opacity-50"
           >
-            创建任务
+            {t('kanban.createModal.create')}
           </button>
         </div>
       </div>
@@ -874,10 +908,14 @@ function DetailPanel({
   onApproveApproval: (id: string, reason?: string) => void;
   onRejectApproval: (id: string, reason: string) => void;
 }) {
+  const { t } = useTranslation('common');
+  const columns = getColumns(t);
+  const priorityStyles = getPriorityStyles(t);
+  const workStateStyles = getWorkStateStyles(t);
   const agentIdx = agents.findIndex((a) => a.id === ticket.assigneeId);
   const agent = agentIdx >= 0 ? agents[agentIdx] : null;
   const color = agent ? agentColor(agentIdx) : '#8e8e93';
-  const p = PRIORITY_STYLES[ticket.priority];
+  const p = priorityStyles[ticket.priority];
   const [followup, setFollowup] = useState('');
   const [wizard, setWizard] = useState<ApprovalItem | null>(null);
   const [reviewing, setReviewing] = useState<ApprovalItem | null>(null);
@@ -973,6 +1011,14 @@ function DetailPanel({
   const currentRuntimeHistory = currentRuntimeView?.history && currentRuntimeView.history.length > 0
     ? currentRuntimeView.history
     : buildRuntimeHistoryFromTranscript(currentRuntimeView?.transcript);
+  const currentExecutionRecords = currentRuntimeView?.executionRecords ?? [];
+  const currentRuntimeTools = currentRuntimeView?.toolSnapshot ?? [];
+  const currentRuntimeSkills = currentRuntimeView?.skillSnapshot ?? [];
+  const currentLineageIds = [
+    currentRuntimeView?.rootRuntimeId,
+    currentRuntimeView?.parentRuntimeId,
+    currentRuntimeView?.id,
+  ].filter((value, index, array): value is string => typeof value === 'string' && value.length > 0 && array.indexOf(value) === index);
 
   const selectRuntimeSession = async (runtimeSessionId: string) => {
     if (runtimeSessionId === ticket.runtimeSessionId) {
@@ -1009,36 +1055,36 @@ function DetailPanel({
       >
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-black/[0.06] px-5 py-4">
-          <span id="detail-panel-title" className="text-[14px] font-semibold text-[#000000]">任务详情</span>
+          <span id="detail-panel-title" className="text-[14px] font-semibold text-[#000000]">{t('kanban.detail.title')}</span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onDelete}
               className="rounded-md border border-[#ef4444]/20 px-2.5 py-1 text-[12px] text-[#ef4444] hover:bg-[#fef2f2]"
             >
-              删除
+              {t('kanban.detail.delete')}
             </button>
-            <button type="button" onClick={onClose} aria-label="Close detail panel" className="text-[18px] text-[#8e8e93] hover:text-[#3c3c43]">×</button>
+            <button type="button" onClick={onClose} aria-label={t('kanban.detail.close')} className="text-[18px] text-[#8e8e93] hover:text-[#3c3c43]">×</button>
           </div>
         </div>
 
         {/* Body */}
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-5 py-4">
           <div>
-            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">标题</p>
+            <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.titleLabel')}</p>
             <p className="text-[15px] font-semibold text-[#000000]">{ticket.title}</p>
           </div>
 
           {ticket.description && (
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">描述</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.descriptionLabel')}</p>
               <p className="text-[13px] leading-relaxed text-[#3c3c43]">{ticket.description}</p>
             </div>
           )}
 
           <div className="flex gap-4">
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Priority</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.priorityLabel')}</p>
               <span
                 className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium"
                 style={{ background: p.bg, color: p.text }}
@@ -1048,16 +1094,16 @@ function DetailPanel({
               </span>
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Status</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.statusLabel')}</p>
               <span className="text-[13px] text-[#3c3c43]">
-                {COLUMNS.find((c) => c.key === ticket.status)?.label ?? ticket.status}
+                {columns.find((c) => c.key === ticket.status)?.label ?? ticket.status}
               </span>
             </div>
           </div>
 
           {agent && (
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">指派 Agent</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.assigneeLabel')}</p>
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
                 <span className="text-[13px] font-medium" style={{ color }}>{agent.name}</span>
@@ -1067,16 +1113,16 @@ function DetailPanel({
 
           {ticket.assigneeRole && (
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Assignee Role</p>
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.assigneeRoleLabel')}</p>
               <p className="text-[13px] font-medium text-[#3c3c43]">{ticket.assigneeRole}</p>
             </div>
           )}
 
           {ticket.workState !== 'idle' && (
             <div>
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Execution</p>
-              <span className="text-[13px] font-medium" style={{ color: WORK_STATE_STYLES[ticket.workState].color }}>
-                {WORK_STATE_STYLES[ticket.workState].label}
+              <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.executionLabel')}</p>
+              <span className="text-[13px] font-medium" style={{ color: workStateStyles[ticket.workState].color }}>
+                {workStateStyles[ticket.workState].label}
               </span>
               {ticket.workError && (
                 <p className="mt-1 text-[12px] text-[#ef4444]">{ticket.workError}</p>
@@ -1085,27 +1131,27 @@ function DetailPanel({
                 <p className="mt-1 text-[12px] text-[#3c3c43]">{ticket.workResult}</p>
               )}
               {ACTIVE_RUNTIME_WORK_STATES.has(ticket.workState) && (
-                <p className="mt-2 text-[12px] text-[#8e8e93]">运行中任务不可拖拽，等待 runtime 返回结果后再移动状态。</p>
+                <p className="mt-2 text-[12px] text-[#8e8e93]">{t('kanban.detail.runtimeLock')}</p>
               )}
             </div>
           )}
 
           <div>
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Runtime</p>
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.runtime.title')}</p>
             {ticket.runtimeSessionId ? (
               <>
                 <div className="mb-2 rounded-lg bg-[#f8fafc] px-3 py-2 text-[12px] text-[#475467]">
-                  Session: {ticket.runtimeSessionId}
+                  {t('kanban.runtime.session', { id: ticket.runtimeSessionId })}
                 </div>
                 {ticket.runtimeSessionKey && (
                   <div className="mb-2 rounded-lg bg-[#f8fafc] px-3 py-2 text-[12px] text-[#475467]">
-                    Session key: {ticket.runtimeSessionKey}
+                    {t('kanban.runtime.sessionKey', { key: ticket.runtimeSessionKey })}
                   </div>
                 )}
                 {ticket.runtimeParentSessionId && (
                   <div className="mb-2 rounded-lg bg-[#f8fafc] px-3 py-2 text-[12px] text-[#475467]">
-                    Parent run: {ticket.runtimeParentSessionId}
-                    {typeof ticket.runtimeDepth === 'number' ? ` · Depth ${ticket.runtimeDepth}` : ''}
+                    {t('kanban.runtime.parentRun', { id: ticket.runtimeParentSessionId })}
+                    {typeof ticket.runtimeDepth === 'number' ? t('kanban.runtime.depthSuffix', { depth: ticket.runtimeDepth }) : ''}
                   </div>
                 )}
                 {ticket.runtimeChildSessionIds && ticket.runtimeChildSessionIds.length > 0 && (
@@ -1159,6 +1205,26 @@ function DetailPanel({
                     )}
                   </div>
                 )}
+                {currentLineageIds.length > 1 && (
+                  <div className="mb-3 rounded-xl border border-black/[0.06] bg-[#fafafa] px-3 py-3">
+                    <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Lineage</p>
+                    <div className="flex flex-wrap gap-2">
+                      {currentLineageIds.map((runtimeId) => (
+                        <button
+                          key={runtimeId}
+                          type="button"
+                          onClick={() => void selectRuntimeSession(runtimeId)}
+                          className={cn(
+                            'rounded-lg bg-white px-3 py-2 text-[12px] text-[#475467] shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
+                            selectedRuntimeSessionId === runtimeId && 'ring-1 ring-[#007aff]',
+                          )}
+                        >
+                          {runtimeId}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="mb-3 rounded-xl border border-black/[0.06] bg-[#fafafa] px-3 py-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Transcript</p>
@@ -1190,6 +1256,70 @@ function DetailPanel({
                     <p className="text-[12px] text-[#8e8e93]">No runtime history yet.</p>
                   )}
                 </div>
+                {(currentExecutionRecords.length > 0 || currentRuntimeTools.length > 0 || currentRuntimeSkills.length > 0) && (
+                  <div className="mb-3 space-y-3 rounded-xl border border-black/[0.06] bg-[#fafafa] px-3 py-3">
+                    {currentExecutionRecords.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Execution path</p>
+                        <div className="flex flex-col gap-2">
+                          {currentExecutionRecords.map((record) => {
+                            const durationLabel = formatExecutionDuration(record.durationMs);
+                            return (
+                            <div
+                              key={record.id}
+                              className="rounded-lg bg-white px-3 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-[12px] font-medium text-[#111827]">{record.toolName}</span>
+                                <span className="text-[11px] text-[#8e8e93]">{record.status}</span>
+                              </div>
+                                {record.summary && (
+                                  <p className="mt-1 text-[12px] text-[#475467]">{record.summary}</p>
+                                )}
+                                {durationLabel && (
+                                  <p className="mt-1 text-[11px] text-[#8e8e93]">{durationLabel}</p>
+                                )}
+                                {record.linkedRuntimeId && (
+                                  <button
+                                    type="button"
+                                    onClick={() => void selectRuntimeSession(record.linkedRuntimeId ?? '')}
+                                    aria-label={`Open linked runtime ${record.linkedRuntimeId}`}
+                                    className="mt-2 rounded-md border border-black/10 px-2 py-1 text-[11px] text-[#475467] hover:bg-[#f8fafc]"
+                                  >
+                                    {record.linkedRuntimeId}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {(currentRuntimeTools.length > 0 || currentRuntimeSkills.length > 0) && (
+                      <div>
+                        <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Runtime capabilities</p>
+                        <div className="flex flex-wrap gap-2">
+                          {currentRuntimeSkills.map((skill) => (
+                            <span
+                              key={`skill-${skill}`}
+                              className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#475467] shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                          {currentRuntimeTools.map((tool) => (
+                            <span
+                              key={`tool-${tool.server}-${tool.name}`}
+                              className="rounded-full bg-white px-2.5 py-1 text-[11px] text-[#475467] shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+                            >
+                              {`${tool.server}.${tool.name}`}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="mb-2 flex gap-2">
                   <input
                     aria-label="Follow-up message"
@@ -1286,7 +1416,7 @@ function DetailPanel({
           <div>
             <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">Move To</p>
             <div className="flex flex-wrap gap-2">
-              {COLUMNS.filter((c) => c.key !== ticket.status).map((col) => (
+              {columns.filter((c) => c.key !== ticket.status).map((col) => (
                 <button
                   key={col.key}
                   type="button"

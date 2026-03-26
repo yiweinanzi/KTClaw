@@ -25,12 +25,26 @@
         "createTitle": "Create Task",
         "editTitle": "Edit Task",
         "description": "Schedule an automated AI task",
+        "pipelineWizardLabel": "Pipeline Wizard",
+        "pipelineSummary": "Trigger → Agent → Delivery → Failure Alert",
         "taskName": "Task Name",
         "taskNamePlaceholder": "e.g., Morning briefing",
         "message": "Message / Prompt",
         "messagePlaceholder": "What should the AI do? e.g., Give me a summary of today's news and weather",
         "schedule": "Schedule",
         "cronPlaceholder": "Cron expression (e.g., 0 9 * * *)",
+        "cronHelp": "Standard 5-part cron expression, e.g. <code>0 7 * * *</code> = every day at 07:00",
+        "deliveryMode": "Delivery mode",
+        "deliveryModeAria": "Delivery mode",
+        "deliveryChannel": "Delivery channel",
+        "deliveryTarget": "Delivery target",
+        "failureAlertAfter": "Failure alert after",
+        "failureAlertCooldown": "Failure alert cooldown",
+        "failureAlertChannel": "Failure alert channel",
+        "bestEffort": "Best effort delivery",
+        "bestEffortAria": "Best effort delivery",
+        "creating": "Creating...",
+        "confirmCreate": "Confirm Create",
         "usePresets": "Use presets",
         "useCustomCron": "Use custom cron",
         "targetChannel": "Target Channel",
@@ -40,7 +54,12 @@
         "discordChannelIdDesc": "Right-click the Discord channel → Copy Channel ID",
         "enableImmediately": "Enable immediately",
         "enableImmediatelyDesc": "Start running this task after creation",
-        "saveChanges": "Save Changes"
+        "saveChanges": "Save Changes",
+        "savingChanges": "Saving...",
+        "deliveryModes": {
+            "none": "none",
+            "announce": "announce"
+        }
     },
     "presets": {
         "everyMinute": "Every minute",
@@ -105,6 +124,11 @@
         "deliveryIssue": "A config or delivery error was detected. Please review delivery settings."
     },
     "overview": {
+        "empty": {
+            "title": "No tasks yet",
+            "filteredTitle": "No tasks match the current filter",
+            "description": "Create a task to see it here."
+        },
         "badges": {
             "success": "Last success",
             "failed": "Last failed"
@@ -173,18 +197,22 @@
             "actions": "Actions"
         },
         "labels": {
-            "triggerHint": "Trigger → Agent → Delivery"
+            "triggerHint": "Trigger → Agent → Delivery",
+            "alertAfter": "Alert after {{count}} failures"
         },
         "details": {
             "title": "Run details",
             "close": "Close",
             "loading": "Loading run history...",
             "noRecords": "No run history yet",
+            "summarySuccess": "Execution complete",
+            "summaryFailed": "Execution failed",
             "labels": {
                 "delivery": "Delivery:",
                 "sessionTarget": "Session target:",
                 "schedule": "Schedule:",
-                "nextRun": "Next run:"
+                "nextRun": "Next run:",
+                "neverRan": "Never ran"
             },
             "status": {
                 "success": "Success",
@@ -193,7 +221,8 @@
         },
         "buttons": {
             "run": "Run",
-            "details": "Details"
+            "details": "Details",
+            "collapse": "Close"
         }
     },
     "common": {

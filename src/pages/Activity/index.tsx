@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { hostApiFetch } from '@/lib/host-api';
+import { FeedbackBanner } from '@/components/common/FeedbackBanner';
+import { FeedbackState } from '@/components/common/FeedbackState';
+import { SkeletonActivityFeed } from '@/components/ui/Skeleton';
 
 type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 type LogLevelFilter = LogLevel | 'all';
@@ -347,23 +350,55 @@ export function Activity() {
         </section>
 
         <section className="mt-4 rounded-xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
-          {loading && <p className="px-4 py-6 text-[13px] text-[#8e8e93]">正在加载活动日志...</p>}
+          {loading && (
+            <div className="px-4 py-4">
+              <SkeletonActivityFeed testId="activity-loading-skeleton" />
+            </div>
+          )}
 
           {!loading && error && (
-            <div className="px-4 py-6">
-              <p className="text-[13px] font-medium text-[#b91c1c]">加载活动日志失败。</p>
-              <p className="mt-1 text-[12px] text-[#8e8e93]">{error}</p>
+            <div className="space-y-3 px-4 py-4">
+              <FeedbackBanner
+                bannerId="activity-logs-fetch-error"
+                tone="error"
+                title="活动日志请求失败"
+                description={error}
+              />
+              <FeedbackState
+                state="error"
+                title="加载活动日志失败。"
+                description="请稍后重试或检查网关状态。"
+                align="start"
+                testId="activity-feedback-error"
+                className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-4 py-5"
+                action={(
+                  <button
+                    type="button"
+                    onClick={() => void fetchLogs()}
+                    className="rounded-lg border border-[#fca5a5] bg-white px-3 py-1.5 text-[12px] font-medium text-[#b91c1c] hover:bg-[#fef2f2]"
+                  >
+                    重试
+                  </button>
+                )}
+              />
             </div>
           )}
 
           {!loading && !error && totalCount === 0 && (
-            <p className="px-4 py-8 text-center text-[13px] text-[#8e8e93]">暂无活动日志。</p>
+            <FeedbackState
+              state="empty"
+              title="暂无活动日志。"
+              testId="activity-feedback-empty"
+              className="px-4 py-8"
+            />
           )}
 
           {!loading && !error && totalCount > 0 && filteredEntries.length === 0 && (
-            <p className="px-4 py-8 text-center text-[13px] text-[#8e8e93]">
-              没有符合当前筛选条件的日志。
-            </p>
+            <FeedbackState
+              state="empty"
+              title="没有符合当前筛选条件的日志。"
+              className="px-4 py-8"
+            />
           )}
 
           {!loading && !error && filteredEntries.length > 0 && (

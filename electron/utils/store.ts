@@ -63,6 +63,17 @@ export interface AppSettings {
   autoCheckUpdate: boolean;
   autoDownloadUpdate: boolean;
   skippedVersions: string[];
+  updatePolicyState: {
+    attemptCount: number;
+    lastAttemptAt: string | null;
+    lastSuccessAt: string | null;
+    lastFailureAt: string | null;
+    lastCheckReason: 'manual' | 'startup' | null;
+    lastCheckError: string | null;
+    lastCheckChannel: UpdateChannel;
+    nextEligibleAt: string | null;
+    rolloutDelayMs: number;
+  };
 
   // UI State
   sidebarCollapsed: boolean;
@@ -115,6 +126,17 @@ function createDefaultSettings(): AppSettings {
     autoCheckUpdate: true,
     autoDownloadUpdate: false,
     skippedVersions: [],
+    updatePolicyState: {
+      attemptCount: 0,
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      lastCheckReason: null,
+      lastCheckError: null,
+      lastCheckChannel: 'stable',
+      nextEligibleAt: null,
+      rolloutDelayMs: 0,
+    },
 
     // UI State
     sidebarCollapsed: false,

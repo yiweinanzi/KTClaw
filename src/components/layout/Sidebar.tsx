@@ -41,7 +41,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { AccordionGroup } from '@/components/workbench/accordion-group';
 import { usePinnedSessions } from '@/lib/pinned-sessions';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 
 type SidebarMetaItem = {
   name: string;

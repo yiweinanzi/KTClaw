@@ -69,6 +69,20 @@ describe('updater channel semantics and persistence', () => {
     mockAppGetVersion.mockReturnValue('1.0.0');
     mockGetSetting.mockImplementation((key: string) => {
       if (key === 'updateChannelExplicit') return Promise.resolve(true);
+      if (key === 'updatePolicyState') {
+        return Promise.resolve({
+          attemptCount: 0,
+          lastAttemptAt: null,
+          lastSuccessAt: null,
+          lastFailureAt: null,
+          lastCheckReason: null,
+          lastCheckError: null,
+          lastCheckChannel: 'stable',
+          nextEligibleAt: null,
+          rolloutDelayMs: 0,
+        });
+      }
+      if (key === 'machineId') return Promise.resolve('machine-1');
       return Promise.resolve('stable');
     });
     mockSetSetting.mockResolvedValue(undefined);
@@ -133,11 +147,32 @@ describe('updater channel semantics and persistence', () => {
   });
 
   it('setChannel recalculates feed URL and persists canonical channel', async () => {
+    const originalNextEligibleAt = '2026-03-26T12:00:00.000Z';
+    mockGetSetting.mockImplementation((key: string) => {
+      if (key === 'updateChannelExplicit') return Promise.resolve(true);
+      if (key === 'updateChannel') return Promise.resolve('stable');
+      if (key === 'machineId') return Promise.resolve('machine-1');
+      if (key === 'updatePolicyState') {
+        return Promise.resolve({
+          attemptCount: 1,
+          lastAttemptAt: '2026-03-26T00:00:00.000Z',
+          lastSuccessAt: null,
+          lastFailureAt: null,
+          lastCheckReason: 'startup',
+          lastCheckError: null,
+          lastCheckChannel: 'stable',
+          nextEligibleAt: originalNextEligibleAt,
+          rolloutDelayMs: 30 * 60 * 1000,
+        });
+      }
+      return Promise.resolve('stable');
+    });
     const { AppUpdater } = await import('@electron/main/updater');
     const updater = new AppUpdater();
     mockAutoUpdater.setFeedURL.mockClear();
     mockSetSetting.mockClear();
 
+    await updater.waitUntilReady();
     updater.setChannel('beta');
 
     expect(mockAutoUpdater.channel).toBe('beta');
@@ -146,6 +181,97 @@ describe('updater channel semantics and persistence', () => {
     );
     await vi.waitFor(() => {
       expect(mockSetSetting).toHaveBeenCalledWith('updateChannel', 'beta');
+    });
+    await vi.waitFor(() => {
+      expect(mockSetSetting).toHaveBeenCalledWith(
+        'updatePolicyState',
+        expect.objectContaining({
+          lastCheckChannel: 'beta',
+          nextEligibleAt: expect.any(String),
+        }),
+      );
+    });
+    const persistedPolicyState = [...mockSetSetting.mock.calls]
+      .reverse()
+      .find(([key, value]) => key === 'updatePolicyState' && value && typeof value === 'object')
+      ?.[1] as { nextEligibleAt: string; lastCheckChannel: string } | undefined;
+    expect(persistedPolicyState?.lastCheckChannel).toBe('beta');
+    expect(persistedPolicyState?.nextEligibleAt).not.toBe(originalNextEligibleAt);
+  });
+
+  it('loads persisted update policy state and skips startup checks before the next eligible time', async () => {
+    const nextEligibleAt = new Date(Date.now() + 60_000).toISOString();
+    mockGetSetting.mockImplementation((key: string) => {
+      if (key === 'updateChannelExplicit') return Promise.resolve(true);
+      if (key === 'updateChannel') return Promise.resolve('stable');
+      if (key === 'machineId') return Promise.resolve('machine-1');
+      if (key === 'updatePolicyState') {
+        return Promise.resolve({
+          attemptCount: 2,
+          lastAttemptAt: '2026-03-26T00:00:00.000Z',
+          lastSuccessAt: '2026-03-26T00:00:05.000Z',
+          lastFailureAt: null,
+          lastCheckReason: 'startup',
+          lastCheckError: null,
+          lastCheckChannel: 'stable',
+          nextEligibleAt,
+          rolloutDelayMs: 12_345,
+        });
+      }
+      return Promise.resolve(undefined);
+    });
+    const { AppUpdater } = await import('@electron/main/updater');
+    const updater = new AppUpdater();
+
+    await updater.waitUntilReady();
+    expect(mockGetSetting).toHaveBeenCalledWith('updatePolicyState');
+    expect(updater.getPolicySnapshot()).toEqual(
+      expect.objectContaining({
+        attemptCount: 2,
+        nextEligibleAt: expect.any(String),
+      }),
+    );
+    expect(updater.getPolicySnapshot().rolloutDelayMs).toBeGreaterThan(0);
+    expect(updater.getPolicySnapshot().nextEligibleAt).not.toBe(nextEligibleAt);
+
+    const result = await updater.checkForUpdates({ reason: 'startup', respectPolicy: true });
+
+    expect(result).toBeNull();
+    expect(mockAutoUpdater.checkForUpdates).not.toHaveBeenCalled();
+    expect(updater.getPolicySnapshot()).toEqual(
+      expect.objectContaining({
+        attemptCount: 2,
+        nextEligibleAt: updater.getPolicySnapshot().nextEligibleAt,
+      }),
+    );
+  });
+
+  it('persists update policy attempt state after a startup update check', async () => {
+    mockAutoUpdater.checkForUpdates.mockResolvedValueOnce({
+      updateInfo: {
+        version: '1.2.3',
+        releaseDate: '2026-03-26T00:00:00.000Z',
+      },
+    });
+
+    const { AppUpdater } = await import('@electron/main/updater');
+    const updater = new AppUpdater();
+
+    await updater.checkForUpdates({ reason: 'startup', respectPolicy: true });
+
+    expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(mockSetSetting).toHaveBeenCalledWith(
+        'updatePolicyState',
+        expect.objectContaining({
+          attemptCount: 1,
+          lastCheckReason: 'startup',
+          lastCheckChannel: 'stable',
+          lastCheckError: null,
+          nextEligibleAt: expect.any(String),
+          rolloutDelayMs: expect.any(Number),
+        }),
+      );
     });
   });
 });

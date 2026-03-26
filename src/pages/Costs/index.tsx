@@ -6,6 +6,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { hostApiFetch } from '@/lib/host-api';
+import { subscribeHostEvent } from '@/lib/host-events';
 import { RefreshCw, TrendingUp, Zap, DollarSign, BarChart3, Plus, Trash2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { SkeletonText } from '@/components/ui/Skeleton';
@@ -48,6 +49,15 @@ interface AgentSummary {
   outputTokens: number;
   costUsd: number;
   sessions: number;
+}
+
+interface ModelSummary {
+  model: string;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  count: number;
 }
 
 interface CronSummary {
@@ -126,6 +136,99 @@ function formatDate(ts: string): string {
   }
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : null;
+}
+
+function readUsageNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function extractRealtimeUsageEntry(payload: unknown): TokenUsageEntry | null {
+  const notification = asRecord(payload);
+  if (!notification || notification.method !== 'agent') return null;
+
+  const params = asRecord(notification.params);
+  if (!params) return null;
+
+  const data = asRecord(params.data) ?? {};
+  const message = asRecord(params.message) ?? asRecord(data.message);
+  const details = asRecord(params.details) ?? asRecord(data.details) ?? asRecord(message?.details);
+  const timestamp = typeof params.timestamp === 'string'
+    ? params.timestamp
+    : typeof data.timestamp === 'string'
+      ? data.timestamp
+      : new Date().toISOString();
+  const sessionIdSource = params.sessionKey ?? data.sessionKey;
+  const sessionId = typeof sessionIdSource === 'string' && sessionIdSource.trim().length > 0
+    ? sessionIdSource
+    : `realtime-${timestamp}`;
+  const agentIdSource = params.agentId ?? data.agentId ?? params.agentName ?? data.agentName;
+  const agentId = typeof agentIdSource === 'string' && agentIdSource.trim().length > 0
+    ? agentIdSource
+    : 'unknown';
+
+  const assistantUsage = asRecord(message?.usage);
+  if (message?.role === 'assistant' && assistantUsage) {
+    const inputTokens = readUsageNumber(assistantUsage.input ?? assistantUsage.promptTokens);
+    const outputTokens = readUsageNumber(assistantUsage.output ?? assistantUsage.completionTokens);
+    const cacheReadTokens = readUsageNumber(assistantUsage.cacheRead);
+    const cacheWriteTokens = readUsageNumber(assistantUsage.cacheWrite);
+    const totalTokens = readUsageNumber(assistantUsage.total ?? assistantUsage.totalTokens)
+      || inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens;
+    if (totalTokens <= 0) return null;
+
+    const cost = asRecord(assistantUsage.cost);
+    return {
+      timestamp,
+      sessionId,
+      agentId,
+      model: typeof message.model === 'string' ? message.model : undefined,
+      provider: typeof message.provider === 'string' ? message.provider : undefined,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens,
+      cacheWriteTokens,
+      totalTokens,
+      costUsd: typeof cost?.total === 'number' ? cost.total : undefined,
+    };
+  }
+
+  const detailUsage = asRecord(details?.usage);
+  if (!detailUsage) return null;
+
+  const inputTokens = readUsageNumber(detailUsage.input ?? detailUsage.promptTokens);
+  const outputTokens = readUsageNumber(detailUsage.output ?? detailUsage.completionTokens);
+  const cacheReadTokens = readUsageNumber(detailUsage.cacheRead);
+  const cacheWriteTokens = readUsageNumber(detailUsage.cacheWrite);
+  const totalTokens = readUsageNumber(detailUsage.total ?? detailUsage.totalTokens)
+    || inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens;
+  if (totalTokens <= 0) return null;
+
+  const cost = asRecord(detailUsage.cost);
+  return {
+    timestamp,
+    sessionId,
+    agentId,
+    model: typeof details?.model === 'string'
+      ? details.model
+      : typeof message?.model === 'string'
+        ? message.model
+        : undefined,
+    provider: typeof details?.provider === 'string'
+      ? details.provider
+      : typeof message?.provider === 'string'
+        ? message.provider
+        : undefined,
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalTokens,
+    costUsd: typeof cost?.total === 'number' ? cost.total : undefined,
+  };
+}
+
 /* ─── Main component ─── */
 
 export function Costs() {
@@ -137,6 +240,7 @@ export function Costs() {
   const [limit, setLimit] = useState(200);
   const [summary, setSummary] = useState<CostsSummary | null>(null);
   const [agentRows, setAgentRows] = useState<AgentSummary[]>([]);
+  const [modelSummaryRows, setModelSummaryRows] = useState<ModelSummary[]>([]);
   const [cronRows, setCronRows] = useState<CronSummary[]>([]);
   const [analysis, setAnalysis] = useState<CostsAnalysis | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
@@ -159,14 +263,16 @@ export function Costs() {
 
   const fetchSummary = useCallback(async () => {
     try {
-      const [s, a, c, analysisData] = await Promise.all([
+      const [s, a, m, c, analysisData] = await Promise.all([
         hostApiFetch<CostsSummary>('/api/costs/summary?days=30'),
         hostApiFetch<AgentSummary[]>('/api/costs/by-agent'),
+        hostApiFetch<ModelSummary[]>('/api/costs/by-model'),
         hostApiFetch<CronSummary[]>('/api/costs/by-cron'),
         hostApiFetch<CostsAnalysis>('/api/costs/analysis'),
       ]);
       setSummary(s);
       setAgentRows(Array.isArray(a) ? a : []);
+      setModelSummaryRows(Array.isArray(m) ? m : []);
       setCronRows(Array.isArray(c) ? c : []);
       setAnalysis(analysisData ?? null);
     } catch {
@@ -176,6 +282,22 @@ export function Costs() {
 
   useEffect(() => { void fetchData(); }, [fetchData]);
   useEffect(() => { void fetchSummary(); }, [fetchSummary]);
+  useEffect(() => {
+    return subscribeHostEvent('gateway:notification', (payload) => {
+      const entry = extractRealtimeUsageEntry(payload);
+      if (!entry) return;
+      setEntries((prev) => {
+        const duplicate = prev.some((existing) =>
+          existing.timestamp === entry.timestamp
+          && existing.sessionId === entry.sessionId
+          && existing.agentId === entry.agentId
+          && existing.totalTokens === entry.totalTokens,
+        );
+        if (duplicate) return prev;
+        return [entry, ...prev].slice(0, limit);
+      });
+    });
+  }, [limit]);
   useEffect(() => {
     if (activeTab !== 'realtime' || !autoRefreshEnabled) {
       return;
@@ -294,6 +416,7 @@ export function Costs() {
           <DashboardTab
             summary={summary}
             agentRows={agentRows}
+            modelRows={modelSummaryRows}
             cronRows={cronRows}
             analysis={analysis}
           />
@@ -415,11 +538,13 @@ function RealtimeTab({
 function DashboardTab({
   summary,
   agentRows,
+  modelRows,
   cronRows,
   analysis,
 }: {
   summary: CostsSummary | null;
   agentRows: AgentSummary[];
+  modelRows: ModelSummary[];
   cronRows: CronSummary[];
   analysis: CostsAnalysis | null;
 }) {
@@ -631,6 +756,38 @@ function DashboardTab({
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {modelRows.length > 0 && (
+        <div className="rounded-xl border border-[#c6c6c8] bg-white p-5">
+          <p className="mb-4 text-[14px] font-semibold text-[#334155]">Model Costs</p>
+          <div className="overflow-x-auto">
+            <table aria-label="Model cost table" className="min-w-full border-collapse text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-[#eef2f6] text-[#8e8e93]">
+                  <th className="py-3 font-medium">Model</th>
+                  <th className="py-3 font-medium">Calls</th>
+                  <th className="py-3 font-medium">{t('costs.input')}</th>
+                  <th className="py-3 font-medium">{t('costs.output')}</th>
+                  <th className="py-3 font-medium">Total Tokens</th>
+                  <th className="py-3 text-right font-medium">{t('costs.costUsd')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modelRows.map((row) => (
+                  <tr key={row.model} className="border-b border-[#f7f8fa] last:border-b-0">
+                    <td className="py-3 font-medium text-[#111827]">{row.model}</td>
+                    <td className="py-3 text-[#667085]">{row.count}</td>
+                    <td className="py-3 text-[#667085]">{formatTokens(row.inputTokens)}</td>
+                    <td className="py-3 text-[#667085]">{formatTokens(row.outputTokens)}</td>
+                    <td className="py-3 text-[#111827]">{formatTokens(row.totalTokens)}</td>
+                    <td className="py-3 text-right font-semibold text-[#111827]">{formatCost(row.costUsd)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

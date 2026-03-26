@@ -13,7 +13,7 @@ import {
   validateChannelConfig,
   validateChannelCredentials,
 } from '../../utils/channel-config';
-import { assignChannelToAgent, clearAllBindingsForChannel, clearChannelBinding } from '../../utils/agent-config';
+import { assignChannelToAgent, clearAllBindingsForChannel, clearChannelBinding, listConfiguredAgentIds } from '../../utils/agent-config';
 import { logger } from '../../utils/logger';
 import { whatsAppLoginManager } from '../../utils/whatsapp-login';
 import type { HostApiContext } from '../context';
@@ -218,6 +218,12 @@ async function ensureScopedChannelBinding(channelType: string, accountId?: strin
   await assignChannelToAgent(inferAgentIdFromAccountId(accountId), channelType).catch(() => undefined);
 }
 
+async function ensureKnownScopedAccountId(accountId?: string): Promise<boolean> {
+  if (!accountId || accountId === 'default') return true;
+  const agentIds = await listConfiguredAgentIds().catch(() => []);
+  return agentIds.includes(accountId);
+}
+
 type NormalizedChannelStatus = 'connected' | 'disconnected' | 'connecting' | 'error';
 type NormalizedChannelAction = 'connect' | 'disconnect' | 'test' | 'send' | 'configure';
 
@@ -349,11 +355,25 @@ function buildCapability(
   };
 }
 
-function matchesRequestedChannelId(
-  capability: NormalizedChannelCapability,
+function resolveRequestedCapability(
+  capabilities: NormalizedChannelCapability[],
   requestedChannelId: string,
-): boolean {
-  return capability.channelId === requestedChannelId || capability.channelType === requestedChannelId;
+): 
+  | { ok: true; capability: NormalizedChannelCapability }
+  | { ok: false; statusCode: 404 | 409; error: string } {
+  const exactMatch = capabilities.find((capability) => capability.channelId === requestedChannelId);
+  if (exactMatch) {
+    return { ok: true, capability: exactMatch };
+  }
+
+  const typeMatches = capabilities.filter((capability) => capability.channelType === requestedChannelId);
+  if (typeMatches.length === 0) {
+    return { ok: false, statusCode: 404, error: 'Channel not found' };
+  }
+  if (typeMatches.length > 1) {
+    return { ok: false, statusCode: 409, error: 'Channel account is ambiguous' };
+  }
+  return { ok: true, capability: typeMatches[0] };
 }
 
 async function listNormalizedCapabilities(ctx: HostApiContext): Promise<NormalizedChannelCapability[]> {
@@ -437,6 +457,10 @@ export async function handleChannelRoutes(
   if (url.pathname === '/api/channels/whatsapp/start' && req.method === 'POST') {
     try {
       const body = await parseJsonBody<{ accountId: string }>(req);
+      if (!(await ensureKnownScopedAccountId(body.accountId))) {
+        sendJson(res, 404, { success: false, error: 'Scoped channel account not found' });
+        return true;
+      }
       await whatsAppLoginManager.start(body.accountId);
       sendJson(res, 200, { success: true });
     } catch (error) {
@@ -458,6 +482,10 @@ export async function handleChannelRoutes(
   if (url.pathname === '/api/channels/config' && req.method === 'POST') {
     try {
       const body = await parseJsonBody<{ channelType: string; config: Record<string, unknown>; accountId?: string }>(req);
+      if (!(await ensureKnownScopedAccountId(body.accountId))) {
+        sendJson(res, 404, { success: false, error: 'Scoped channel account not found' });
+        return true;
+      }
       if (body.channelType === 'dingtalk') {
         const installResult = await ensureDingTalkPluginInstalled();
         if (!installResult.installed) {
@@ -518,6 +546,10 @@ export async function handleChannelRoutes(
     try {
       const channelType = decodeURIComponent(url.pathname.slice('/api/channels/config/'.length));
       const accountId = url.searchParams.get('accountId') || undefined;
+      if (!(await ensureKnownScopedAccountId(accountId))) {
+        sendJson(res, 404, { success: false, error: 'Scoped channel account not found' });
+        return true;
+      }
       sendJson(res, 200, {
         success: true,
         values: await getChannelFormValues(channelType, accountId),
@@ -532,6 +564,10 @@ export async function handleChannelRoutes(
     try {
       const channelType = decodeURIComponent(url.pathname.slice('/api/channels/config/'.length));
       const accountId = url.searchParams.get('accountId') || undefined;
+      if (!(await ensureKnownScopedAccountId(accountId))) {
+        sendJson(res, 404, { success: false, error: 'Scoped channel account not found' });
+        return true;
+      }
       if (accountId) {
         await deleteChannelAccountConfig(channelType, accountId);
         await clearChannelBinding(channelType, accountId);
@@ -559,11 +595,13 @@ export async function handleChannelRoutes(
         return true;
       }
       const capabilities = await listNormalizedCapabilities(ctx);
-      if (!capabilities.some((capability) => matchesRequestedChannelId(capability, channelId))) {
-        sendJson(res, 404, { success: false, error: 'Channel not found' });
+      const resolvedCapability = resolveRequestedCapability(capabilities, channelId);
+      if (!resolvedCapability.ok) {
+        sendJson(res, resolvedCapability.statusCode, { success: false, error: resolvedCapability.error });
         return true;
       }
-      const rateKey = `${channelId}:test`;
+      const resolvedChannelId = resolvedCapability.capability.channelId;
+      const rateKey = `${resolvedChannelId}:test`;
       const rateResult = checkChannelRateLimit(rateKey, CHANNEL_RATE_LIMITS.test);
       if (!rateResult.allowed) {
         sendRateLimitError(res, rateResult.retryAfterSeconds);
@@ -572,7 +610,7 @@ export async function handleChannelRoutes(
       // Attempt to send a test message via the gateway HTTP API
       const port = status.port ?? 3000;
       const http = await import('node:http');
-      const payload = JSON.stringify({ channelId, text: '✅ ClawX 测试消息 — 连接正常' });
+      const payload = JSON.stringify({ channelId: resolvedChannelId, text: '✅ ClawX 测试消息 — 连接正常' });
       await new Promise<void>((resolve, reject) => {
         const req2 = http.request(
           { hostname: '127.0.0.1', port, path: '/api/channel/test', method: 'POST',
@@ -606,11 +644,13 @@ export async function handleChannelRoutes(
         return true;
       }
       const capabilities = await listNormalizedCapabilities(ctx);
-      if (!capabilities.some((capability) => matchesRequestedChannelId(capability, channelId))) {
-        sendJson(res, 404, { success: false, error: 'Channel not found' });
+      const resolvedCapability = resolveRequestedCapability(capabilities, channelId);
+      if (!resolvedCapability.ok) {
+        sendJson(res, resolvedCapability.statusCode, { success: false, error: resolvedCapability.error });
         return true;
       }
-      const rateKey = `${channelId}:send`;
+      const resolvedChannelId = resolvedCapability.capability.channelId;
+      const rateKey = `${resolvedChannelId}:send`;
       const rateResult = checkChannelRateLimit(rateKey, CHANNEL_RATE_LIMITS.send);
       if (!rateResult.allowed) {
         sendRateLimitError(res, rateResult.retryAfterSeconds);
@@ -618,7 +658,7 @@ export async function handleChannelRoutes(
       }
       const port = status.port ?? 3000;
       const http = await import('node:http');
-      const payload = JSON.stringify({ channelId, text: body.text.trim() });
+      const payload = JSON.stringify({ channelId: resolvedChannelId, text: body.text.trim() });
       await new Promise<void>((resolve, reject) => {
         const req2 = http.request(
           { hostname: '127.0.0.1', port, path: '/api/channel/send', method: 'POST',

@@ -5,8 +5,7 @@
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Component, lazy, Suspense, useEffect } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
-import { Toaster } from 'sonner';
-import { ToastContainer } from '@/components/ui/Toast';
+import { AppToaster } from '@/components/ui/Toast';
 import i18n from './i18n';
 import { MainLayout } from './components/layout/MainLayout';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -212,14 +211,7 @@ function App() {
         </Suspense>
 
         {/* Global toast notifications */}
-        <Toaster
-          position="bottom-right"
-          richColors
-          closeButton
-          style={{ zIndex: 99999 }}
-        />
-        {/* Custom toast system */}
-        <ToastContainer />
+        <AppToaster />
       </TooltipProvider>
     </ErrorBoundary>
   );

@@ -3,7 +3,7 @@
   "objective": "Build and polish the ClawX Electron + React workbench UI with full backend integration.",
   "current_phase": "execution",
   "current_focus": "PLAN-2026-03-24-PLATFORM-CLOSURE",
-  "last_updated": "2026-03-25T23:36:00+08:00",
+  "last_updated": "2026-03-26T02:35:06+08:00",
   "tasks": [
     {
       "id": "SESSION-8-001",
@@ -473,6 +473,69 @@
       "type": "feature",
       "status": "done",
       "priority": "P0"
+    },
+    {
+      "id": "SESSION-30-001",
+      "title": "Deepen Wave 5 update policy flow, add update channel control, and stabilize targeted Wave 5 verification",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-30-002",
+      "title": "Expand a11y/governance gates to Cron and document the new guardrails in README docs",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-30-003",
+      "title": "Add event-driven realtime usage streaming on the Costs page",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-30-004",
+      "title": "Render runtime execution path and capability snapshots in TaskKanban detail drill-down",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-31-001",
+      "title": "Enforce scoped channel-id disambiguation for multi-account send/test flows",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-31-002",
+      "title": "Link runtime execution records to child runtime drill-down targets in TaskKanban",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-32-001",
+      "title": "Guard scoped channel config/login routes against unknown account ids",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-32-002",
+      "title": "Expose QMD collection sources in Memory browser",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
+    },
+    {
+      "id": "SESSION-33-001",
+      "title": "Deepen Costs model drill-down and finish platform-closure verification baseline",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1"
     }
   ]
 }

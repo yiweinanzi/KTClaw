@@ -4,7 +4,8 @@
  */
 import { create } from 'zustand';
 import { useSettingsStore } from './settings';
-import { invokeIpc } from '@/lib/api-client';
+import { hostApiFetch } from '@/lib/host-api';
+import { subscribeHostEvent } from '@/lib/host-events';
 
 export interface UpdateInfo {
   version: string;
@@ -29,12 +30,50 @@ export type UpdateStatus =
   | 'downloaded'
   | 'error';
 
+export interface UpdatePolicySnapshot {
+  attemptCount: number;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  lastFailureAt: string | null;
+  lastCheckReason: 'manual' | 'startup' | null;
+  lastCheckError: string | null;
+  lastCheckChannel: 'stable' | 'beta' | 'dev';
+  nextEligibleAt: string | null;
+  rolloutDelayMs: number;
+  channel: 'stable' | 'beta' | 'dev';
+  checkIntervalMs: number;
+}
+
+type UpdateStatusResponse = {
+  currentVersion: string;
+  status: {
+    status: UpdateStatus;
+    info?: UpdateInfo;
+    progress?: ProgressInfo;
+    error?: string;
+  };
+  policy?: UpdatePolicySnapshot;
+};
+
+type UpdateMutationResponse = {
+  success: boolean;
+  error?: string;
+  status?: {
+    status: UpdateStatus;
+    info?: UpdateInfo;
+    progress?: ProgressInfo;
+    error?: string;
+  };
+  policy?: UpdatePolicySnapshot;
+};
+
 interface UpdateState {
   status: UpdateStatus;
   currentVersion: string;
   updateInfo: UpdateInfo | null;
   progress: ProgressInfo | null;
   error: string | null;
+  policy: UpdatePolicySnapshot | null;
   isInitialized: boolean;
   _cleanup: (() => void) | null;
   /** Seconds remaining before auto-install, or null if inactive. */
@@ -42,7 +81,7 @@ interface UpdateState {
 
   // Actions
   init: () => Promise<void>;
-  checkForUpdates: () => Promise<void>;
+  checkForUpdates: (options?: { reason?: 'manual' | 'startup'; respectPolicy?: boolean }) => Promise<void>;
   downloadUpdate: () => Promise<void>;
   installUpdate: () => void;
   cancelAutoInstall: () => Promise<void>;
@@ -57,6 +96,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   updateInfo: null,
   progress: null,
   error: null,
+  policy: null,
   isInitialized: false,
   _cleanup: null,
   autoInstallCountdown: null,
@@ -64,35 +104,20 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   init: async () => {
     if (get().isInitialized) return;
 
-    // Get current version
     try {
-      const version = await invokeIpc<string>('update:version');
-      set({ currentVersion: version as string });
-    } catch (error) {
-      console.error('Failed to get version:', error);
-    }
-
-    // Get current status
-    try {
-      const status = await invokeIpc<{
-        status: UpdateStatus;
-        info?: UpdateInfo;
-        progress?: ProgressInfo;
-        error?: string;
-      }>('update:status');
+      const snapshot = await hostApiFetch<UpdateStatusResponse>('/api/app/update/status');
       set({
-        status: status.status,
-        updateInfo: status.info || null,
-        progress: status.progress || null,
-        error: status.error || null,
+        currentVersion: snapshot.currentVersion,
+        status: snapshot.status.status,
+        updateInfo: snapshot.status.info || null,
+        progress: snapshot.status.progress || null,
+        error: snapshot.status.error || null,
+        policy: snapshot.policy || null,
       });
     } catch (error) {
-      console.error('Failed to get update status:', error);
+      console.error('Failed to initialize update status:', error);
     }
 
-    // Listen for update events
-    // Single source of truth: listen only to update:status-changed
-    // (sent by AppUpdater.updateStatus() in the main process)
     const onStatusChanged = (data: unknown) => {
       const status = data as {
         status: UpdateStatus;
@@ -107,19 +132,19 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
         error: status.error || null,
       });
     };
-    window.electron.ipcRenderer.on('update:status-changed', onStatusChanged);
+    const unsubscribeStatus = subscribeHostEvent('update:status', onStatusChanged);
 
     const onCountdown = (data: unknown) => {
       const { seconds, cancelled } = data as { seconds: number; cancelled?: boolean };
       set({ autoInstallCountdown: cancelled ? null : seconds });
     };
-    window.electron.ipcRenderer.on('update:auto-install-countdown', onCountdown);
+    const unsubscribeCountdown = subscribeHostEvent('update:auto-install-countdown', onCountdown);
 
     set({
       isInitialized: true,
       _cleanup: () => {
-        window.electron.ipcRenderer.off('update:status-changed', onStatusChanged);
-        window.electron.ipcRenderer.off('update:auto-install-countdown', onCountdown);
+        unsubscribeStatus();
+        unsubscribeCountdown();
       },
     });
 
@@ -128,34 +153,34 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
 
     // Sync auto-download preference to the main process
     if (autoDownloadUpdate) {
-      invokeIpc('update:setAutoDownload', true).catch(() => {});
+      hostApiFetch('/api/app/update/auto-download', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: true }),
+      }).catch(() => {});
     }
 
     // Auto-check for updates on startup (respects user toggle)
     if (autoCheckUpdate) {
       setTimeout(() => {
-        get().checkForUpdates().catch(() => {});
+        get().checkForUpdates({ reason: 'startup', respectPolicy: true }).catch(() => {});
       }, 10000);
     }
   },
 
-  checkForUpdates: async () => {
+  checkForUpdates: async (options?: { reason?: 'manual' | 'startup'; respectPolicy?: boolean }) => {
     set({ status: 'checking', error: null });
     
     try {
       const result = await Promise.race([
-        invokeIpc('update:check'),
+        hostApiFetch<UpdateMutationResponse>('/api/app/update/check', {
+          method: 'POST',
+          body: JSON.stringify({
+            reason: options?.reason ?? 'manual',
+            respectPolicy: options?.respectPolicy === true,
+          }),
+        }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Update check timed out')), 30000))
-      ]) as {
-        success: boolean;
-        error?: string;
-        status?: {
-          status: UpdateStatus;
-          info?: UpdateInfo;
-          progress?: ProgressInfo;
-          error?: string;
-        };
-      };
+      ]) as UpdateMutationResponse;
       
       if (result.status) {
         set({
@@ -163,6 +188,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
           updateInfo: result.status.info || null,
           progress: result.status.progress || null,
           error: result.status.error || null,
+          policy: result.policy || get().policy,
         });
       } else if (!result.success) {
         set({ status: 'error', error: result.error || 'Failed to check for updates' });
@@ -173,7 +199,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
       // In dev mode autoUpdater skips without emitting events, so the
       // status may still be 'checking' or even 'idle'. Catch both.
       const currentStatus = get().status;
-      if (currentStatus === 'checking' || currentStatus === 'idle') {
+      if (options?.respectPolicy !== true && (currentStatus === 'checking' || currentStatus === 'idle')) {
         set({ status: 'error', error: 'Update check completed without a result. This usually means the app is running in dev mode.' });
       }
     }
@@ -183,10 +209,9 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     set({ status: 'downloading', error: null });
     
     try {
-      const result = await invokeIpc<{
-        success: boolean;
-        error?: string;
-      }>('update:download');
+      const result = await hostApiFetch<UpdateMutationResponse>('/api/app/update/download', {
+        method: 'POST',
+      });
       
       if (!result.success) {
         set({ status: 'error', error: result.error || 'Failed to download update' });
@@ -197,12 +222,16 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
 
   installUpdate: () => {
-    void invokeIpc('update:install');
+    void hostApiFetch('/api/app/update/install', {
+      method: 'POST',
+    });
   },
 
   cancelAutoInstall: async () => {
     try {
-      await invokeIpc('update:cancelAutoInstall');
+      await hostApiFetch('/api/app/update/cancel-auto-install', {
+        method: 'POST',
+      });
     } catch (error) {
       console.error('Failed to cancel auto-install:', error);
     }
@@ -210,7 +239,11 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
 
   setChannel: async (channel) => {
     try {
-      await invokeIpc('update:setChannel', channel);
+      const result = await hostApiFetch<UpdateMutationResponse>('/api/app/update/channel', {
+        method: 'PUT',
+        body: JSON.stringify({ channel }),
+      });
+      set({ policy: result.policy || get().policy });
     } catch (error) {
       console.error('Failed to set update channel:', error);
     }
@@ -218,7 +251,10 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
 
   setAutoDownload: async (enable) => {
     try {
-      await invokeIpc('update:setAutoDownload', enable);
+      await hostApiFetch('/api/app/update/auto-download', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: enable }),
+      });
     } catch (error) {
       console.error('Failed to set auto-download:', error);
     }

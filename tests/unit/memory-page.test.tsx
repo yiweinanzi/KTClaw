@@ -41,6 +41,16 @@ function buildMemoryResponse(scope: ScopeId, query: string) {
         sizeBytes: 80,
         category: 'evergreen' as const,
       },
+      {
+        label: 'Team Docs: Plan',
+        path: `/workspace/analyst/docs/plan.qmd`,
+        relativePath: 'qmd/team-docs/plan.qmd',
+        content: 'qmd collection note',
+        lastModified: '2026-03-24T00:00:00.000Z',
+        sizeBytes: 90,
+        category: 'other' as const,
+        writable: false,
+      },
     ],
   };
 
@@ -60,8 +70,8 @@ function buildMemoryResponse(scope: ScopeId, query: string) {
 
   return {
     files,
-    config: {
-      memorySearch: {
+      config: {
+        memorySearch: {
         enabled: true,
         provider: 'openai',
         model: 'text-embedding-3-small',
@@ -72,12 +82,15 @@ function buildMemoryResponse(scope: ScopeId, query: string) {
           temporalDecay: { enabled: true, halfLifeDays: 30 },
           mmr: { enabled: true, lambda: 0.7 },
         },
-        cache: { enabled: true, maxEntries: 128 },
-        extraPaths: [],
+          cache: { enabled: true, maxEntries: 128 },
+          extraPaths: [],
+        },
+        qmdCollections: [
+          { name: 'team-docs', path: 'docs', pattern: '**/*.qmd' },
+        ],
+        memoryFlush: { enabled: false, softThresholdTokens: 80_000 },
+        configFound: true,
       },
-      memoryFlush: { enabled: false, softThresholdTokens: 80_000 },
-      configFound: true,
-    },
     status: {
       indexed: true,
       lastIndexed: '2026-03-24T00:00:00.000Z',
@@ -313,5 +326,34 @@ describe('Memory page', () => {
       expect(screen.queryByText('knowledge/brief.md')).not.toBeInTheDocument();
     });
     expect(localStorage.getItem('memory_extra_paths')).toBe(JSON.stringify([]));
+  });
+
+  it('renders QMD collection files as read-only browser sources', async () => {
+    vi.mocked(hostApiFetch).mockImplementation(async (path) => {
+      if (typeof path !== 'string') {
+        throw new Error('Unexpected path type');
+      }
+
+      if (path.startsWith('/api/memory') && !path.includes('/api/memory/reindex') && !path.includes('/api/memory/file') && !path.includes('/api/memory/status') && !path.includes('/api/memory/extract') && !path.includes('/api/memory/flush') && !path.includes('/api/memory/analyze') && !path.includes('/api/memory/snapshot')) {
+        const parsed = new URL(path, 'http://127.0.0.1');
+        const scope = (parsed.searchParams.get('scope') as ScopeId | null) ?? 'main';
+        const query = parsed.searchParams.get('q') ?? '';
+        return buildMemoryResponse(scope, query);
+      }
+
+      throw new Error(`Unexpected hostApiFetch call: ${path}`);
+    });
+
+    render(<Memory />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /文件浏览/ }));
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Agent Scope' }), {
+      target: { value: 'analyst' },
+    });
+
+    expect(await screen.findByText('Team Docs: Plan')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Team Docs: Plan'));
+    expect(await screen.findByText(/qmd\/team-docs\/plan\.qmd/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /编辑/ })).toBeDisabled();
   });
 });

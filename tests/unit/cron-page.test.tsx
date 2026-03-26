@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { axe } from 'vitest-axe';
 import { Cron } from '@/pages/Cron';
 import cronLocaleZh from '@/i18n/locales/zh/cron.json';
 
@@ -19,6 +20,9 @@ const getCronTranslation = (key: string): string => {
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => getCronTranslation(key),
+    i18n: {
+      resolvedLanguage: 'zh-CN',
+    },
   }),
 }));
 
@@ -101,14 +105,15 @@ describe('Cron page richer detail views', () => {
     });
   });
 
-  it('shows delivery and failure context in the overview cards', () => {
-    render(<Cron />);
+  it('shows delivery and failure context in the overview cards', async () => {
+    const { container } = render(<Cron />);
 
     expect(screen.getByText('Release Check')).toBeInTheDocument();
     expect(screen.getAllByText('Delivery:').length).toBeGreaterThan(0);
     expect(screen.getByText(/feishu → release-room/i)).toBeInTheDocument();
     expect(screen.getByText(/release-room/i)).toBeInTheDocument();
     expect(screen.getByText(/Channel delivery failed/i)).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
   });
 
   it('supports status filtering and shows update and error overview banners', () => {
@@ -147,16 +152,17 @@ describe('Cron page richer detail views', () => {
     render(<Cron />);
 
     fireEvent.click(screen.getByRole('button', { name: '+ 新建任务' }));
-    fireEvent.change(screen.getByPlaceholderText('例如：每日晨报'), {
+    expect(screen.getByRole('heading', { name: '创建任务' })).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText('例如：早间简报'), {
       target: { value: 'Pipeline Digest' },
     });
-    fireEvent.change(screen.getByPlaceholderText('发送给 Agent 的指令内容...'), {
+    fireEvent.change(screen.getByPlaceholderText('AI 应该做什么？例如：给我一份今天的新闻和天气摘要'), {
       target: { value: 'Build a release digest' },
     });
     fireEvent.change(screen.getByPlaceholderText('0 7 * * *'), {
       target: { value: '0 9 * * 1' },
     });
-    fireEvent.change(screen.getByLabelText('Delivery mode'), {
+    fireEvent.change(screen.getByLabelText(/^(Delivery mode|投递模式)$/), {
       target: { value: 'announce' },
     });
     fireEvent.change(screen.getByPlaceholderText('feishu'), {
@@ -174,7 +180,7 @@ describe('Cron page richer detail views', () => {
     fireEvent.change(screen.getByPlaceholderText('ops-alerts'), {
       target: { value: 'ops-alerts' },
     });
-    fireEvent.click(screen.getByLabelText('Best effort delivery'));
+    fireEvent.click(screen.getByLabelText(/^(Best effort delivery|尽力投递)$/));
     fireEvent.click(screen.getByRole('button', { name: '确认创建' }));
 
     await waitFor(() => {
@@ -202,8 +208,9 @@ describe('Cron page richer detail views', () => {
     expect(screen.getAllByText(/Trigger → Agent → Delivery/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getAllByRole('button', { name: '编辑' })[0]);
+    expect(await screen.findByRole('heading', { name: '编辑任务' })).toBeInTheDocument();
 
-    expect(await screen.findByDisplayValue('Release Check')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Release Check')).toBeInTheDocument();
     fireEvent.change(screen.getByDisplayValue('Release Check'), {
       target: { value: 'Release Check Updated' },
     });
@@ -222,7 +229,7 @@ describe('Cron page richer detail views', () => {
     fireEvent.change(screen.getByDisplayValue('ops-alerts'), {
       target: { value: 'security-alerts' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '保存修改' }));
+    fireEvent.click(screen.getByRole('button', { name: '保存更改' }));
 
     await waitFor(() => {
       expect(cronStoreState.updateJob).toHaveBeenCalledWith(
