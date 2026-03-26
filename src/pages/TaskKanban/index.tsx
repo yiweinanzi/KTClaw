@@ -8,16 +8,18 @@ import { hostApiFetch } from '@/lib/host-api';
 import { useAgentsStore } from '@/stores/agents';
 import { useApprovalsStore, type ApprovalItem } from '@/stores/approvals';
 import type { AgentSummary } from '@/types/agent';
+import type { CronSchedule } from '@/types/cron';
 import type { RawMessage } from '@/stores/chat';
 import { ChatMessage } from '@/pages/Chat/ChatMessage';
 import { useTranslation } from 'react-i18next';
+import { useNotificationsStore } from '@/stores/notifications';
 import { AskUserQuestionWizard } from './AskUserQuestionWizard';
 
 /* ─── Types ─── */
 
 type TicketStatus = 'backlog' | 'todo' | 'in-progress' | 'review' | 'done';
 type TicketPriority = 'low' | 'medium' | 'high';
-type WorkState = 'idle' | 'starting' | 'working' | 'blocked' | 'waiting_approval' | 'done' | 'failed';
+type WorkState = 'idle' | 'starting' | 'working' | 'blocked' | 'waiting_approval' | 'scheduled' | 'done' | 'failed';
 
 interface KanbanTicket {
   id: string;
@@ -41,6 +43,11 @@ interface KanbanTicket {
   runtimeHistory?: RawMessage[];
   runtimeTranscript?: string[];
   runtimeChildSessionIds?: string[];
+  cronJobId?: string;
+  cronScheduleKind?: string;
+  cronBaselineJobIds?: string[];
+  cronNextRunAt?: string;
+  cronLastRunAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -78,6 +85,31 @@ interface RuntimeSessionResponse {
   agentName?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+interface CronJobSnapshot {
+  id: string;
+  name?: string;
+  message?: string;
+  schedule?: string | CronSchedule;
+  sessionTarget?: string;
+  enabled?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  nextRun?: string;
+  lastRun?: {
+    time?: string;
+    success?: boolean;
+    error?: string;
+    duration?: number;
+  };
+}
+
+interface CronRunEntry {
+  status?: string;
+  summary?: string;
+  error?: string;
+  ts?: number;
 }
 
 /* ─── Persistence ─── */
@@ -136,6 +168,7 @@ function getWorkStateStyles(t: (key: string, options?: Record<string, unknown>) 
     working: { label: t('kanban.workState.working'), color: '#3b82f6' },
     blocked: { label: t('kanban.workState.blocked'), color: '#f97316' },
     waiting_approval: { label: t('kanban.workState.waitingApproval'), color: '#7c3aed' },
+    scheduled: { label: t('kanban.workState.scheduled', { defaultValue: 'Scheduled' }), color: '#0ea5e9' },
     done: { label: t('kanban.workState.done'), color: '#10b981' },
     failed: { label: t('kanban.workState.failed'), color: '#ef4444' },
   };
@@ -143,6 +176,68 @@ function getWorkStateStyles(t: (key: string, options?: Record<string, unknown>) 
 
 const ACTIVE_RUNTIME_WORK_STATES = new Set<WorkState>(['starting', 'working', 'blocked', 'waiting_approval']);
 const RUNTIME_WAIT_POLL_MS = 3000;
+
+function normalizeIsoTimestampMs(value: string | undefined): number {
+  if (!value?.trim()) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeCronRunTimestampMs(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1e12 ? value : value * 1000;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function readCronScheduleKind(schedule: string | CronSchedule | undefined): string | undefined {
+  if (!schedule) return undefined;
+  if (typeof schedule === 'string') return 'cron';
+  return typeof schedule.kind === 'string' ? schedule.kind : undefined;
+}
+
+function isOneShotCronSchedule(kind: string | undefined): boolean {
+  return kind === 'at';
+}
+
+function normalizeCronRunStatus(status: string | undefined): 'ok' | 'error' | 'running' | 'unknown' {
+  const normalized = (status ?? '').trim().toLowerCase();
+  if (!normalized) return 'unknown';
+  if (normalized === 'ok' || normalized === 'completed' || normalized === 'success' || normalized === 'done') return 'ok';
+  if (normalized === 'error' || normalized === 'failed' || normalized === 'failure') return 'error';
+  if (normalized === 'running' || normalized === 'pending') return 'running';
+  return 'unknown';
+}
+
+function readCronSetupCandidate(ticket: KanbanTicket, jobs: CronJobSnapshot[]): CronJobSnapshot | undefined {
+  const baselineIds = new Set(ticket.cronBaselineJobIds ?? []);
+  const startedAtMs = normalizeIsoTimestampMs(ticket.workStartedAt);
+  const normalizedTitle = ticket.title.trim().toLowerCase();
+  const normalizedDescription = ticket.description.trim().toLowerCase();
+
+  const candidates = jobs
+    .filter((job) => !baselineIds.has(job.id))
+    .map((job) => {
+      let score = 0;
+      const createdAtMs = normalizeIsoTimestampMs(job.createdAt);
+      const haystack = `${job.name ?? ''}\n${job.message ?? ''}`.toLowerCase();
+      if (startedAtMs > 0 && createdAtMs >= startedAtMs - 60_000) score += 3;
+      if (normalizedTitle && haystack.includes(normalizedTitle)) score += 2;
+      if (normalizedDescription && haystack.includes(normalizedDescription)) score += 1;
+      return { job, score, createdAtMs };
+    })
+    .filter((entry) => entry.score > 0 || jobs.length === 1)
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      return right.createdAtMs - left.createdAtMs;
+    });
+
+  return candidates[0]?.job;
+}
 
 function readRuntimeError(session: RuntimeSessionResponse): string | undefined {
   if (typeof session.lastError === 'string' && session.lastError.trim()) return session.lastError.trim();
@@ -285,7 +380,90 @@ function hasRuntimeTicketChanges(ticket: KanbanTicket, updates: Partial<KanbanTi
   if ('runtimeHistory' in updates && !isSameHistory(ticket.runtimeHistory, updates.runtimeHistory)) return true;
   if ('runtimeTranscript' in updates && !isSameTranscript(ticket.runtimeTranscript, updates.runtimeTranscript)) return true;
   if ('runtimeChildSessionIds' in updates && !isSameTranscript(ticket.runtimeChildSessionIds, updates.runtimeChildSessionIds)) return true;
+  if ('cronJobId' in updates && updates.cronJobId !== ticket.cronJobId) return true;
+  if ('cronScheduleKind' in updates && updates.cronScheduleKind !== ticket.cronScheduleKind) return true;
+  if ('cronBaselineJobIds' in updates && !isSameTranscript(ticket.cronBaselineJobIds, updates.cronBaselineJobIds)) return true;
+  if ('cronNextRunAt' in updates && updates.cronNextRunAt !== ticket.cronNextRunAt) return true;
+  if ('cronLastRunAt' in updates && updates.cronLastRunAt !== ticket.cronLastRunAt) return true;
   return false;
+}
+
+function buildScheduledTicketUpdates(
+  ticket: KanbanTicket,
+  session: RuntimeSessionResponse,
+  jobs: CronJobSnapshot[],
+): Partial<KanbanTicket> | null {
+  const cronJob = readCronSetupCandidate(ticket, jobs);
+  if (!cronJob) return null;
+
+  const base = mapRuntimeSessionToTicketUpdates(ticket, session);
+  return {
+    ...base,
+    status: 'in-progress',
+    workState: 'scheduled',
+    workError: undefined,
+    workResult: readRuntimeResult(session) ?? ticket.workResult,
+    cronJobId: cronJob.id,
+    cronScheduleKind: readCronScheduleKind(cronJob.schedule),
+    cronNextRunAt: cronJob.nextRun,
+    cronLastRunAt: cronJob.lastRun?.time,
+  };
+}
+
+function buildCronExecutionUpdates(
+  ticket: KanbanTicket,
+  cronJob: CronJobSnapshot | undefined,
+  runs: CronRunEntry[],
+): Partial<KanbanTicket> | null {
+  if (!ticket.cronJobId || !cronJob) return null;
+
+  const latestRun = runs
+    .filter((run) => normalizeCronRunTimestampMs(run.ts) > 0)
+    .sort((left, right) => normalizeCronRunTimestampMs(right.ts) - normalizeCronRunTimestampMs(left.ts))[0];
+
+  const base: Partial<KanbanTicket> = {
+    cronNextRunAt: cronJob.nextRun,
+    cronLastRunAt: cronJob.lastRun?.time,
+  };
+
+  if (!latestRun) {
+    return Object.keys(base).length > 0 ? base : null;
+  }
+
+  const normalizedStatus = normalizeCronRunStatus(latestRun.status);
+  if (normalizedStatus === 'error') {
+    return {
+      ...base,
+      status: 'review',
+      workState: 'failed',
+      workError: latestRun.error ?? cronJob.lastRun?.error ?? ticket.workError ?? 'Scheduled task failed.',
+      workResult: undefined,
+    };
+  }
+
+  if (normalizedStatus !== 'ok') {
+    return Object.keys(base).length > 0 ? base : null;
+  }
+
+  const resultText = latestRun.summary?.trim() || ticket.workResult;
+  const scheduleKind = ticket.cronScheduleKind ?? readCronScheduleKind(cronJob.schedule);
+  if (isOneShotCronSchedule(scheduleKind)) {
+    return {
+      ...base,
+      status: 'done',
+      workState: 'done',
+      workError: undefined,
+      workResult: resultText,
+    };
+  }
+
+  return {
+    ...base,
+    status: 'in-progress',
+    workState: 'scheduled',
+    workError: undefined,
+    workResult: resultText,
+  };
 }
 
 function formatExecutionDuration(durationMs?: number): string | null {
@@ -398,10 +576,36 @@ export function TaskKanban() {
           }>(`/api/sessions/subagents/${encodeURIComponent(ticket.runtimeSessionId)}/wait`, {
             method: 'POST',
           });
-          if (disposed || !response?.session) continue;
-          const runtimeUpdates = mapRuntimeSessionToTicketUpdates(ticket, response.session);
+          if (disposed || !response?.session?.id) continue;
+          let runtimeUpdates = mapRuntimeSessionToTicketUpdates(ticket, response.session);
+          if ((response.session.status ?? '').trim().toLowerCase() === 'completed') {
+            try {
+              const jobsResponse = await hostApiFetch<CronJobSnapshot[] | { jobs?: CronJobSnapshot[] }>('/api/cron/jobs');
+              const jobs = Array.isArray(jobsResponse) ? jobsResponse : (jobsResponse?.jobs ?? []);
+              const scheduledUpdates = buildScheduledTicketUpdates(ticket, response.session, jobs);
+              if (scheduledUpdates) {
+                runtimeUpdates = scheduledUpdates;
+              }
+            } catch {
+              // Fall back to runtime-only state updates when cron inspection fails.
+            }
+          }
           if (hasRuntimeTicketChanges(ticket, runtimeUpdates)) {
             updateTicket(ticket.id, runtimeUpdates);
+            if (runtimeUpdates.workState === 'scheduled' && ticket.workState !== 'scheduled') {
+              useNotificationsStore.getState().addNotification({
+                level: 'info',
+                title: `任务已设置：${ticket.title}`,
+                source: 'kanban',
+              });
+            }
+            if (runtimeUpdates.workState === 'done' && ticket.workState !== 'done') {
+              useNotificationsStore.getState().addNotification({
+                level: 'info',
+                title: `任务完成：${ticket.title}`,
+                source: 'kanban',
+              });
+            }
           }
         } catch (error) {
           if (disposed) continue;
@@ -418,6 +622,54 @@ export function TaskKanban() {
 
     const timer = window.setInterval(() => {
       void pollRuntime();
+    }, RUNTIME_WAIT_POLL_MS);
+
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [tickets, updateTicket]);
+
+  useEffect(() => {
+    const scheduledTickets = tickets.filter((ticket) => ticket.workState === 'scheduled' && ticket.cronJobId);
+    if (scheduledTickets.length === 0) return undefined;
+
+    let disposed = false;
+    const pollCronRuns = async () => {
+      const jobs = await hostApiFetch<CronJobSnapshot[] | { jobs?: CronJobSnapshot[] }>('/api/cron/jobs')
+        .then((jobsResponse) => (Array.isArray(jobsResponse) ? jobsResponse : (jobsResponse?.jobs ?? [])))
+        .catch(() => [] as CronJobSnapshot[]);
+
+      for (const ticket of scheduledTickets) {
+        if (disposed || !ticket.cronJobId) continue;
+        try {
+          const response = await hostApiFetch<{ runs?: CronRunEntry[] }>(
+            `/api/cron/runs/${encodeURIComponent(ticket.cronJobId)}`,
+          );
+          if (disposed) continue;
+          const updates = buildCronExecutionUpdates(
+            ticket,
+            jobs.find((job) => job.id === ticket.cronJobId),
+            Array.isArray(response?.runs) ? response.runs : [],
+          );
+          if (updates && hasRuntimeTicketChanges(ticket, updates)) {
+            updateTicket(ticket.id, updates);
+            if (updates.workState === 'done' && ticket.workState !== 'done') {
+              useNotificationsStore.getState().addNotification({
+                level: 'info',
+                title: `任务完成：${ticket.title}`,
+                source: 'kanban',
+              });
+            }
+          }
+        } catch {
+          // Retry on the next poll cycle.
+        }
+      }
+    };
+
+    const timer = window.setInterval(() => {
+      void pollCronRuns();
     }, RUNTIME_WAIT_POLL_MS);
 
     return () => {
@@ -448,9 +700,16 @@ export function TaskKanban() {
       workError: undefined,
       workResult: undefined,
       workStartedAt: new Date().toISOString(),
+      cronJobId: undefined,
+      cronScheduleKind: undefined,
+      cronNextRunAt: undefined,
+      cronLastRunAt: undefined,
+      cronBaselineJobIds: undefined,
     });
 
     try {
+      // Send the task prompt directly to the agent's main session
+      // (no sub-session spawn — execution and reminders stay in the main chat)
       const assigneeSessionKey = agents.find((entry) => entry.id === ticket.assigneeId)?.mainSessionKey
         ?? `agent:${ticket.assigneeId ?? 'main'}:main`;
       const response = await hostApiFetch<{
@@ -469,6 +728,37 @@ export function TaskKanban() {
       });
 
       updateTicket(ticket.id, mapRuntimeSessionToTicketUpdates(ticket, response.session));
+      return;
+      /*
+      const prompt = [ticket.title, ticket.description].filter(Boolean).join('\n\n');
+      const result = await invokeIpc<{ success: boolean; result?: { runId?: string }; error?: string }>(
+        'gateway:rpc',
+        'chat.send',
+        {
+          sessionKey: assigneeSessionKey,
+          message: prompt,
+          deliver: false,
+          idempotencyKey: crypto.randomUUID(),
+        },
+        120_000,
+      );
+
+      if (!result.success) {
+        throw new Error(result.error ?? 'Failed to send task to agent');
+      }
+
+      updateTicket(ticket.id, {
+        status: 'done',
+        workState: 'done',
+        workError: undefined,
+        runtimeSessionKey: assigneeSessionKey,
+      });
+      useNotificationsStore.getState().addNotification({
+        level: 'info',
+        title: `任务已派发：${ticket.title}`,
+        source: 'kanban',
+      });
+      */
     } catch (error) {
       updateTicket(ticket.id, {
         workState: 'failed',
@@ -692,7 +982,7 @@ function TicketCard({
   const agentIdx = agents.findIndex((a) => a.id === ticket.assigneeId);
   const agent = agentIdx >= 0 ? agents[agentIdx] : null;
   const color = agent ? agentColor(agentIdx) : '#8e8e93';
-  const ws = getWorkStateStyles(t)[ticket.workState];
+  const ws = getWorkStateStyles(t)[ticket.workState] ?? getWorkStateStyles(t).failed;
   const isDragLocked = ACTIVE_RUNTIME_WORK_STATES.has(ticket.workState);
 
   return (
@@ -1121,9 +1411,20 @@ function DetailPanel({
           {ticket.workState !== 'idle' && (
             <div>
               <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.detail.executionLabel')}</p>
-              <span className="text-[13px] font-medium" style={{ color: workStateStyles[ticket.workState].color }}>
-                {workStateStyles[ticket.workState].label}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[13px] font-medium" style={{ color: (workStateStyles[ticket.workState] ?? workStateStyles.failed).color }}>
+                  {(workStateStyles[ticket.workState] ?? workStateStyles.failed).label}
+                </span>
+                {ticket.workState === 'failed' && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdate({ workState: 'idle', workError: undefined, workResult: undefined })}
+                    className="rounded-md border border-black/10 px-2 py-0.5 text-[11px] text-[#8e8e93] hover:bg-[#f2f2f7]"
+                  >
+                    重置
+                  </button>
+                )}
+              </div>
               {ticket.workError && (
                 <p className="mt-1 text-[12px] text-[#ef4444]">{ticket.workError}</p>
               )}
@@ -1135,6 +1436,7 @@ function DetailPanel({
               )}
             </div>
           )}
+
 
           <div>
             <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[#8e8e93]">{t('kanban.runtime.title')}</p>

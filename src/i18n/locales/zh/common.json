@@ -299,6 +299,7 @@
             "working": "处理中",
             "blocked": "已阻塞",
             "waitingApproval": "等待审批",
+            "scheduled": "已设置",
             "done": "已完成",
             "failed": "失败"
         },

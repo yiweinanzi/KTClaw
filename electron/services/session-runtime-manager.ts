@@ -174,9 +174,8 @@ export class SessionRuntimeManager {
     const sendResult = await this.gatewayRpc<Record<string, unknown>>('chat.send', {
       sessionKey,
       message: input.prompt,
+      idempotencyKey: randomUUID(),
       deliver: false,
-      mode: record.mode,
-      ...(record.agentName ? { agentName: record.agentName } : {}),
       ...(record.attachments.length > 0 ? { attachments: record.attachments } : {}),
       ...(record.sandbox ? { sandbox: record.sandbox } : {}),
       ...(typeof record.timeoutMs === 'number' ? { timeoutMs: record.timeoutMs } : {}),
@@ -229,6 +228,7 @@ export class SessionRuntimeManager {
     const sendResult = await this.gatewayRpc<Record<string, unknown>>('chat.send', {
       sessionKey: existing.sessionKey,
       message: input,
+      idempotencyKey: randomUUID(),
       deliver: false,
     });
     const patched = this.patchRecord(id, {
@@ -899,13 +899,30 @@ export class SessionRuntimeManager {
     const history = messageItems
       .map((message) => this.normalizeRuntimeHistoryMessage(message))
       .filter((item): item is RuntimeHistoryMessage => item != null);
+    const explicitStatus = this.extractFirstString(payload, ['status', 'state']);
+    // Derive status from history if Gateway doesn't provide an explicit status:
+    // if there are messages and the last assistant message has no pending tool_use,
+    // the run has likely completed.
+    let derivedStatus = explicitStatus;
+    if (!derivedStatus && history.length > 0) {
+      const lastAssistant = [...history].reverse().find((m) => m.role === 'assistant');
+      if (lastAssistant) {
+        const hasPendingToolUse = Array.isArray(lastAssistant.content)
+          && (lastAssistant.content as Array<Record<string, unknown>>).some(
+            (b) => b.type === 'tool_use' || b.type === 'toolCall',
+          );
+        if (!hasPendingToolUse) {
+          derivedStatus = 'completed';
+        }
+      }
+    }
     return {
       history,
       transcript: messageItems
         .map((message) => this.extractTranscriptLine(message))
         .filter((line): line is string => Boolean(line)),
       executionRecords: this.collectExecutionRecords(history),
-      status: this.extractFirstString(payload, ['status', 'state']),
+      status: derivedStatus,
       runId: this.extractFirstString(payload, ['runId', 'run_id']),
       lastError: this.extractFirstString(payload, ['lastError', 'error', 'errorMessage']),
       updatedAt: this.coerceIsoDate(this.extractFirstValue(payload, ['updatedAt', 'updated_at'])),

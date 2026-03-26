@@ -382,6 +382,133 @@ describe('TaskKanban', () => {
     }));
   });
 
+  it('keeps a reminder ticket scheduled after the setup runtime completes and binds the created cron job', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-reminder-scheduled',
+        title: '40秒后叫我喝水',
+        description: '帮我设置一个40秒后的提醒',
+        status: 'in-progress',
+        priority: 'medium',
+        workState: 'working',
+        runtimeSessionId: 'runtime-reminder-setup',
+        runtimeSessionKey: 'agent:main:main:subagent:runtime-reminder-setup',
+        workStartedAt: '2026-03-26T13:32:00.000Z',
+        cronBaselineJobIds: [],
+        createdAt: '2026-03-26T13:32:00.000Z',
+        updatedAt: '2026-03-26T13:32:00.000Z',
+      },
+    ]));
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/sessions/subagents/runtime-reminder-setup/wait') {
+        return {
+          success: true,
+          session: {
+            id: 'runtime-reminder-setup',
+            status: 'completed',
+            result: '提醒已设置！40秒后会提醒你喝水。',
+            transcript: ['提醒已设置！40秒后会提醒你喝水。'],
+          },
+        };
+      }
+      if (path === '/api/cron/jobs') {
+        return [
+          {
+            id: 'job-drink-water',
+            name: '40秒后叫我喝水',
+            message: '40秒后提醒我喝水',
+            schedule: { kind: 'at', at: '2026-03-26T13:32:40.000Z' },
+            delivery: { mode: 'none' },
+            sessionTarget: 'main',
+            enabled: true,
+            createdAt: '2026-03-26T13:32:01.000Z',
+            updatedAt: '2026-03-26T13:32:01.000Z',
+            nextRun: '2026-03-26T13:32:40.000Z',
+          },
+        ];
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(readStoredTicket('ticket-reminder-scheduled')).toEqual(expect.objectContaining({
+      status: 'in-progress',
+      workState: 'scheduled',
+      workResult: '提醒已设置！40秒后会提醒你喝水。',
+      cronJobId: 'job-drink-water',
+    }));
+  });
+
+  it('moves a one-shot reminder ticket to done only after the cron run completes', async () => {
+    vi.useFakeTimers();
+    localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-reminder-done',
+        title: '40秒后叫我喝水',
+        description: '帮我设置一个40秒后的提醒',
+        status: 'in-progress',
+        priority: 'medium',
+        workState: 'scheduled',
+        workResult: '提醒已设置！40秒后会提醒你喝水。',
+        cronJobId: 'job-drink-water',
+        cronScheduleKind: 'at',
+        workStartedAt: '2026-03-26T13:32:00.000Z',
+        createdAt: '2026-03-26T13:32:00.000Z',
+        updatedAt: '2026-03-26T13:32:00.000Z',
+      },
+    ]));
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/cron/jobs') {
+        return [
+          {
+            id: 'job-drink-water',
+            name: '40秒后叫我喝水',
+            message: '40秒后提醒我喝水',
+            schedule: { kind: 'at', at: '2026-03-26T13:32:40.000Z' },
+            delivery: { mode: 'none' },
+            sessionTarget: 'main',
+            enabled: true,
+            createdAt: '2026-03-26T13:32:01.000Z',
+            updatedAt: '2026-03-26T13:32:40.000Z',
+          },
+        ];
+      }
+      if (path === '/api/cron/runs/job-drink-water') {
+        return {
+          runs: [
+            {
+              status: 'ok',
+              summary: '到时间了，记得喝水。',
+              ts: Date.parse('2026-03-26T13:32:40.000Z'),
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    render(<TaskKanban />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(readStoredTicket('ticket-reminder-done')).toEqual(expect.objectContaining({
+      status: 'done',
+      workState: 'done',
+      workResult: '到时间了，记得喝水。',
+      cronJobId: 'job-drink-water',
+    }));
+  });
+
   it.each(['error', 'killed', 'stopped'] as const)(
     'maps %s runtime state into failed work while preserving retry controls',
     async (runtimeStatus) => {

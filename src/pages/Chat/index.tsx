@@ -17,11 +17,12 @@ import { WorkbenchEmptyState } from '@/components/workbench/workbench-empty-stat
 import { ContextRail } from '@/components/workbench/context-rail';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { extractImages, extractText, extractThinking, extractToolUse } from './message-utils';
+import { extractImages, extractText, extractThinking, extractToolUse, isSystemInjectedUserMessage, extractReminderContent } from './message-utils';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
+import { useNotificationsStore } from '@/stores/notifications';
 
 export function Chat() {
   const { t } = useTranslation(['chat', 'common']);
@@ -80,6 +81,25 @@ export function Chat() {
     void fetchAgents();
   }, [fetchAgents]);
 
+  // Push notification to the bell when system-injected reminder messages arrive
+  const notifiedKeysRef = useRef(new Set<string>());
+  useEffect(() => {
+    for (const msg of messages) {
+      if (!isSystemInjectedUserMessage(msg)) continue;
+      // Use id, or fall back to a content-based fingerprint for messages without id
+      const key = msg.id
+        || `ts:${msg.timestamp ?? 0}:${String(typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)).slice(0, 80)}`;
+      if (notifiedKeysRef.current.has(key)) continue;
+      notifiedKeysRef.current.add(key);
+      const reminder = extractReminderContent(msg);
+      useNotificationsStore.getState().addNotification({
+        level: 'info',
+        title: reminder ? `提醒：${reminder}` : '定时提醒已触发',
+        source: 'reminder',
+      });
+    }
+  }, [messages]);
+
   const streamMsg = streamingMessage && typeof streamingMessage === 'object'
     ? streamingMessage as { role?: string; content?: unknown; timestamp?: number }
     : null;
@@ -106,21 +126,27 @@ export function Chat() {
         role: m.role,
         content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
       }));
-      const res = await hostApiFetch<{ ok: boolean; skipped?: boolean; extracted?: string }>('/api/memory/extract', {
+      const res = await hostApiFetch<{ ok: boolean; skipped?: boolean; reason?: string; extracted?: string; scopeId?: string; usedLlm?: boolean }>('/api/memory/extract', {
         method: 'POST',
-        body: JSON.stringify({ messages: payload, sessionKey: currentSessionKey ?? '', label: currentAgentName }),
+        body: JSON.stringify({
+          messages: payload,
+          sessionKey: currentSessionKey ?? '',
+          label: currentAgentName,
+          agentId: currentAgentId ?? 'main',
+          useLlm: true,
+        }),
       });
       if (res.skipped) {
-        toast.info('对话内容较短，跳过提取');
+        toast.info('对话中未发现可记忆的内容');
       } else {
-        toast.success('记忆已提取并写入今日日志');
+        toast.success(res.usedLlm ? '✨ AI 已提取记忆并写入今日日志' : '记忆已提取并写入今日日志');
       }
     } catch {
       toast.error('记忆提取失败');
     } finally {
       setExtracting(false);
     }
-  }, [extracting, messages, currentSessionKey, currentAgentName]);
+  }, [extracting, messages, currentSessionKey, currentAgentName, currentAgentId]);
 
   const handleSendMessage = (
     text: string,

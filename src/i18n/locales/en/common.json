@@ -299,6 +299,7 @@
             "working": "Working",
             "blocked": "Blocked",
             "waitingApproval": "Waiting approval",
+            "scheduled": "Scheduled",
             "done": "Done",
             "failed": "Failed"
         },

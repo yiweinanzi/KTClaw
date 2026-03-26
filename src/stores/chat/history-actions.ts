@@ -64,7 +64,34 @@ export function createHistoryActions(
           }
         }
 
-        set({ messages: finalMessages, thinkingLevel, loading: false });
+        // Deduplicate: if we already have a local message whose id matches one
+        // in the gateway history, use the gateway version (authoritative).
+        // If we have a local-only message (optimistic final) that shares content
+        // with a gateway message but has a different id (e.g. run-${runId} vs UUID),
+        // keep only the gateway version to prevent duplicates.
+        const localMessages = get().messages;
+        const isSendingNow2 = get().sending;
+        let deduped = finalMessages;
+        if (!isSendingNow2 && localMessages.length > 0) {
+          // Build a set of gateway message IDs for fast lookup
+          const gatewayIds = new Set(finalMessages.map(m => m.id).filter(Boolean));
+          // Remove local-only messages that DO appear (by content fingerprint) in gateway history
+          // to avoid phantom duplicates left over from the optimistic insert in the final event handler.
+          const gatewayContentSigs = new Set(
+            finalMessages.map(m => {
+              const txt = typeof m.content === 'string' ? m.content.slice(0, 80) : JSON.stringify(m.content).slice(0, 80);
+              return `${m.role}::${txt}`;
+            })
+          );
+          const localOnlyMsgs = localMessages.filter(m => {
+            if (!m.id || gatewayIds.has(m.id)) return false; // already in gateway list
+            const sig = `${m.role}::${(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).slice(0, 80)}`;
+            return !gatewayContentSigs.has(sig); // genuinely new local message not in gateway
+          });
+          deduped = localOnlyMsgs.length > 0 ? [...finalMessages, ...localOnlyMsgs] : finalMessages;
+        }
+        set({ messages: deduped, thinkingLevel, loading: false });
+
 
         // Extract first user message text as a session label for display in the toolbar.
         // Skip main sessions (key ends with ":main") — they rely on the Gateway-provided

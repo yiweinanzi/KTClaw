@@ -95,6 +95,20 @@ describe('ChatMessage', () => {
     expect(screen.getByText(/"file_path": "\/workspace\/src\/app\.tsx"/)).toBeInTheDocument();
   });
 
+  it('hides assistant messages that only contain internal cron tool activity', () => {
+    const message: RawMessage = {
+      role: 'assistant',
+      content: [
+        { type: 'tool_use', id: 'tool-cron', name: 'cron', input: { action: 'schedule', delay: '40s' } },
+      ],
+      timestamp: 1710001800,
+    };
+
+    const { container } = render(<ChatMessage message={message} showThinking={false} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it('renders assistant markdown text with inline code in the current neutral assistant surface', () => {
     const message: RawMessage = {
       role: 'assistant',

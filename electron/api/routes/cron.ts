@@ -405,7 +405,7 @@ export async function handleCronRoutes(
         payload: { kind: 'agentTurn', message: input.message },
         enabled: input.enabled ?? true,
         wakeMode: 'next-heartbeat',
-        sessionTarget: 'isolated',
+        sessionTarget: 'main',
         delivery: {
           mode: input.delivery?.mode ?? 'none',
           ...(input.delivery?.channel ? { channel: input.delivery.channel } : {}),
