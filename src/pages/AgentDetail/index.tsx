@@ -8,9 +8,9 @@ import type { AgentChatAccess, AgentTeamRole } from '@/types/agent';
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-6 border-b border-black/[0.04] py-3 text-[13px]">
-      <span className="text-[#8e8e93]">{label}</span>
-      <span className="max-w-[360px] text-right text-[#111827]">{value || '—'}</span>
+    <div className="flex items-start justify-between gap-6 border-b border-slate-100 py-3 text-[13px]">
+      <span className="text-slate-400">{label}</span>
+      <span className="max-w-[360px] text-right text-slate-900">{value || '—'}</span>
     </div>
   );
 }
@@ -58,12 +58,12 @@ function TeamSelect({
 }) {
   return (
     <label htmlFor={id} className="flex flex-col gap-1.5 text-[13px]">
-      <span className="font-medium text-[#111827]">{label}</span>
+      <span className="font-medium text-slate-900">{label}</span>
       <select
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-xl border border-black/10 bg-white px-3 py-2 text-[13px] text-[#111827] outline-none focus:border-[#007aff]"
+        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-shadow"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -90,14 +90,14 @@ function TeamTextarea({
 }) {
   return (
     <label htmlFor={id} className="flex flex-col gap-1.5 text-[13px]">
-      <span className="font-medium text-[#111827]">{label}</span>
+      <span className="font-medium text-slate-900">{label}</span>
       <textarea
         id={id}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         rows={3}
-        className="rounded-xl border border-black/10 bg-white px-3 py-2 text-[13px] text-[#111827] outline-none focus:border-[#007aff]"
+        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-shadow"
       />
     </label>
   );
@@ -178,12 +178,12 @@ function AvatarSection({ agentId, agentName, avatar, onAvatarChange }: AvatarSec
     .slice(0, 2);
 
   return (
-    <div className="rounded-3xl border border-black/[0.06] bg-white p-6">
-      <h2 className="text-[18px] font-semibold text-[#111827]">
+    <div className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm">
+      <h2 className="text-[18px] font-semibold text-slate-900">
         {t('detail.avatar', { defaultValue: 'Avatar' })}
       </h2>
       <div className="mt-4 flex items-center gap-5">
-        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-[#f1f5f9]">
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
           {avatar ? (
             <img src={avatar} alt={agentName} className="h-full w-full object-cover" />
           ) : (
@@ -193,7 +193,7 @@ function AvatarSection({ agentId, agentName, avatar, onAvatarChange }: AvatarSec
           )}
           {uploading && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#007aff] border-t-transparent" />
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
             </div>
           )}
         </div>
@@ -203,7 +203,7 @@ function AvatarSection({ agentId, agentName, avatar, onAvatarChange }: AvatarSec
             type="button"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-lg border border-black/10 bg-[#f8fafc] px-3 py-1.5 text-[13px] text-[#374151] hover:bg-[#f1f5f9] disabled:opacity-50"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[13px] text-slate-700 hover:bg-slate-100 disabled:opacity-50"
           >
             {t('detail.uploadAvatar', { defaultValue: 'Upload Avatar' })}
           </button>
@@ -278,13 +278,13 @@ function CronSection({ agentId }: CronSectionProps) {
   }, [agentId]);
 
   return (
-    <div className="rounded-3xl border border-black/[0.06] bg-white p-6">
-      <h2 className="text-[18px] font-semibold text-[#111827]">
+    <div className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm">
+      <h2 className="text-[18px] font-semibold text-slate-900">
         {t('detail.cronJobs', { defaultValue: 'Cron Jobs' })}
       </h2>
 
       {loading && (
-        <p className="mt-4 text-[13px] text-[#8e8e93]">
+        <p className="mt-4 text-[13px] text-slate-400">
           {t('detail.cronLoading', { defaultValue: 'Loading cron jobs...' })}
         </p>
       )}
@@ -294,7 +294,7 @@ function CronSection({ agentId }: CronSectionProps) {
       )}
 
       {!loading && !error && relations.length === 0 && (
-        <p className="mt-4 text-[13px] text-[#8e8e93]">
+        <p className="mt-4 text-[13px] text-slate-400">
           {t('detail.noCronJobs', { defaultValue: 'No cron jobs associated with this agent.' })}
         </p>
       )}
@@ -306,16 +306,16 @@ function CronSection({ agentId }: CronSectionProps) {
               key={relation.job.id}
               type="button"
               onClick={() => navigate(relation.deepLink)}
-              className="flex w-full items-center justify-between rounded-2xl border border-black/[0.06] bg-[#f8fafc] px-4 py-3 text-left hover:bg-[#f1f5f9] transition-colors"
+              className="flex w-full items-center justify-between rounded-2xl border border-slate-200/80 bg-slate-50 px-4 py-3 text-left hover:bg-slate-100 transition-colors"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-[13px] font-medium text-[#111827]">{relation.job.name}</span>
+                  <span className="truncate text-[13px] font-medium text-slate-900">{relation.job.name}</span>
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                       relation.job.enabled
                         ? 'bg-green-100 text-green-700'
-                        : 'bg-[#f1f5f9] text-[#8e8e93]'
+                        : 'bg-slate-100 text-slate-400'
                     }`}
                   >
                     {relation.job.enabled
@@ -323,7 +323,7 @@ function CronSection({ agentId }: CronSectionProps) {
                       : t('detail.cronDisabled', { defaultValue: 'disabled' })}
                   </span>
                 </div>
-                <div className="mt-0.5 flex items-center gap-3 text-[12px] text-[#8e8e93]">
+                <div className="mt-0.5 flex items-center gap-3 text-[12px] text-slate-400">
                   <span>{formatSchedule(relation.job.schedule)}</span>
                   <span>{relation.relationReason}</span>
                   {relation.job.lastRun && (
@@ -393,26 +393,26 @@ export function AgentDetail() {
   if (!loading && !agent) {
     return (
       <div className="mx-auto flex h-full max-w-4xl flex-col gap-6 px-8 py-10">
-        <Link to="/agents" className="text-[13px] text-[#8e8e93] hover:text-[#111827]">
-          {t('detail.backToAgents', { defaultValue: 'Back to agents' })}
-        </Link>
-        <div className="rounded-3xl border border-black/[0.06] bg-white p-8">
-          <h1 className="text-[28px] font-semibold text-[#111827]">
-            {t('detail.notFoundTitle', { defaultValue: 'Agent not found' })}
-          </h1>
-          <p className="mt-3 text-[14px] text-[#6b7280]">
-            {t('detail.notFoundDescription', {
-              defaultValue: 'The requested agent does not exist in the current KTClaw snapshot.',
-            })}
-          </p>
-        </div>
+      <Link to="/agents" className="text-[13px] text-slate-400 hover:text-slate-900">
+        {t('detail.backToAgents', { defaultValue: 'Back to agents' })}
+      </Link>
+      <div className="rounded-[24px] border border-slate-200/80 bg-white p-8 shadow-sm">
+        <h1 className="text-[28px] font-semibold text-slate-900">
+          {t('detail.notFoundTitle', { defaultValue: 'Agent not found' })}
+        </h1>
+        <p className="mt-3 text-[14px] text-slate-500">
+          {t('detail.notFoundDescription', {
+            defaultValue: 'The requested agent does not exist in the current KTClaw snapshot.',
+          })}
+        </p>
+      </div>
       </div>
     );
   }
 
   if (!agent) {
     return (
-      <div className="flex h-full items-center justify-center text-[13px] text-[#8e8e93]">
+      <div className="flex h-full items-center justify-center text-[13px] text-slate-400">
         {t('detail.loading', { defaultValue: 'Loading agent details...' })}
       </div>
     );
@@ -442,31 +442,31 @@ export function AgentDetail() {
 
   return (
     <div className="mx-auto flex h-full max-w-5xl flex-col gap-6 px-8 py-10">
-      <Link to="/agents" className="text-[13px] text-[#8e8e93] hover:text-[#111827]">
+      <Link to="/agents" className="text-[13px] text-slate-400 hover:text-slate-900">
         {t('detail.backToAgents', { defaultValue: 'Back to agents' })}
       </Link>
 
-      <section className="rounded-[28px] border border-black/[0.06] bg-white p-8 shadow-[0_18px_50px_rgba(15,23,42,0.06)]">
+      <section className="rounded-[28px] border border-slate-200/80 bg-white p-8 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div>
-            <div className="text-[12px] font-medium uppercase tracking-[0.18em] text-[#8e8e93]">
+            <div className="text-[12px] font-medium uppercase tracking-[0.18em] text-slate-400">
               {t('detail.kicker', { defaultValue: 'Agent detail' })}
             </div>
-            <h1 className="mt-2 text-[34px] font-semibold text-[#111827]">{agent.name}</h1>
-            <p className="mt-3 max-w-[720px] text-[14px] leading-7 text-[#4b5563]">
+            <h1 className="mt-2 text-[34px] font-semibold text-slate-900">{agent.name}</h1>
+            <p className="mt-3 max-w-[720px] text-[14px] leading-7 text-slate-600">
               {agent.persona || t('detail.noPersona', { defaultValue: 'No persona configured.' })}
             </p>
           </div>
-          <div className="rounded-2xl bg-[#f8fafc] px-4 py-3 text-right">
-            <div className="text-[12px] text-[#8e8e93]">{t('detail.channels', { defaultValue: 'Channels' })}</div>
-            <div className="mt-1 text-[24px] font-semibold text-[#111827]">{agent.channelTypes.length}</div>
+          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-right border border-slate-200/80">
+            <div className="text-[12px] text-slate-400">{t('detail.channels', { defaultValue: 'Channels' })}</div>
+            <div className="mt-1 text-[24px] font-semibold text-slate-900">{agent.channelTypes.length}</div>
           </div>
         </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
-        <section className="rounded-3xl border border-black/[0.06] bg-white p-6">
-          <h2 className="text-[18px] font-semibold text-[#111827]">
+        <section className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm">
+          <h2 className="text-[18px] font-semibold text-slate-900">
             {t('detail.metadata', { defaultValue: 'Metadata' })}
           </h2>
           <div className="mt-4">
@@ -486,11 +486,11 @@ export function AgentDetail() {
             onAvatarChange={(avatar) => setLocalAvatar({ agentId: agent.id, avatar })}
           />
 
-          <div className="rounded-3xl border border-black/[0.06] bg-white p-6">
-            <h2 className="text-[18px] font-semibold text-[#111827]">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm">
+            <h2 className="text-[18px] font-semibold text-slate-900">
               {t('detail.teamSettings', { defaultValue: 'Team settings' })}
             </h2>
-            <p className="mt-3 text-[14px] text-[#4b5563]">
+            <p className="mt-3 text-[14px] text-slate-600">
               {t('detail.teamSettingsDescription', { defaultValue: 'Define whether this agent leads the team, can be directly contacted, and what work it is responsible for.' })}
             </p>
             <div className="mt-4 grid gap-4">
@@ -504,7 +504,7 @@ export function AgentDetail() {
                   { value: 'worker', label: t('detail.teamRoleWorker', { defaultValue: 'worker' }) },
                 ]}
               />
-              <p className="text-[12px] text-[#6b7280]">
+              <p className="text-[12px] text-slate-500">
                 {teamRole === 'leader'
                   ? t('detail.teamRoleLeaderHint', { defaultValue: 'Leaders act as the main user-facing coordinator for a team.' })
                   : t('detail.teamRoleWorkerHint', { defaultValue: 'Workers focus on execution and can be routed through a leader.' })}
@@ -519,10 +519,10 @@ export function AgentDetail() {
                   { value: 'leader_only', label: t('detail.chatAccessLeaderOnly', { defaultValue: 'leader_only' }) },
                 ]}
               />
-              <p className="text-[12px] text-[#6b7280]">
+              <p className="text-[12px] text-slate-500">
                 {chatAccess === 'direct'
                   ? t('detail.chatAccessDirectHint', { defaultValue: 'Users can open a conversation with this agent directly.' })
-                  : t('detail.chatAccessLeaderOnlyHint', { defaultValue: 'This agent should mainly be contacted through a leader rather than directly.' })}
+                  : t('detail.chatAccessLeaderOnlyHint', { defaultValue: 'This agent is blocked from normal direct chat and should be contacted through its leader.' })}
               </p>
               <TeamTextarea
                 id="responsibility"
@@ -549,7 +549,7 @@ export function AgentDetail() {
                 type="button"
                 onClick={() => void saveTeamSettings()}
                 disabled={!teamConfigDirty || savingTeamSettings}
-                className="rounded-xl bg-[#007aff] px-4 py-2 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
               >
                 {savingTeamSettings
                   ? t('detail.savingTeamSettings', { defaultValue: 'Saving...' })
@@ -558,11 +558,11 @@ export function AgentDetail() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-black/[0.06] bg-white p-6">
-            <h2 className="text-[18px] font-semibold text-[#111827]">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm">
+            <h2 className="text-[18px] font-semibold text-slate-900">
               {t('detail.hierarchy', { defaultValue: 'Hierarchy' })}
             </h2>
-            <p className="mt-3 text-[14px] text-[#4b5563]">
+            <p className="mt-3 text-[14px] text-slate-600">
               {hierarchySummary}
             </p>
             <div className="mt-4 space-y-3 text-[13px]">
@@ -577,8 +577,8 @@ export function AgentDetail() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-black/[0.06] bg-white p-6">
-            <h2 className="text-[18px] font-semibold text-[#111827]">
+          <div className="rounded-[24px] border border-slate-200/80 bg-white p-6 shadow-sm">
+            <h2 className="text-[18px] font-semibold text-slate-900">
               {t('detail.channels', { defaultValue: 'Channels' })}
             </h2>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -586,13 +586,13 @@ export function AgentDetail() {
                 agent.channelTypes.map((channelType) => (
                   <span
                     key={channelType}
-                    className="rounded-full border border-black/10 bg-[#f8fafc] px-3 py-1 text-[12px] text-[#374151]"
+                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[12px] text-slate-700"
                   >
                     {channelType}
                   </span>
                 ))
               ) : (
-                <span className="text-[13px] text-[#8e8e93]">
+                <span className="text-[13px] text-slate-400">
                   {t('detail.noChannels', { defaultValue: 'No channels assigned.' })}
                 </span>
               )}
