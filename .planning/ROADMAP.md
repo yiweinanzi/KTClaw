@@ -84,7 +84,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -94,7 +94,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Productize Leader Progress Briefing | 4/4 | Complete | 2026-03-27 |
 | 5. Refine leader control plane UI to match product intent | 3/3 | Complete | 2026-03-28 |
 | 6. Polish team pages to SaaS command-center visual standard | 3/3 | Complete | 2026-03-28 |
-| 7. Wire team runtime signals to frontend | 2/3 | In Progress|  |
+| 7. Wire team runtime signals to frontend | 3/3 | Complete   | 2026-03-29 |
+| 8. Team Grouping, Broadcast Chat, and Workspace Edit | 2/3 | In Progress|  |
 
 ### Phase 7: Wire team runtime signals to frontend
 
@@ -112,12 +113,12 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
   2. TeamMap Workspace tab loads real AGENTS.md and SOUL.md file content from the agent's workspace directory (read-only)
   3. TeamMap Live Log tab shows the actual message history from the agent's most recent runtime session
   4. When an agent has an active running session, the OperationsRail shows a Kill button that terminates it via the existing `/api/sessions/subagents/:id/kill` route
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 07-01: Add workspace file read endpoint and verify session runtime response shape
 - [x] 07-02: Add useTeamRuntime polling hook and update team-work-visibility and team-progress-brief
-- [ ] 07-03: Wire TeamMap Workspace tab, Live Log tab, and OperationsRail kill button to real data
+- [x] 07-03: Wire TeamMap Workspace tab, Live Log tab, and OperationsRail kill button to real data
 
 **Goal**: Turn the leader into a first-class progress-reporting surface across private chat and team views.
 **Depends on**: Phase 3
@@ -185,3 +186,24 @@ Plans:
 - [x] 06-01: Upgrade TeamOverview metric cards, hero section, and member card visual system
 - [x] 06-02: Polish TeamMap AgentNode, root node treatment, and OperationsRail visual language
 - [x] 06-03: Modernize AgentDetail styling and enforce cross-page visual token consistency
+
+### Phase 8: Team Grouping, Broadcast Chat, and Workspace Edit
+
+**Goal:** Deliver three parallel user-facing features aligned to the product document's core principles: (1) TeamOverview grouped by Leader → Sub-Agent hierarchy using existing `reportsTo` field; (2) KTClaw-internal broadcast chat where one message is sent to multiple Team Leaders simultaneously; (3) Workspace file write (AGENTS.md/SOUL.md) and Skills management UI in TeamMap/AgentDetail.
+**Depends on:** Phase 7
+**Requirements**: [TEAM-ACCESS-01, TEAM-ENTRY-01, TEAM-RUNTIME-03]
+**UI hint**: yes
+**Canonical refs**:
+- `team-项目文档.md` §1-3 (architecture intent), §6.1 (group chat/multi-leader), §6.3 (workspace micro-ops)
+- `.planning/phases/08-team-grouping-broadcast-chat-workspace-edit/08-CONTEXT.md` — locked decisions
+**Success Criteria** (what must be TRUE):
+  1. TeamOverview groups agents under their Leader with collapsible sections; standalone agents fall into an "Independent" group
+  2. User can select multiple Team Leaders and send a broadcast message; each Leader responds independently in the same view
+  3. AGENTS.md and SOUL.md content is editable in TeamMap OperationsRail with a Save button that writes to disk
+  4. AgentDetail shows a Skills tab listing the agent's configured skill directories with SKILL.md content
+**Plans:** 2/3 plans executed
+
+Plans:
+- [x] 08-01: TeamOverview Leader-grouped layout
+- [x] 08-02: KTClaw internal broadcast chat view
+- [ ] 08-03: Workspace write endpoint + Save UI, Skills read endpoint + Skills tab

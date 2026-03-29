@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-29T01:19:17.046Z"
+status: executing
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-29T04:25:01.269Z"
 last_activity: 2026-03-29
 progress:
-  total_phases: 6
-  completed_phases: 2
-  total_plans: 12
-  completed_plans: 8
+  total_phases: 7
+  completed_phases: 3
+  total_plans: 15
+  completed_plans: 11
   percent: 100
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** Users can manage an AI team through clear leader-centric workflows without dropping to the CLI or directly micromanaging backend-only workers.
-**Current focus:** Leader control-plane refinement complete
+**Current focus:** Phase 08 — team-grouping-broadcast-chat-workspace-edit
 
 ## Current Position
 
-Phase: 05 (refine-leader-control-plane-ui-to-match-product-intent) - COMPLETE
+Phase: 08 (team-grouping-broadcast-chat-workspace-edit) — EXECUTING
 Plan: 3 of 3
-Status: Phase complete — ready for verification
+Status: Ready to execute
 Last activity: 2026-03-29
 
 Progress: [#####] 100%
@@ -60,6 +60,9 @@ Progress: [#####] 100%
 | Phase 06 P03 | 416 | 8 tasks | 1 files |
 | Phase 07 P02 | 15 | 4 tasks | 4 files |
 | Phase 07 P01 | 12 | 3 tasks | 1 files |
+| Phase 07 P03 | 12 | 5 tasks | 1 files |
+| Phase 08 P02 | 15 | 2 tasks | 5 files |
+| Phase 08 P01 | 20m | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -83,6 +86,10 @@ Recent decisions affecting current work:
 - [Phase 07]: runtimeByAgent optional param ensures all existing callers remain backward-compatible without changes
 - [Phase 07]: File not found returns empty content (not 404) so frontend can handle missing workspace files gracefully
 - [Phase 07]: expandPath and fs/promises loaded via dynamic import inside workspace handler to avoid circular imports
+- [Phase 07]: Workspace textareas use readOnly (not disabled) so content remains selectable by user
+- [Phase 07]: KillSessionButton two-step confirm guards against accidental sub-agent termination
+- [Phase 08]: Sidebar staticTeams uses name-based matching; broadcast entry added as Chinese name 集体会议 to match existing pattern
+- [Phase 08]: Flat grid fallback when single leader + no ungrouped to avoid unnecessary chrome (D-06)
 
 ### Pending Todos
 
@@ -95,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-29T01:19:17.041Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-03-29T04:25:01.262Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None

@@ -309,6 +309,65 @@ export async function handleAgentRoutes(
     }
   }
 
+  // Skills listing: GET /api/agents/:agentId/workspace/skills
+  const skillsListMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/workspace\/skills$/);
+  if (skillsListMatch && req.method === 'GET') {
+    const agentId = decodeURIComponent(skillsListMatch[1]);
+    try {
+      const snapshot = await listAgentsSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === agentId);
+      if (!agent?.workspace) {
+        sendJson(res, 200, { success: true, skills: [] });
+        return true;
+      }
+      const { expandPath } = await import('../../utils/paths');
+      const fsP = await import('node:fs/promises');
+      const skillsDir = join(expandPath(agent.workspace), 'skills');
+      try {
+        const entries = await fsP.readdir(skillsDir, { withFileTypes: true });
+        const skills = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+        sendJson(res, 200, { success: true, skills });
+      } catch {
+        sendJson(res, 200, { success: true, skills: [] });
+      }
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
+  // Skill file read: GET /api/agents/:agentId/workspace/skills/:skillName
+  const skillFileMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/workspace\/skills\/([^/]+)$/);
+  if (skillFileMatch && req.method === 'GET') {
+    const agentId = decodeURIComponent(skillFileMatch[1]);
+    const skillName = decodeURIComponent(skillFileMatch[2]);
+    // Security: only alphanumeric, dash, underscore skill names
+    if (!/^[\w-]+$/.test(skillName)) {
+      sendJson(res, 400, { success: false, error: 'Invalid skill name' });
+      return true;
+    }
+    try {
+      const snapshot = await listAgentsSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === agentId);
+      if (!agent?.workspace) {
+        sendJson(res, 200, { success: true, content: '', exists: false });
+        return true;
+      }
+      const { expandPath } = await import('../../utils/paths');
+      const fsP = await import('node:fs/promises');
+      const filePath = join(expandPath(agent.workspace), 'skills', skillName, 'SKILL.md');
+      try {
+        const content = await fsP.readFile(filePath, 'utf8');
+        sendJson(res, 200, { success: true, content, exists: true });
+      } catch {
+        sendJson(res, 200, { success: true, content: '', exists: false });
+      }
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
   const workspaceFileMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/workspace\/([^/]+)$/);
   if (workspaceFileMatch && req.method === 'GET') {
     const agentId = decodeURIComponent(workspaceFileMatch[1]);
@@ -349,6 +408,46 @@ export async function handleAgentRoutes(
         // File does not exist — return empty content, not an error
         sendJson(res, 200, { success: true, content: '', exists: false });
       }
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
+  // Workspace file write: PUT /api/agents/:agentId/workspace/:filename
+  if (workspaceFileMatch && req.method === 'PUT') {
+    const agentId = decodeURIComponent(workspaceFileMatch[1]);
+    const filename = decodeURIComponent(workspaceFileMatch[2]);
+
+    const WRITABLE_FILES = new Set(['AGENTS.md', 'SOUL.md']);
+    if (!WRITABLE_FILES.has(filename)) {
+      sendJson(res, 400, { success: false, error: 'File not writable' });
+      return true;
+    }
+
+    try {
+      const body = await parseJsonBody<{ content: string }>(req);
+      if (typeof body?.content !== 'string') {
+        sendJson(res, 400, { success: false, error: 'content required' });
+        return true;
+      }
+
+      const snapshot = await listAgentsSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === agentId);
+      if (!agent) {
+        sendJson(res, 404, { success: false, error: 'Agent not found' });
+        return true;
+      }
+      if (!agent.workspace) {
+        sendJson(res, 404, { success: false, error: 'Agent has no workspace configured' });
+        return true;
+      }
+
+      const { expandPath } = await import('../../utils/paths');
+      const fsP = await import('node:fs/promises');
+      const filePath = join(expandPath(agent.workspace), filename);
+      await fsP.writeFile(filePath, body.content, 'utf8');
+      sendJson(res, 200, { success: true });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
     }
