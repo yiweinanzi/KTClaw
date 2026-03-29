@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
+import { join } from 'node:path';
 import {
   assignChannelToAgent,
   clearChannelBinding,
@@ -306,6 +307,52 @@ export async function handleAgentRoutes(
       }
       return true;
     }
+  }
+
+  const workspaceFileMatch = url.pathname.match(/^\/api\/agents\/([^/]+)\/workspace\/([^/]+)$/);
+  if (workspaceFileMatch && req.method === 'GET') {
+    const agentId = decodeURIComponent(workspaceFileMatch[1]);
+    const filename = decodeURIComponent(workspaceFileMatch[2]);
+
+    // Security: only allow safe workspace filenames
+    const ALLOWED_FILES = new Set([
+      'AGENTS.md', 'SOUL.md', 'TOOLS.md', 'USER.md',
+      'IDENTITY.md', 'HEARTBEAT.md', 'BOOT.md', 'MEMORY.md',
+    ]);
+    if (!ALLOWED_FILES.has(filename)) {
+      sendJson(res, 400, { success: false, error: 'File not allowed' });
+      return true;
+    }
+
+    try {
+      const snapshot = await listAgentsSnapshot();
+      const agent = snapshot.agents.find((a) => a.id === agentId);
+      if (!agent) {
+        sendJson(res, 404, { success: false, error: 'Agent not found' });
+        return true;
+      }
+
+      const workspacePath = agent.workspace;
+      if (!workspacePath) {
+        sendJson(res, 404, { success: false, error: 'Agent has no workspace configured' });
+        return true;
+      }
+
+      const { expandPath } = await import('../../utils/paths');
+      const fsP = await import('node:fs/promises');
+      const filePath = join(expandPath(workspacePath), filename);
+
+      try {
+        const content = await fsP.readFile(filePath, 'utf8');
+        sendJson(res, 200, { success: true, content, exists: true });
+      } catch {
+        // File does not exist — return empty content, not an error
+        sendJson(res, 200, { success: true, content: '', exists: false });
+      }
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
   }
 
   return false;
