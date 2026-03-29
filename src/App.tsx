@@ -132,15 +132,6 @@ function App() {
   //   }
   // }, [browserPreviewMode, setupComplete, location.pathname, navigate]);
 
-  // Force navigation to chat on first launch
-  useEffect(() => {
-    if (browserPreviewMode) return;
-    // Only navigate if we're not already on a valid route
-    if (location.pathname === '/' || location.pathname.startsWith('/channels')) {
-      navigate('/');
-    }
-  }, [browserPreviewMode, location.pathname, navigate]);
-
   // Listen for navigation events from main process
   useEffect(() => {
     const handleNavigate = (...args: unknown[]) => {
