@@ -1,10 +1,22 @@
 import { invokeIpc } from '@/lib/api-client';
 import { trackUiEvent } from './telemetry';
 import { normalizeAppError } from './error-model';
-import { isBrowserPreviewMode } from './browser-preview';
 
 const HOST_API_PORT = 3210;
 const HOST_API_BASE = `http://127.0.0.1:${HOST_API_PORT}`;
+
+/** Cached Host API auth token, fetched once from the main process via IPC. */
+let cachedHostApiToken: string | null = null;
+
+async function getHostApiToken(): Promise<string> {
+  if (cachedHostApiToken) return cachedHostApiToken;
+  try {
+    cachedHostApiToken = await invokeIpc<string>('hostapi:token');
+  } catch {
+    cachedHostApiToken = '';
+  }
+  return cachedHostApiToken ?? '';
+}
 
 type HostApiProxyResponse = {
   ok?: boolean;
@@ -103,112 +115,24 @@ function parseLegacyProxyResponse<T>(
   return response.text as T;
 }
 
-async function parseBrowserPreviewResponse<T>(response: Response): Promise<T> {
-  if (response.status === 204) return undefined as T;
-
-  const contentType = response.headers?.get?.('content-type') ?? '';
-  if (contentType.includes('application/json') && typeof response.json === 'function') {
-    return await response.json() as T;
-  }
-
-  if (typeof response.json === 'function' && !contentType) {
-    try {
-      return await response.json() as T;
-    } catch {
-      // fall through to text parsing
-    }
-  }
-
-  if (typeof response.text === 'function') {
-    const text = await response.text();
-    if (text) {
-      try {
-        return JSON.parse(text) as T;
-      } catch {
-        return text as T;
-      }
-    }
-  }
-
-  return undefined as T;
+function shouldFallbackToBrowser(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes('invalid ipc channel: hostapi:fetch')
+    || normalized.includes("no handler registered for 'hostapi:fetch'")
+    || normalized.includes('no handler registered for "hostapi:fetch"')
+    || normalized.includes('no handler registered for hostapi:fetch')
+    || normalized.includes('window is not defined');
 }
 
-async function readBrowserPreviewError(response: Response): Promise<string> {
-  const contentType = response.headers?.get?.('content-type') ?? '';
-  if (contentType.includes('application/json') && typeof response.json === 'function') {
-    try {
-      const payload = await response.json() as Record<string, unknown> | null;
-      if (payload && typeof payload === 'object') {
-        if (typeof payload.error === 'string') return payload.error;
-        if (typeof payload.message === 'string') return payload.message;
-      }
-    } catch {
-      // ignore JSON parsing failures
-    }
-  }
-
-  if (typeof response.text === 'function') {
-    try {
-      const text = await response.text();
-      if (text) return text;
-    } catch {
-      // ignore text parsing failures
-    }
-  }
-
-  return `HTTP ${response.status}`;
-}
-
-async function browserPreviewFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const startedAt = Date.now();
-  const method = init?.method || 'GET';
-  const headers = new Headers(init?.headers ?? undefined);
-  const body = init?.body ?? null;
-
-  if (body !== null && typeof body === 'string' && !headers.has('content-type')) {
-    headers.set('content-type', 'application/json');
-  }
-
+function allowLocalhostFallback(): boolean {
   try {
-    const response = await fetch(`${HOST_API_BASE}${path}`, {
-      ...init,
-      method,
-      headers,
-      body,
-    });
-
-    if (!response.ok) {
-      throw new Error(await readBrowserPreviewError(response));
-    }
-
-    trackUiEvent('hostapi.fetch', {
-      path,
-      method,
-      source: 'browser-preview',
-      durationMs: Date.now() - startedAt,
-      status: response.status,
-    });
-
-    return await parseBrowserPreviewResponse<T>(response);
-  } catch (error) {
-    const normalized = normalizeAppError(error, { source: 'browser-preview', path, method });
-    trackUiEvent('hostapi.fetch_error', {
-      path,
-      method,
-      source: 'browser-preview',
-      durationMs: Date.now() - startedAt,
-      message: normalized.message,
-      code: normalized.code,
-    });
-    throw normalized;
+    return window.localStorage.getItem('clawx:allow-localhost-fallback') === '1';
+  } catch {
+    return false;
   }
 }
 
 export async function hostApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  if (isBrowserPreviewMode()) {
-    return browserPreviewFetch<T>(path, init);
-  }
-
   const startedAt = Date.now();
   const method = init?.method || 'GET';
   // In Electron renderer, always proxy through main process to avoid CORS.
@@ -227,20 +151,63 @@ export async function hostApiFetch<T>(path: string, init?: RequestInit): Promise
     return parseLegacyProxyResponse<T>(response, path, method, startedAt);
   } catch (error) {
     const normalized = normalizeAppError(error, { source: 'ipc-proxy', path, method });
+    const message = normalized.message;
     trackUiEvent('hostapi.fetch_error', {
       path,
       method,
       source: 'ipc-proxy',
       durationMs: Date.now() - startedAt,
-      message: normalized.message,
+      message,
       code: normalized.code,
     });
-    throw normalized;
+    if (!shouldFallbackToBrowser(message)) {
+      throw normalized;
+    }
+    if (!allowLocalhostFallback()) {
+      trackUiEvent('hostapi.fetch_error', {
+        path,
+        method,
+        source: 'ipc-proxy',
+        durationMs: Date.now() - startedAt,
+        message: 'localhost fallback blocked by policy',
+        code: 'CHANNEL_UNAVAILABLE',
+      });
+      throw normalized;
+    }
+  }
+
+  // Browser-only fallback (non-Electron environments).
+  const token = await getHostApiToken();
+  const response = await fetch(`${HOST_API_BASE}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...(init?.headers || {}),
+    },
+  });
+  trackUiEvent('hostapi.fetch', {
+    path,
+    method,
+    source: 'browser-fallback',
+    durationMs: Date.now() - startedAt,
+    status: response.status,
+  });
+  try {
+    if (response.status === 204) return undefined as T;
+    const payload = await response.json() as T;
+    return payload;
+  } catch (error) {
+    throw normalizeAppError(error, { source: 'browser-fallback', path, method });
   }
 }
 
 export function createHostEventSource(path = '/api/events'): EventSource {
-  return new EventSource(`${HOST_API_BASE}${path}`);
+  // EventSource does not support custom headers, so pass the auth token
+  // as a query parameter. The server accepts both mechanisms.
+  const separator = path.includes('?') ? '&' : '?';
+  const tokenParam = `token=${encodeURIComponent(cachedHostApiToken ?? '')}`;
+  return new EventSource(`${HOST_API_BASE}${path}${separator}${tokenParam}`);
 }
 
 export function getHostApiBase(): string {

@@ -84,6 +84,7 @@ const UNIFIED_CHANNELS = new Set<string>([
 ]);
 
 const customInvokers = new Map<Exclude<TransportKind, 'ipc'>, TransportInvoker>();
+const GATEWAY_WS_DIAG_FLAG = 'clawx:gateway-ws-diagnostic';
 
 let transportConfig: ApiClientTransportConfig = {
   enabled: {
@@ -91,7 +92,7 @@ let transportConfig: ApiClientTransportConfig = {
     http: false,
   },
   rules: [
-    { matcher: /^gateway:rpc$/, order: ['ipc'] },
+    { matcher: /^gateway:rpc$/, order: ['ws', 'ipc'] },
     { matcher: /^gateway:/, order: ['ipc'] },
     { matcher: /.*/, order: ['ipc'] },
   ],
@@ -247,7 +248,25 @@ export function clearTransportBackoff(kind?: Exclude<TransportKind, 'ipc'>): voi
 }
 
 export function applyGatewayTransportPreference(): void {
+  const wsDiagnosticEnabled = getGatewayWsDiagnosticEnabled();
   clearTransportBackoff();
+  if (wsDiagnosticEnabled) {
+    configureApiClient({
+      enabled: {
+        ws: true,
+        http: true,
+      },
+      rules: [
+        { matcher: /^gateway:rpc$/, order: ['ws', 'http', 'ipc'] },
+        { matcher: /^gateway:/, order: ['ipc'] },
+        { matcher: /.*/, order: ['ipc'] },
+      ],
+    });
+    return;
+  }
+
+  // Availability-first default:
+  // keep IPC as the authoritative runtime path.
   configureApiClient({
     enabled: {
       ws: false,
@@ -262,11 +281,23 @@ export function applyGatewayTransportPreference(): void {
 }
 
 export function getGatewayWsDiagnosticEnabled(): boolean {
-  return false;
+  try {
+    return window.localStorage.getItem(GATEWAY_WS_DIAG_FLAG) === '1';
+  } catch {
+    return false;
+  }
 }
 
 export function setGatewayWsDiagnosticEnabled(enabled: boolean): void {
-  void enabled;
+  try {
+    if (enabled) {
+      window.localStorage.setItem(GATEWAY_WS_DIAG_FLAG, '1');
+    } else {
+      window.localStorage.removeItem(GATEWAY_WS_DIAG_FLAG);
+    }
+  } catch {
+    // ignore localStorage errors
+  }
   applyGatewayTransportPreference();
 }
 
@@ -872,6 +903,8 @@ let defaultTransportsInitialized = false;
 
 export function initializeDefaultTransports(): void {
   if (defaultTransportsInitialized) return;
+  registerTransportInvoker('ws', createGatewayWsTransportInvoker());
+  registerTransportInvoker('http', createGatewayHttpTransportInvoker());
   applyGatewayTransportPreference();
   defaultTransportsInitialized = true;
 }

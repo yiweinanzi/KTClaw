@@ -42,6 +42,8 @@ import { applyProxySettings } from './proxy';
 import { syncLaunchAtStartupSettingFromStore } from './launch-at-startup';
 import { proxyAwareFetch } from '../utils/proxy-fetch';
 import { getRecentTokenUsageHistory } from '../utils/token-usage';
+import { registerHostApiProxyHandlers } from './ipc/host-api-proxy';
+import type { AppRequest, AppErrorCode } from './ipc/request-helpers';
 import { getProviderService } from '../services/providers/provider-service';
 import {
   getOpenClawProviderKey,
@@ -154,6 +156,10 @@ type HostApiFetchRequest = {
 };
 
 function registerHostApiProxyHandlers(hostApiSessionToken: string): void {
+  // Expose the per-session auth token to the renderer so the browser-fallback
+  // path in host-api.ts can authenticate against the Host API server.
+  ipcMain.handle('hostapi:token', () => hostApiSessionToken);
+
   ipcMain.handle('hostapi:fetch', async (_, request: HostApiFetchRequest) => {
     try {
       const path = typeof request?.path === 'string' ? request.path : '';
@@ -1317,9 +1323,10 @@ function registerGatewayHandlers(
   ipcMain.handle('gateway:getControlUiUrl', async () => {
     try {
       const status = gatewayManager.getStatus();
+      const token = await getSetting('gatewayToken');
       const port = status.port || 18789;
-      const url = buildOpenClawControlUiUrl(port, '').split('#')[0];
-      return { success: true, url, port };
+      const url = buildOpenClawControlUiUrl(port, token);
+      return { success: true, url, port, token };
     } catch (error) {
       return { success: false, error: String(error) };
     }

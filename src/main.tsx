@@ -7,9 +7,9 @@ import { HashRouter } from 'react-router-dom';
 import App from './App';
 import './i18n';
 import './styles/globals.css';
-import { ensureBrowserPreviewElectronShim } from './lib/browser-preview';
+import { initializeDefaultTransports } from './lib/api-client';
 
-ensureBrowserPreviewElectronShim();
+initializeDefaultTransports();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

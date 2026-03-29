@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { randomBytes } from 'node:crypto';
 import { PORTS } from '../utils/config';
 import { logger } from '../utils/logger';
 import type { HostApiContext } from './context';
@@ -52,7 +53,24 @@ const routeHandlers: RouteHandler[] = [
   handleUsageRoutes,
 ];
 
+/**
+ * Per-session secret token used to authenticate Host API requests.
+ * Generated once at server start and shared with the renderer via IPC.
+ * This prevents cross-origin attackers from reading sensitive data even
+ * if they can reach 127.0.0.1:3210 (the CORS wildcard alone is not
+ * sufficient because browsers attach the Origin header but not a secret).
+ */
+let hostApiToken: string = '';
+
+/** Retrieve the current Host API auth token (for use by IPC proxy). */
+export function getHostApiToken(): string {
+  return hostApiToken;
+}
+
 export function startHostApiServer(ctx: HostApiContext, port = PORTS.CLAWX_HOST_API): Server {
+  // Generate a cryptographically random token for this session.
+  hostApiToken = randomBytes(32).toString('hex');
+
   const server = createServer(async (req, res) => {
     try {
       // Apply CORS origin restriction before any response is sent.
