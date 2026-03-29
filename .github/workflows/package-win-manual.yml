@@ -43,6 +43,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
+      - name: Disable npmmirror for CI environments
+        shell: bash
+        run: |
+          sed -i '/electron_mirror/d' .npmrc || true
+          sed -i '/electron_builder_binaries_mirror/d' .npmrc || true
+
       - name: Install dependencies
         run: pnpm install
 
