@@ -59,62 +59,12 @@ const WINDOWS_APP_USER_MODEL_ID = 'app.clawx.desktop';
 // set `"disable-hardware-acceleration": false` in the app config (future).
 app.disableHardwareAcceleration();
 
-// Linux rendering compatibility for restricted environments (Kylin V10/V11, UOS,
-// and other domestic/government distros with hardened kernel policies).
-//
-// Root causes of the white-screen on Kylin V11 (vendor 1d17 = Jingjia cx4 GPU):
-//
-//  1. SANDBOX: kernel.unprivileged_userns_clone=0 prevents Chromium from
-//     creating user-namespace isolation, killing the renderer/GPU process
-//     immediately → window appears but stays white.
-//     Fix: --no-sandbox + --disable-setuid-sandbox
-//
-//  2. GPU PROCESS: Even with sandbox disabled, the separate Chromium GPU
-//     process can crash on unsupported hardware (Jingjia cx4 has no Mesa GL).
-//     Fix: --in-process-gpu merges GPU code into the renderer process so
-//     there is no separate GPU process to crash.
-//
-//  3. GL BACKEND: app.disableHardwareAcceleration() is called above and
-//     automatically routes Chromium to the bundled SwiftShader software
-//     renderer. Do NOT set --use-gl=swiftshader manually — it is soft-
-//     deprecated in Chromium 132 (Electron 40) and conflicts with
-//     disableHardwareAcceleration(). Let the API handle it.
-//
-//  4. SHARED MEMORY: /dev/shm is often restricted (small quota) on Kylin V11
-//     enterprise machines. Chromium uses /dev/shm for its renderer IPC; if it
-//     runs out, the renderer freezes on a white frame.
-//     Fix: --disable-dev-shm-usage falls back to /tmp instead.
-//
-//  5. DISPLAY SERVER: Confirmed X11 session from UA string in logs, but Kylin
-//     V11 may boot into a Wayland compositor. Forcing ozone X11 ensures the
-//     app always runs under XWayland rather than native Wayland, which is more
-//     stable on the cx4 driver stack.
-//     Fix: --ozone-platform=x11
-if (process.platform === 'linux') {
-  // ① Bypass kernel sandbox restrictions (Kylin V10/V11, UOS, hardened Debian)
-  app.commandLine.appendSwitch('no-sandbox');
-  app.commandLine.appendSwitch('disable-setuid-sandbox');
-
-  // ② Avoid separate GPU process launch — Jingjia cx4 causes that process to
-  //    exit immediately, leaving the renderer with no compositing backend
-  app.commandLine.appendSwitch('in-process-gpu');
-
-  // ③ Prevent /dev/shm exhaustion — renderer falls back to /tmp
-  app.commandLine.appendSwitch('disable-dev-shm-usage');
-
-  // ④ Force X11/XWayland mode — avoids Wayland ozone crash on cx4 driver
-  app.commandLine.appendSwitch('ozone-platform', 'x11');
-  // Note: SwiftShader software rendering is activated automatically by
-  // app.disableHardwareAcceleration() above — no need for --use-gl=swiftshader
-}
-
 // On Linux, set CHROME_DESKTOP so Chromium can find the correct .desktop file.
 // On Wayland this maps the running window to clawx.desktop (→ icon + app grouping);
 // on X11 it supplements the StartupWMClass matching.
 // Must be called before app.whenReady() / before any window is created.
 if (process.platform === 'linux') {
-  process.env.CHROME_DESKTOP = 'clawx.desktop';
-  (app as Electron.App & { setDesktopName?: (desktopName: string) => void }).setDesktopName?.('clawx.desktop');
+  (app as Electron.App & { setDesktopName?: (name: string) => void }).setDesktopName?.('clawx.desktop');
 }
 
 // Prevent multiple instances of the app from running simultaneously.
@@ -170,6 +120,8 @@ function getAppIcon(): Electron.NativeImage | undefined {
  */
 function createWindow(): BrowserWindow {
   const isMac = process.platform === 'darwin';
+  const isWindows = process.platform === 'win32';
+  const useCustomTitleBar = isWindows;
 
   const win = new BrowserWindow({
     width: 1280,
@@ -184,9 +136,14 @@ function createWindow(): BrowserWindow {
       sandbox: false,
       webviewTag: true, // Enable <webview> for embedding OpenClaw Control UI
     },
-    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    // On macOS: hiddenInset (traffic-light buttons inset into the title bar)
+    // On Windows: hidden (custom title bar drawn by the renderer)
+    // On Linux: default (native window frame — required for Kylin V11 / cx4 GPU
+    //   compatibility; frame:false triggers a frameless compositing path that
+    //   the Jingjia Micro cx4 driver cannot render, causing a white screen)
+    titleBarStyle: isMac ? 'hiddenInset' : useCustomTitleBar ? 'hidden' : 'default',
     trafficLightPosition: isMac ? { x: 16, y: 16 } : undefined,
-    frame: isMac,
+    frame: isMac || !useCustomTitleBar,
     show: false,
   });
 
