@@ -138,6 +138,42 @@ function cleanupNativePlatformPackages(nodeModulesDir, platform, arch) {
   return removed;
 }
 
+// ── Platform-specific: @node-llama-cpp ───────────────────────────────────────
+// Uses up to ~700MB per platform, shipping all prebuilds for win, mac, linux.
+function cleanupNodeLlamaCpp(nodeModulesDir, platform, arch) {
+  let removed = 0;
+  const targetDir = join(nodeModulesDir, '@node-llama-cpp');
+  if (!existsSync(targetDir)) return 0;
+  
+  let pfx = '';
+  if (platform === 'win32') pfx = 'win';
+  else if (platform === 'darwin') pfx = 'mac';
+  else if (platform === 'linux') pfx = 'linux';
+  
+  if (!pfx) return 0;
+  
+  let allowedPrefix = `${pfx}-${arch}`;
+  let allowedPrefixUniversal = (arch === 'universal' && platform === 'darwin') ? 'mac' : null;
+
+  for (const entry of readdirSync(targetDir)) {
+    // skip non-directories gracefully
+    let isMatch = false;
+    if (allowedPrefixUniversal && entry.startsWith('mac-')) {
+      isMatch = true;
+    } else {
+      isMatch = entry === allowedPrefix || entry.startsWith(`${allowedPrefix}-`);
+    }
+
+    if (!isMatch && entry.includes('-')) {
+      try {
+        rmSync(join(targetDir, entry), { recursive: true, force: true });
+        removed++;
+      } catch { /* ignore */ }
+    }
+  }
+  return removed;
+}
+
 // ── Broken module patcher ─────────────────────────────────────────────────────
 // Some bundled packages have transpiled CJS that sets `module.exports = exports.default`
 // without ever assigning `exports.default`, leaving module.exports === undefined.
@@ -401,5 +437,11 @@ exports.default = async function afterPack(context) {
   const nativeRemoved = cleanupNativePlatformPackages(dest, platform, arch);
   if (nativeRemoved > 0) {
     console.log(`[after-pack] ✅ Removed ${nativeRemoved} non-target native platform packages.`);
+  }
+
+  // 5. Platform-specific: strip huge @node-llama-cpp non-target binaries
+  const llamaRemoved = cleanupNodeLlamaCpp(dest, platform, arch);
+  if (llamaRemoved > 0) {
+    console.log(`[after-pack] ✅ node-llama-cpp: removed ${llamaRemoved} non-target platforms.`);
   }
 };
