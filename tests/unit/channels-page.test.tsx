@@ -788,3 +788,65 @@ describe('Channels sync workbench', () => {
     expect(within(list).queryByTestId('session-archived-feishu-conv-devops')).not.toBeInTheDocument();
   });
 });
+
+describe('WeChat workbench', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { ...window.location, search: '?channel=wechat' },
+    });
+  });
+  afterEach(() => {
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { ...window.location, search: '' },
+    });
+  });
+
+  it('filters wechat sessions by title when search query is entered', async () => {
+    const wechatSessions = {
+      success: true,
+      sessions: [
+        { id: 'wechat:default:gc_001', channelId: 'wechat-default', channelType: 'wechat', sessionType: 'group', title: '技术交流群', pinned: true, syncState: 'synced', latestActivityAt: new Date().toISOString(), previewText: '最新消息' },
+        { id: 'wechat:default:gc_002', channelId: 'wechat-default', channelType: 'wechat', sessionType: 'group', title: '产品讨论组', pinned: false, syncState: 'synced', latestActivityAt: new Date().toISOString(), previewText: '产品相关' },
+      ],
+    };
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return { success: true, capabilities: [{ channelId: 'wechat-default', channelType: 'wechat', accountId: 'default', status: 'connected', availableActions: ['send'], capabilityFlags: { supportsConnect: true, supportsDisconnect: true, supportsTest: true, supportsSend: true, supportsSchemaSummary: false, supportsCredentialValidation: false }, configSchemaSummary: { totalFieldCount: 0, requiredFieldCount: 0, optionalFieldCount: 0, sensitiveFieldCount: 0, fieldKeys: [] } }] };
+      if (path === '/api/channels/workbench/sessions?channelType=wechat') return wechatSessions;
+      if (path.startsWith('/api/channels/workbench/conversations/wechat:default:gc_001/messages')) return { success: true, conversation: { id: 'wechat:default:gc_001', title: '技术交流群', syncState: 'synced' }, messages: [], hasMore: false };
+      return { success: true };
+    });
+
+    render(<Channels />);
+    const list = await screen.findByTestId('channels-conversation-list');
+    expect(within(list).getByText('技术交流群')).toBeInTheDocument();
+    expect(within(list).getByText('产品讨论组')).toBeInTheDocument();
+
+    const searchInput = screen.getByTestId('session-search-input');
+    fireEvent.change(searchInput, { target: { value: '技术' } });
+
+    await waitFor(() => {
+      expect(within(list).getByText('技术交流群')).toBeInTheDocument();
+      expect(within(list).queryByText('产品讨论组')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows red error badge on wechat sessions with syncState error', async () => {
+    const wechatSessions = {
+      success: true,
+      sessions: [
+        { id: 'wechat:default:gc_err', channelId: 'wechat-default', channelType: 'wechat', sessionType: 'group', title: '同步失败群', pinned: false, syncState: 'error', latestActivityAt: new Date().toISOString() },
+      ],
+    };
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return { success: true, capabilities: [{ channelId: 'wechat-default', channelType: 'wechat', accountId: 'default', status: 'connected', availableActions: ['send'], capabilityFlags: { supportsConnect: true, supportsDisconnect: true, supportsTest: true, supportsSend: true, supportsSchemaSummary: false, supportsCredentialValidation: false }, configSchemaSummary: { totalFieldCount: 0, requiredFieldCount: 0, optionalFieldCount: 0, sensitiveFieldCount: 0, fieldKeys: [] } }] };
+      if (path === '/api/channels/workbench/sessions?channelType=wechat') return wechatSessions;
+      return { success: true };
+    });
+
+    render(<Channels />);
+    const list = await screen.findByTestId('channels-conversation-list');
+    expect(within(list).getByTestId('session-error-badge-wechat:default:gc_err')).toBeInTheDocument();
+  });
+});

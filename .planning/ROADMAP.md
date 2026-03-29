@@ -232,7 +232,34 @@ Plans:
 **Plans:** 4 plans written, ready for execution
 
 Plans:
-- [ ] 09-01: Message display layer — role-colored messages, image lightbox, file cards, paginated history
-- [ ] 09-02: Composer upgrade — identity toggle (bot/self), send failure handling, @mention picker
-- [ ] 09-03: Session list upgrade — adaptive layout, search (title + content), invalid session state
-- [ ] 09-04: Backend sync endpoints — paginated message fetch, send-as-user, session state tracking
+- [x] 09-01: Message display layer — role-colored messages, image lightbox, file cards, paginated history
+- [x] 09-02: Composer upgrade — identity toggle (bot/self), send failure handling, @mention picker
+- [x] 09-03: Session list upgrade — adaptive layout, search (title + content), invalid session state
+- [x] 09-04: Backend sync endpoints — paginated message fetch, send-as-user, session state tracking
+
+### Phase 10: WeChat Channel Sync Workbench
+
+**Goal:** Add WeChat (`wechat`) as a new channel type and deliver a full bidirectional sync workbench mirroring Phase 09 (Feishu). Users can view group/private conversations, send as bot or self, see role-colored messages with image/file/voice support, and onboard via a QR-scan wizard.
+**Depends on:** Phase 9
+**Requirements**: [CHANNEL-SYNC-02]
+**UI hint**: yes
+**Canonical refs**:
+- `.planning/phases/10-wechat-channel-sync-workbench/10-CONTEXT.md` — locked decisions
+- `src/types/channel.ts` — ChannelType union and CHANNEL_META registry
+- `electron/utils/whatsapp-login.ts` — QR login EventEmitter pattern to mirror
+- `src/components/channels/FeishuOnboardingWizard.tsx` — wizard structure to mirror
+**Success Criteria** (what must be TRUE):
+  1. `wechat` appears in the channel rail under domestic channels alongside feishu/dingtalk/wecom/qqbot
+  2. Onboarding wizard: install plugin → scan QR (30s refresh) → ready; no version-check step
+  3. Workbench shows group/private conversations with paginated message history (infinite scroll upward)
+  4. Messages role-colored: self right-aligned blue, bot left-aligned brand, others left-aligned grey
+  5. Image inline + lightbox, file info card, voice play-button + duration
+  6. Composer has bot/self identity toggle; falls back to bot with warning when user auth unavailable
+  7. Media proxy validates hostname against `*.qpic.cn`, `*.weixin.qq.com`, `*.wx.qq.com`; rejects others with 400
+  8. Single account (`accountId: 'default'`); @mention popover fetches group member list
+**Plans:** TBD — to be written after research phase
+
+Plans:
+- [ ] 10-01: Channel type registration + onboarding wizard (WeChatOnboardingWizard)
+- [ ] 10-02: WeChat workbench UI — session list, message panel, composer with identity toggle
+- [ ] 10-03: Backend sync endpoints — QR login, paginated messages, media proxy, member list, identity-aware send

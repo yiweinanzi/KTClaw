@@ -20,7 +20,8 @@ export type ChannelType =
   | 'msteams'
   | 'googlechat'
   | 'mattermost'
-  | 'qqbot';
+  | 'qqbot'
+  | 'wechat';
 
 /**
  * Channel connection status
@@ -123,6 +124,7 @@ export const CHANNEL_ICONS: Record<ChannelType, string> = {
   googlechat: '💭',
   mattermost: '💠',
   qqbot: '🐧',
+  wechat: '💬',
 };
 
 /**
@@ -143,6 +145,7 @@ export const CHANNEL_NAMES: Record<ChannelType, string> = {
   googlechat: 'Google Chat',
   mattermost: 'Mattermost',
   qqbot: 'QQ Bot',
+  wechat: '微信',
 };
 
 /**
@@ -581,6 +584,20 @@ export const CHANNEL_META: Record<ChannelType, ChannelMeta> = {
       'channels:meta.mattermost.instructions.0',
       'channels:meta.mattermost.instructions.1',
       'channels:meta.mattermost.instructions.2',
+    ],
+    isPlugin: true,
+  },
+  wechat: {
+    id: 'wechat',
+    name: '微信',
+    icon: '💬',
+    description: 'channels:meta.wechat.description',
+    connectionType: 'qr',
+    docsUrl: 'channels:meta.wechat.docsUrl',
+    configFields: [],
+    instructions: [
+      'channels:meta.wechat.instructions.0',
+      'channels:meta.wechat.instructions.1',
     ],
     isPlugin: true,
   },

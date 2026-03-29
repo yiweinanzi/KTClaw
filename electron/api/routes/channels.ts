@@ -25,6 +25,7 @@ import {
 } from '../../utils/agent-config';
 import { logger } from '../../utils/logger';
 import { whatsAppLoginManager } from '../../utils/whatsapp-login';
+import { weChatLoginManager } from '../../utils/wechat-login';
 import { createChannelConversationBindingStore } from '../../services/channel-conversation-bindings';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
@@ -185,6 +186,10 @@ function ensureFeishuPluginInstalled(): { installed: boolean; warning?: string }
   );
 }
 
+function ensureWeChatPluginInstalled(): { installed: boolean; warning?: string } {
+  return ensurePluginInstalled('wechat', buildCandidateSources('wechat'), 'WeChat');
+}
+
 function ensureQQBotPluginInstalled(): { installed: boolean; warning?: string } {
   return ensurePluginInstalled('qqbot', buildCandidateSources('qqbot'), 'QQ Bot');
 }
@@ -287,6 +292,7 @@ type WorkbenchConversationMessage = {
 };
 
 const FEISHU_PLUGIN_ROOT = join(homedir(), '.openclaw', 'extensions', 'feishu-openclaw-plugin');
+const WECHAT_PLUGIN_ROOT = join(homedir(), '.openclaw', 'extensions', 'wechat');
 const channelConversationBindings = createChannelConversationBindingStore();
 const TEST_FEISHU_SNAPSHOT_KEY = '__clawxTestFeishuWorkbenchSnapshot';
 
@@ -506,6 +512,11 @@ function fixBareEsmSpecifiers(dir: string): void {
 
 async function importFeishuPluginModule(relativePath: string): Promise<Record<string, unknown>> {
   const fullPath = join(FEISHU_PLUGIN_ROOT, relativePath);
+  return import(pathToFileURL(fullPath).href) as Promise<Record<string, unknown>>;
+}
+
+async function importWeChatPluginModule(relativePath: string): Promise<Record<string, unknown>> {
+  const fullPath = join(WECHAT_PLUGIN_ROOT, relativePath);
   return import(pathToFileURL(fullPath).href) as Promise<Record<string, unknown>>;
 }
 
@@ -1563,6 +1574,56 @@ export async function handleChannelRoutes(
     return true;
   }
 
+  // WeChat media proxy: GET /api/channels/workbench/wechat/media?url=<encoded-url>&accountId=<accountId>
+  // WeChat CDN media is AES-128-ECB encrypted — cannot be directly proxied.
+  // Must call plugin's downloadRemoteImageToTemp to decrypt to a temp file.
+  if (url.pathname === '/api/channels/workbench/wechat/media' && req.method === 'GET') {
+    try {
+      const rawUrl = url.searchParams.get('url')?.trim() || '';
+      const accountId = url.searchParams.get('accountId')?.trim() || 'default';
+      if (!rawUrl) {
+        sendJson(res, 400, { success: false, error: 'url parameter is required' });
+        return true;
+      }
+      let parsedTarget: URL;
+      try {
+        parsedTarget = new URL(rawUrl);
+      } catch {
+        sendJson(res, 400, { success: false, error: 'Invalid URL' });
+        return true;
+      }
+      // SSRF guard — only allow WeChat CDN domains
+      const allowedWeChatSuffixes = ['.qpic.cn', '.weixin.qq.com', '.wx.qq.com'];
+      const hostname = parsedTarget.hostname.toLowerCase();
+      const isAllowed = allowedWeChatSuffixes.some((suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix));
+      if (!isAllowed) {
+        sendJson(res, 400, { success: false, error: 'URL not allowed: only WeChat CDN domains are permitted' });
+        return true;
+      }
+      const pluginModule = await importWeChatPluginModule('index.js').catch(() => null);
+      const downloadFn = pluginModule?.downloadRemoteImageToTemp as
+        | ((url: string, accountId: string) => Promise<{ path: string; mimeType?: string }>) | undefined;
+      if (!downloadFn) {
+        sendJson(res, 503, { success: false, error: 'WeChat media download unavailable' });
+        return true;
+      }
+      const result = await downloadFn(rawUrl, accountId);
+      const fileBuffer = await readFile(result.path);
+      const contentType = result.mimeType || 'application/octet-stream';
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Content-Length': String(fileBuffer.length),
+        'Cache-Control': 'public, max-age=3600',
+      });
+      res.end(fileBuffer);
+    } catch (error) {
+      if (!res.headersSent) {
+        sendJson(res, 500, { success: false, error: String(error) });
+      }
+    }
+    return true;
+  }
+
   if (url.pathname === '/api/channels/configured' && req.method === 'GET') {
     sendJson(res, 200, { success: true, channels: await listConfiguredChannels() });
     return true;
@@ -1603,13 +1664,34 @@ export async function handleChannelRoutes(
     return true;
   }
 
-  if (url.pathname === '/api/channels/whatsapp/cancel' && req.method === 'POST') {
+  if (url.pathname === '/api/channels/wechat/qr' && req.method === 'GET') {
     try {
-      await whatsAppLoginManager.stop();
-      sendJson(res, 200, { success: true });
+      await weChatLoginManager.start();
+      const state = weChatLoginManager.getState();
+      if (!state || !state.qrcode) {
+        sendJson(res, 500, { success: false, error: 'Failed to generate QR code' });
+        return true;
+      }
+      sendJson(res, 200, { success: true, qrcode: state.qrcode, qrcodeUrl: state.qrcodeUrl, status: state.status });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
     }
+    return true;
+  }
+
+  if (url.pathname === '/api/channels/wechat/qr/status' && req.method === 'GET') {
+    const state = weChatLoginManager.getState();
+    if (!state) {
+      sendJson(res, 200, { success: true, status: 'idle' });
+      return true;
+    }
+    sendJson(res, 200, { success: true, status: state.status, accountId: state.accountId, error: state.error });
+    return true;
+  }
+
+  if (url.pathname === '/api/channels/wechat/cancel' && req.method === 'POST') {
+    weChatLoginManager.stop();
+    sendJson(res, 200, { success: true });
     return true;
   }
 
@@ -1645,6 +1727,13 @@ export async function handleChannelRoutes(
         const installResult = await ensureFeishuPluginInstalled();
         if (!installResult.installed) {
           sendJson(res, 500, { success: false, error: installResult.warning || 'Feishu plugin install failed' });
+          return true;
+        }
+      }
+      if (body.channelType === 'wechat') {
+        const installResult = ensureWeChatPluginInstalled();
+        if (!installResult.installed) {
+          sendJson(res, 500, { success: false, error: installResult.warning || 'WeChat plugin install failed' });
           return true;
         }
       }
@@ -1842,6 +1931,23 @@ export async function handleChannelRoutes(
         sendJson(res, 200, { success: true, message: '消息已发送', ...sendResult });
         return true;
       }
+      if (body.conversationId?.startsWith('wechat:')) {
+        // wechat:accountId:chatId
+        const wechatParts = body.conversationId.split(':');
+        const wechatAccountId = wechatParts[1] ?? 'default';
+        const wechatChatId = (wechatParts.slice(2).join(':').trim()) || (wechatParts[1] ?? '');
+        const wechatBinding = await channelConversationBindings.get({
+          channelType: 'wechat', accountId: wechatAccountId, externalConversationId: wechatChatId,
+        }).catch(() => null);
+        const wechatSessionKey = wechatBinding?.sessionKey ?? `agent:main:wechat:group:${wechatChatId}`;
+        await ctx.gatewayManager.rpc('chat.send', {
+          sessionKey: wechatSessionKey,
+          message: body.text.trim(),
+          deliver: false,
+        });
+        sendJson(res, 200, { success: true, message: '消息已发送' });
+        return true;
+      }
       const port = status.port ?? 3000;
       const http = await import('node:http');
       const payload = JSON.stringify({ channelId: resolvedChannelId, text: body.text.trim() });
@@ -1863,6 +1969,40 @@ export async function handleChannelRoutes(
   }
 
   // GET /api/channels/workbench/members?sessionId= — return group member list for @mention popover
+  // GET /api/channels/workbench/wechat/members?sessionId= — WeChat group member list
+  if (url.pathname === '/api/channels/workbench/wechat/members' && req.method === 'GET') {
+    const sessionId = url.searchParams.get('sessionId');
+    if (!sessionId) {
+      sendJson(res, 400, { success: false, error: 'sessionId is required', members: [] });
+      return true;
+    }
+    try {
+      const pluginModule = await importWeChatPluginModule('index.js').catch(() => null);
+      const getGroupMembers = pluginModule?.getGroupMembers as ((params: {
+        cfg: Record<string, unknown>;
+        chatId: string;
+        accountId?: string;
+      }) => Promise<Array<{ openId: string; name: string }>>) | undefined;
+      if (!getGroupMembers) {
+        sendJson(res, 200, { success: true, members: [] });
+        return true;
+      }
+      const parts = sessionId.split(':');
+      const accountId = parts[1] ?? 'default';
+      const chatId = parts[2] ?? sessionId;
+      const config = await readOpenClawConfigJson();
+      if (!config) {
+        sendJson(res, 200, { success: true, members: [] });
+        return true;
+      }
+      const members = await getGroupMembers({ cfg: config, chatId, accountId });
+      sendJson(res, 200, { success: true, members: Array.isArray(members) ? members : [] });
+    } catch (error) {
+      sendJson(res, 200, { success: true, members: [], error: String(error) });
+    }
+    return true;
+  }
+
   if (url.pathname === '/api/channels/workbench/members' && req.method === 'GET') {
     const sessionId = url.searchParams.get('sessionId');
     if (!sessionId) {

@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@tencent-weixin/openclaw-weixin':
+        specifier: 2.1.1
+        version: 2.1.1
       clawhub:
         specifier: ^0.5.0
         version: 0.5.0
@@ -3214,6 +3217,10 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
+
+  '@tencent-weixin/openclaw-weixin@2.1.1':
+    resolution: {integrity: sha512-lSiTI+9eQQuvZXehuteNps3Ia4/ih5zml6QEgICwA2+9xT1sd5z8C+ldgRfrYd8lZTxYWC8ffkLtG0EVo2E7Ag==}
+    engines: {node: '>=22'}
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
@@ -11468,6 +11475,11 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
+
+  '@tencent-weixin/openclaw-weixin@2.1.1':
+    dependencies:
+      qrcode-terminal: 0.12.0
+      zod: 4.3.6
 
   '@testing-library/dom@10.4.1':
     dependencies:

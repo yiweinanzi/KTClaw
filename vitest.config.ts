@@ -12,8 +12,10 @@ const nodeTestInclude = [
   'tests/unit/mcp-*.test.ts',
   'tests/unit/session-*.test.ts',
   'tests/unit/openclaw-*.test.ts',
+  'tests/unit/preinstalled-skills-script.test.ts',
   'tests/unit/ralph-codex-*.test.ts',
   'tests/unit/token-usage*.test.ts',
+  'tests/unit/uv-download-script.test.ts',
 ];
 
 const sharedResolve = {

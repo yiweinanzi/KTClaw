@@ -6,6 +6,7 @@ import { subscribeHostEvent } from '@/lib/host-events';
 import { useChannelsStore } from '@/stores/channels';
 import { useSettingsStore } from '@/stores/settings';
 import { FeishuOnboardingWizard } from '@/components/channels/FeishuOnboardingWizard';
+import { WeChatOnboardingWizard } from '@/components/channels/WeChatOnboardingWizard';
 import MarkdownContent from '@/pages/Chat/MarkdownContent';
 import {
   CHANNEL_ICONS,
@@ -16,7 +17,7 @@ import {
 } from '@/types/channel';
 import type { ChannelSyncConversation, ChannelSyncFileInfo, ChannelSyncMessage, ChannelSyncSession } from '@/types/channel-sync';
 
-const DOMESTIC_CHANNEL_TYPES: ChannelType[] = ['feishu', 'dingtalk', 'wecom', 'qqbot'];
+const DOMESTIC_CHANNEL_TYPES: ChannelType[] = ['feishu', 'dingtalk', 'wecom', 'qqbot', 'wechat'];
 
 const CHANNEL_FAMILY_UI: Record<ChannelType, { railLabel: string; panelTitle: string; icon: string }> = {
   feishu: { railLabel: '飞书接入', panelTitle: '飞书配置详情', icon: '🪶' },
@@ -33,6 +34,7 @@ const CHANNEL_FAMILY_UI: Record<ChannelType, { railLabel: string; panelTitle: st
   msteams: { railLabel: 'Microsoft Teams', panelTitle: 'Microsoft Teams', icon: CHANNEL_ICONS.msteams },
   googlechat: { railLabel: 'Google Chat', panelTitle: 'Google Chat', icon: CHANNEL_ICONS.googlechat },
   mattermost: { railLabel: 'Mattermost', panelTitle: 'Mattermost', icon: CHANNEL_ICONS.mattermost },
+  wechat: { railLabel: '微信接入', panelTitle: '微信配置详情', icon: '💬' },
 };
 
 const SESSION_TYPE_LABEL: Record<'group' | 'private', string> = {
@@ -168,6 +170,7 @@ export function Channels() {
   const [addLoading, setAddLoading] = useState(false);
   const [feishuWizardOpen, setFeishuWizardOpen] = useState(false);
   const [feishuWizardInitialName, setFeishuWizardInitialName] = useState('');
+  const [wechatWizardOpen, setWechatWizardOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<Record<string, ChannelRuntimeCapability>>({});
@@ -419,6 +422,12 @@ export function Channels() {
       setAddName('');
       return;
     }
+    if (addType === 'wechat') {
+      setAddOpen(false);
+      setAddName('');
+      setWechatWizardOpen(true);
+      return;
+    }
     setAddLoading(true);
     try {
       await addChannel({ type: addType, name: addName.trim() });
@@ -450,18 +459,10 @@ export function Channels() {
       const filtered = prev.filter((m) => m.id !== optimisticId);
       return [...filtered, optimisticMsg];
     });
-    // For feishu-default sessions, construct a feishu: prefixed conversationId
-    // so the backend routes it through the Feishu send path.
-    let sendConversationId = convId;
-    if (activeChannel === 'feishu' && !convId.startsWith('feishu:')) {
-      // feishu-default → feishu:default:default (account:chatId)
-      const accountId = convId.replace(/^feishu-/, '') || 'default';
-      sendConversationId = `feishu:${accountId}:default`;
-    }
     try {
       await hostApiFetch(`/api/channels/${encodeURIComponent(selectedChannel.id)}/send`, {
         method: 'POST',
-        body: JSON.stringify({ text, conversationId: sendConversationId, identity: identityMode }),
+        body: JSON.stringify({ text, conversationId: convId, identity: identityMode }),
       });
       // Replace optimistic with polled messages
       await loadConversation(convId);
@@ -1074,6 +1075,20 @@ export function Channels() {
             }
             await fetchChannels();
             setActiveChannel('feishu');
+          }}
+        />
+      )}
+
+      {wechatWizardOpen && (
+        <WeChatOnboardingWizard
+          onClose={() => setWechatWizardOpen(false)}
+          onComplete={async () => {
+            const hasWeChatChannel = channels.some((channel) => channel.type === 'wechat');
+            if (!hasWeChatChannel) {
+              await addChannel({ type: 'wechat', name: CHANNEL_NAMES.wechat });
+            }
+            await fetchChannels();
+            setActiveChannel('wechat');
           }}
         />
       )}
