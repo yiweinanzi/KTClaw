@@ -7,6 +7,7 @@ import {
   Clock,
   Network,
   Pin,
+  Radio,
   Search,
   Trash2,
   Users,
@@ -42,6 +43,11 @@ import { useTranslation } from 'react-i18next';
 import { AccordionGroup } from '@/components/workbench/accordion-group';
 import { usePinnedSessions } from '@/lib/pinned-sessions';
 import { toast } from '@/lib/toast';
+import {
+  buildLeaderOnlyBlockedMessage,
+  isDirectMainSessionBlocked,
+  resolveReportingLeader,
+} from '@/lib/team-chat-access';
 
 type SidebarMetaItem = {
   id: string;
@@ -270,6 +276,9 @@ export function Sidebar() {
         name: agent.name,
         mainSessionKey: agent.mainSessionKey,
         modelDisplay: agent.modelDisplay,
+        chatAccess: agent.chatAccess,
+        reportsTo: agent.reportsTo ?? null,
+        isDefault: agent.isDefault,
       })),
     [agents],
   );
@@ -277,6 +286,7 @@ export function Sidebar() {
   const staticTeams: SidebarMetaItem[] = [
     { id: 'teamOverview', summary: '', meta: '' },
     { id: 'teamMap', summary: '', meta: '' },
+    { id: 'broadcast', summary: '', meta: '' },
   ];
   const staticCronTasks: SidebarMetaItem[] = [
     { id: 'taskBoard', summary: '', meta: '' },
@@ -398,6 +408,10 @@ export function Sidebar() {
                   key={agent.id}
                   type="button"
                   onClick={() => {
+                    if (isDirectMainSessionBlocked(agent, agent.mainSessionKey)) {
+                      toast.error(buildLeaderOnlyBlockedMessage(agent, resolveReportingLeader(agent, agents)));
+                      return;
+                    }
                     switchSession(agent.mainSessionKey);
                     navigate('/');
                   }}
@@ -630,10 +644,12 @@ export function Sidebar() {
             <button
               key={team.id}
               type="button"
-              onClick={() => navigate(team.id === 'teamOverview' ? '/team-overview' : '/team-map')}
+              onClick={() => navigate(team.id === 'teamOverview' ? '/team-overview' : team.id === 'broadcast' ? '/broadcast' : '/team-map')}
               className="flex w-full items-center gap-[10px] rounded-lg px-[10px] py-2 text-[14px] text-[#000000] transition-colors hover:bg-[#e5e5ea] dark:hover:bg-white/[0.04]"
             >
-              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">{team.id === 'teamOverview' ? '👥' : '🗺'}</span>
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center text-[15px] leading-none">
+                {team.id === 'teamOverview' ? '👥' : team.id === 'broadcast' ? <Radio className="h-4 w-4 text-blue-600" /> : '🗺'}
+              </span>
               <span className="min-w-0 flex-1 truncate text-left">{t(`common:sidebar.${team.id}`)}</span>
             </button>
           ))}
@@ -695,6 +711,9 @@ export function Sidebar() {
           agents={searchAgents}
           onSelectSession={switchSession}
           onNavigate={navigate}
+          onBlockedAgent={(agent) => {
+            toast.error(buildLeaderOnlyBlockedMessage(agent, resolveReportingLeader(agent, agents)));
+          }}
         />
       ) : null}
 

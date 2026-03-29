@@ -10,7 +10,7 @@ import { deriveTeamWorkVisibility, type TeamMemberWorkVisibility } from '@/lib/t
 import { buildLeaderProgressBrief } from '@/lib/team-progress-brief';
 import { useTeamRuntime } from '@/hooks/use-team-runtime';
 
-import { Bot, UserCog, Code, Database, Zap, Cpu, MessageSquare, Mail, MessageCircle, Plus, Columns, Network } from 'lucide-react';
+import { Bot, UserCog, Code, Database, Zap, Cpu, MessageSquare, Mail, MessageCircle, Plus, Columns, Network, Radio } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const AVATAR_COLORS = [
@@ -210,15 +210,24 @@ export function TeamOverview() {
                   })}
             </p>
           </div>
-          <motion.button
-            whileHover={{ y: -1, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
-            whileTap={{ y: 1 }}
-            onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            {t('teamOverview.hireButton')}
-          </motion.button>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/broadcast"
+              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+            >
+              <Radio className="h-4 w-4" />
+              {t('teamOverview.broadcastButton', { defaultValue: 'Group Meeting' })}
+            </Link>
+            <motion.button
+              whileHover={{ y: -1, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+              whileTap={{ y: 1 }}
+              onClick={() => setCreateOpen(true)}
+              className="flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              {t('teamOverview.hireButton')}
+            </motion.button>
+          </div>
         </div>
 
         {loading && (

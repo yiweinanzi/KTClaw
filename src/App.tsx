@@ -26,6 +26,7 @@ const Activity = lazy(() => import('./pages/Activity').then((m) => ({ default: m
 const Memory = lazy(() => import('./pages/Memory').then((m) => ({ default: m.Memory })));
 const Costs = lazy(() => import('./pages/Costs').then((m) => ({ default: m.Costs })));
 const Setup = lazy(() => import('./pages/Setup').then((m) => ({ default: m.Setup })));
+const BroadcastChat = lazy(() => import('./pages/BroadcastChat').then((m) => ({ default: m.BroadcastChat })));
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { isBrowserPreviewMode } from './lib/browser-preview';
@@ -200,6 +201,7 @@ function App() {
             <Route path="cron" element={<Cron />} />
             <Route path="team-overview" element={<TeamOverview />} />
             <Route path="team-map" element={<TeamMap />} />
+            <Route path="broadcast" element={<BroadcastChat />} />
             <Route path="kanban" element={<TaskKanban />} />
             <Route path="activity" element={<Activity />} />
             {/* /memory 已迁移至 Settings > 记忆与知识 */}
