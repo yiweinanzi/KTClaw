@@ -764,6 +764,7 @@ async function fetchFeishuWorkbenchSnapshot(): Promise<{
 async function sendFeishuConversationMessage(params: {
   conversationId: string;
   text: string;
+  identity?: 'bot' | 'self';
 }): Promise<{ messageId: string; chatId: string }> {
   const [, accountId, chatId] = params.conversationId.split(':');
   if (!accountId || !chatId) {
@@ -776,6 +777,7 @@ async function sendFeishuConversationMessage(params: {
     to: string;
     text: string;
     accountId?: string;
+    identity?: 'bot' | 'self';
   }) => Promise<{ messageId: string; chatId: string }>) | undefined;
   if (!sendMessageFeishu) {
     throw new Error('Feishu outbound bridge is unavailable');
@@ -791,6 +793,7 @@ async function sendFeishuConversationMessage(params: {
     to: chatId,
     text: params.text,
     accountId,
+    identity: params.identity ?? 'bot',
   });
 }
 
@@ -1304,6 +1307,161 @@ export async function handleChannelRoutes(
     return true;
   }
 
+  // Paginated messages: GET /api/channels/workbench/conversations/:id/messages?cursor=<createdAt>&limit=<n>
+  const conversationMessagesMatch = /^\/api\/channels\/workbench\/conversations\/([^/]+)\/messages$/.exec(url.pathname);
+  if (conversationMessagesMatch && req.method === 'GET') {
+    try {
+      const conversationId = decodeURIComponent(conversationMessagesMatch[1]);
+      const limitParam = parseInt(url.searchParams.get('limit') ?? '50', 10);
+      const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 200) : 50;
+      const cursor = url.searchParams.get('cursor')?.trim() || null;
+
+      // Reuse existing snapshot logic to fetch all messages for the conversation
+      let allMessages: Array<Record<string, unknown>> = [];
+
+      if (conversationId.startsWith('feishu:')) {
+        const liveSnapshot = await fetchFeishuWorkbenchSnapshot().catch(() => ({ sessions: [], messagesByConversationId: new Map() }));
+        const discoveredConversation = liveSnapshot.sessions.find((s) => s.id === conversationId) ?? null;
+        let binding = await resolveFeishuBindingForConversation(
+          conversationId,
+          discoveredConversation?.visibleAgentId,
+          { createIfMissing: false },
+        ).catch(() => null);
+
+        if (!binding && discoveredConversation) {
+          binding = await resolveFeishuBindingForConversation(
+            conversationId,
+            discoveredConversation?.visibleAgentId,
+            { createIfMissing: true },
+          ).catch(() => null);
+        }
+
+        let workbenchMessages: WorkbenchConversationMessage[] = [];
+        if (binding?.sessionKey) {
+          const runtimePayload = await ctx.gatewayManager.rpc<unknown>('chat.history', {
+            sessionKey: binding.sessionKey,
+            limit: 500,
+          }).catch(() => null);
+          workbenchMessages = runtimePayload ? mapRuntimeHistoryToWorkbenchMessages(runtimePayload) : [];
+
+          if (workbenchMessages.length === 0) {
+            const { accountId: _aid, externalConversationId: chatId } = parseFeishuConversationId(conversationId) ?? {};
+            const agentId = binding.agentId || 'main';
+            if (chatId) {
+              const peerKeys = [
+                `agent:${agentId}:feishu:group:${chatId}`,
+                `agent:${agentId}:feishu:direct:${chatId}`,
+              ];
+              for (const peerKey of peerKeys) {
+                const peerPayload = await ctx.gatewayManager.rpc<unknown>('chat.history', { sessionKey: peerKey, limit: 500 }).catch(() => null);
+                if (peerPayload) {
+                  const peerMsgs = mapRuntimeHistoryToWorkbenchMessages(peerPayload);
+                  if (peerMsgs.length > 0) { workbenchMessages = peerMsgs; break; }
+                }
+              }
+            }
+          }
+        }
+
+        if (workbenchMessages.length === 0) {
+          workbenchMessages = liveSnapshot.messagesByConversationId.get(conversationId) ?? [];
+        }
+
+        allMessages = workbenchMessages as unknown as Array<Record<string, unknown>>;
+      }
+
+      // Apply cursor-based pagination (older messages before cursor createdAt)
+      const typed = allMessages as unknown as WorkbenchConversationMessage[];
+      let filtered = typed;
+      if (cursor) {
+        const cursorMs = Date.parse(cursor);
+        if (Number.isFinite(cursorMs)) {
+          filtered = typed.filter((m) => {
+            const ts = Date.parse(m.createdAt ?? '');
+            return Number.isFinite(ts) && ts < cursorMs;
+          });
+        }
+      }
+
+      // Return the most recent `limit` messages from the filtered set
+      const page = filtered.slice(-limit);
+      const hasMore = filtered.length > limit;
+
+      sendJson(res, 200, { success: true, messages: page, hasMore, nextCursor: page[0]?.createdAt ?? null });
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error), messages: [], hasMore: false, nextCursor: null });
+    }
+    return true;
+  }
+
+  // Media proxy: GET /api/channels/workbench/media?url=<encoded-url>
+  // SSRF guard: only .feishu.cn and .larksuite.com origins are allowed.
+  if (url.pathname === '/api/channels/workbench/media' && req.method === 'GET') {
+    try {
+      const rawUrl = url.searchParams.get('url')?.trim() || '';
+      if (!rawUrl) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'url parameter is required' }));
+        return true;
+      }
+
+      let parsedTarget: URL;
+      try {
+        parsedTarget = new URL(rawUrl);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Invalid URL' }));
+        return true;
+      }
+
+      // SSRF guard — only allow Feishu / Lark CDN domains
+      const allowedSuffixes = ['.feishu.cn', '.larksuite.com'];
+      const hostname = parsedTarget.hostname.toLowerCase();
+      const isAllowed = allowedSuffixes.some((suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix));
+      if (!isAllowed) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'URL origin not allowed' }));
+        return true;
+      }
+
+      // Only allow https
+      if (parsedTarget.protocol !== 'https:') {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: 'Only HTTPS URLs are allowed' }));
+        return true;
+      }
+
+      const { net } = await import('electron');
+      const upstream = net.fetch(rawUrl);
+      const upstreamRes = await upstream;
+
+      if (!upstreamRes.ok) {
+        res.writeHead(upstreamRes.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: `Upstream error: ${upstreamRes.status}` }));
+        return true;
+      }
+
+      const contentType = upstreamRes.headers.get('content-type') ?? 'application/octet-stream';
+      const contentLength = upstreamRes.headers.get('content-length');
+      const responseHeaders: Record<string, string> = {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=3600',
+        'X-Content-Type-Options': 'nosniff',
+      };
+      if (contentLength) responseHeaders['Content-Length'] = contentLength;
+
+      res.writeHead(200, responseHeaders);
+      const buffer = await upstreamRes.arrayBuffer();
+      res.end(Buffer.from(buffer));
+    } catch (error) {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: String(error) }));
+      }
+    }
+    return true;
+  }
+
   if (url.pathname === '/api/channels/configured' && req.method === 'GET') {
     sendJson(res, 200, { success: true, channels: await listConfiguredChannels() });
     return true;
@@ -1508,11 +1666,13 @@ export async function handleChannelRoutes(
   if (sendMatch && req.method === 'POST') {
     const channelId = decodeURIComponent(sendMatch[1]);
     try {
-      const body = await parseJsonBody<{ text: string; conversationId?: string }>(req);
+      const body = await parseJsonBody<{ text: string; conversationId?: string; identity?: 'bot' | 'self' }>(req);
       if (!body.text?.trim()) {
         sendJson(res, 400, { success: false, error: 'text is required' });
         return true;
       }
+      // identity defaults to 'bot'; 'self' routes to user-identity send when available
+      const sendIdentity: 'bot' | 'self' = body.identity === 'self' ? 'self' : 'bot';
       const status = ctx.gatewayManager.getStatus();
       if (status.state !== 'running') {
         sendJson(res, 503, { success: false, error: 'Gateway is not running' });
@@ -1556,6 +1716,7 @@ export async function handleChannelRoutes(
         const sendResult = await sendFeishuConversationMessage({
           conversationId: body.conversationId,
           text: body.text.trim(),
+          identity: sendIdentity,
         });
         sendJson(res, 200, { success: true, message: '消息已发送', ...sendResult });
         return true;
@@ -1576,6 +1737,45 @@ export async function handleChannelRoutes(
       sendJson(res, 200, { success: true, message: '消息已发送' });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
+    }
+    return true;
+  }
+
+  // GET /api/channels/workbench/members?sessionId= — return group member list for @mention popover
+  if (url.pathname === '/api/channels/workbench/members' && req.method === 'GET') {
+    const sessionId = url.searchParams.get('sessionId');
+    if (!sessionId) {
+      sendJson(res, 400, { success: false, error: 'sessionId is required', members: [] });
+      return true;
+    }
+    try {
+      const pluginModule = await importFeishuPluginModule('index.js').catch(() => null);
+      const getGroupMembers = pluginModule?.getGroupMembers as ((params: {
+        cfg: Record<string, unknown>;
+        chatId: string;
+        accountId?: string;
+      }) => Promise<Array<{ openId: string; name: string }>>) | undefined;
+
+      if (!getGroupMembers) {
+        // Plugin doesn't export getGroupMembers — return empty list gracefully
+        sendJson(res, 200, { success: true, members: [] });
+        return true;
+      }
+
+      // sessionId format: feishu:<accountId>:<chatId>
+      const parts = sessionId.split(':');
+      const accountId = parts[1] ?? 'default';
+      const chatId = parts[2] ?? sessionId;
+      const config = await readOpenClawConfigJson();
+      if (!config) {
+        sendJson(res, 200, { success: true, members: [] });
+        return true;
+      }
+
+      const members = await getGroupMembers({ cfg: config, chatId, accountId });
+      sendJson(res, 200, { success: true, members: Array.isArray(members) ? members : [] });
+    } catch (error) {
+      sendJson(res, 200, { success: true, members: [], error: String(error) });
     }
     return true;
   }
