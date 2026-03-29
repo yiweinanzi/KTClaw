@@ -109,7 +109,14 @@ function App() {
   const browserPreviewMode = isBrowserPreviewMode();
 
   useEffect(() => {
-    initSettings();
+    const initApp = async () => {
+      try {
+        await initSettings();
+      } catch (error) {
+        console.error('Failed to initialize settings:', error);
+      }
+    };
+    initApp();
   }, [initSettings]);
 
   // Sync i18n language with persisted settings on mount
@@ -121,7 +128,14 @@ function App() {
 
   // Initialize Gateway connection on mount
   useEffect(() => {
-    initGateway();
+    const initGatewayConnection = async () => {
+      try {
+        await initGateway();
+      } catch (error) {
+        console.error('Failed to initialize gateway:', error);
+      }
+    };
+    initGatewayConnection();
   }, [initGateway]);
 
   // Redirect to setup wizard if not complete

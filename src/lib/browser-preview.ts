@@ -39,6 +39,11 @@ export function ensureBrowserPreviewElectronShim(): void {
 
 export function isBrowserPreviewMode(): boolean {
   if (typeof window === 'undefined') return false;
-  const electron = window.electron as ElectronShim | undefined;
-  return electron?.__ktclawBrowserPreviewShim === true;
+  try {
+    const electron = window.electron as ElectronShim | undefined;
+    return electron?.__ktclawBrowserPreviewShim === true;
+  } catch (error) {
+    console.warn('Error checking browser preview mode:', error);
+    return false;
+  }
 }

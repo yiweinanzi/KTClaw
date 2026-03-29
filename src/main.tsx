@@ -9,7 +9,11 @@ import './i18n';
 import './styles/globals.css';
 import { initializeDefaultTransports } from './lib/api-client';
 
-initializeDefaultTransports();
+try {
+  initializeDefaultTransports();
+} catch (error) {
+  console.error('Failed to initialize default transports:', error);
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

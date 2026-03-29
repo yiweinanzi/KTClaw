@@ -129,12 +129,20 @@ function createWindow(): BrowserWindow {
     minWidth: 960,
     minHeight: 600,
     icon: getAppIcon(),
+    backgroundColor: '#ffffff',
+    show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false,
       webviewTag: true, // Enable <webview> for embedding OpenClaw Control UI
+      // Additional Linux-specific rendering fixes
+      ...(process.platform === 'linux' && {
+        enableRemoteModule: false,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
+      }),
     },
     // On macOS: hiddenInset (traffic-light buttons inset into the title bar)
     // On Windows: hidden (custom title bar drawn by the renderer)
@@ -144,7 +152,6 @@ function createWindow(): BrowserWindow {
     titleBarStyle: isMac ? 'hiddenInset' : useCustomTitleBar ? 'hidden' : 'default',
     trafficLightPosition: isMac ? { x: 16, y: 16 } : undefined,
     frame: isMac || !useCustomTitleBar,
-    show: false,
   });
 
   // Handle external links
@@ -153,12 +160,25 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' };
   });
 
+  // Debug: Log rendering errors (especially for Linux)
+  win.webContents.on('render-process-gone', (event, details) => {
+    logger.error('Render process gone:', details);
+  });
+
+  win.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    logger.error('Failed to load:', errorCode, errorDescription, validatedURL);
+  });
+
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
     win.webContents.openDevTools();
   } else {
     win.loadFile(join(__dirname, '../../dist/index.html'));
+    // Auto-open DevTools on Linux for debugging white screen issues
+    if (process.platform === 'linux' && process.env.CLAWX_DEBUG !== '0') {
+      win.webContents.openDevTools();
+    }
   }
 
   return win;
