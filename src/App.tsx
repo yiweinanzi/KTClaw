@@ -125,11 +125,12 @@ function App() {
   }, [initGateway]);
 
   // Redirect to setup wizard if not complete
-  useEffect(() => {
-    if (!browserPreviewMode && !setupComplete && !location.pathname.startsWith('/setup')) {
-      navigate('/setup');
-    }
-  }, [browserPreviewMode, setupComplete, location.pathname, navigate]);
+  // DISABLED: Skip setup wizard to go directly to main app
+  // useEffect(() => {
+  //   if (!browserPreviewMode && !setupComplete && !location.pathname.startsWith('/setup')) {
+  //     navigate('/setup');
+  //   }
+  // }, [browserPreviewMode, setupComplete, location.pathname, navigate]);
 
   // Listen for navigation events from main process
   useEffect(() => {

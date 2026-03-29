@@ -239,6 +239,7 @@
         "dingtalk": "钉钉接入",
         "wecom": "企微接入",
         "qqbot": "QQ接入",
+        "wechat": "微信接入",
         "testSent": "测试消息已发送",
         "messageSent": "已发送",
         "selectChannel": "选择左侧频道查看详情",

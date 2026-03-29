@@ -239,6 +239,7 @@
         "dingtalk": "DingTalk",
         "wecom": "WeCom",
         "qqbot": "QQ Bot",
+        "wechat": "WeChat",
         "testSent": "Test message sent",
         "messageSent": "Sent",
         "selectChannel": "Select a channel on the left to view details",

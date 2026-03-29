@@ -60,6 +60,7 @@ const DOMESTIC_CHANNEL_ENTRIES: Array<{ type: ChannelType; labelKey: string }> =
   { type: 'dingtalk', labelKey: 'dingtalk' },
   { type: 'wecom', labelKey: 'wecom' },
   { type: 'qqbot', labelKey: 'qqbot' },
+  { type: 'wechat', labelKey: 'wechat' },
 ];
 
 const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;

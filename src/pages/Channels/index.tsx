@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { hostApiFetch } from '@/lib/host-api';
@@ -154,6 +155,7 @@ function MessageBubble({
 }
 
 export function Channels() {
+  const location = useLocation();
   const { t } = useTranslation(['channels', 'common']);
   const requestedChannel = (() => {
     const params = new URLSearchParams(window.location.search);
@@ -211,6 +213,18 @@ export function Channels() {
   useEffect(() => {
     void fetchChannels();
   }, [fetchChannels]);
+
+  // Watch for URL changes and update activeChannel
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const requested = params.get('channel');
+    const newChannel = requested && DOMESTIC_CHANNEL_TYPES.includes(requested as ChannelType)
+      ? requested as ChannelType
+      : 'feishu';
+    if (newChannel !== activeChannel) {
+      setActiveChannel(newChannel);
+    }
+  }, [location.search, activeChannel]);
 
   // Fetch feishu user auth status to decide whether to show identity toggle
   useEffect(() => {
