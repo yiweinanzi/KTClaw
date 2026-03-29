@@ -162,8 +162,60 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm run package:linux:ci
 
-      # Upload artifacts
-      - name: Upload ${{ matrix.name }} Installers (x64 / x86_64)
+      # ── Upload artifacts ────────────────────────────────────────────
+      # Linux: split by format × arch so each file is downloadable individually.
+      - name: Upload Linux deb (x64 / amd64)
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTClaw-linux-deb-x64
+          path: |
+            release/*amd64*.deb
+            release/*x86_64*.deb
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Linux deb (arm64)
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTClaw-linux-deb-arm64
+          path: release/*arm64*.deb
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Linux AppImage (x64)
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTClaw-linux-AppImage-x64
+          path: |
+            release/*x86_64*.AppImage
+            release/*amd64*.AppImage
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Linux AppImage (arm64)
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTClaw-linux-AppImage-arm64
+          path: release/*arm64*.AppImage
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload Linux RPM (x64)
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: KTClaw-linux-rpm-x64
+          path: release/*x86_64*.rpm
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Windows / macOS: keep original combined uploads
+      - name: Upload ${{ matrix.name }} Installers (x64)
+        if: matrix.platform != 'linux'
         uses: actions/upload-artifact@v4
         with:
           name: KTClaw-${{ matrix.platform }}-x64
@@ -171,20 +223,14 @@ jobs:
             release/*x64*.dmg
             release/*x64*.zip
             release/*x64*.exe
-            release/*x86_64*.AppImage
-            release/*amd64*.AppImage
-            release/*x86_64*.deb
-            release/*amd64*.deb
-            release/*x86_64*.rpm
-            release/*amd64*.rpm
             release/*x64*.blockmap
-            release/*x86_64*.blockmap
             release/*.yml
             !release/builder-debug.yml
           if-no-files-found: warn
           retention-days: 14
 
       - name: Upload ${{ matrix.name }} Installers (arm64)
+        if: matrix.platform != 'linux'
         uses: actions/upload-artifact@v4
         with:
           name: KTClaw-${{ matrix.platform }}-arm64
@@ -192,9 +238,6 @@ jobs:
             release/*arm64*.dmg
             release/*arm64*.zip
             release/*arm64*.exe
-            release/*arm64*.AppImage
-            release/*arm64*.deb
-            release/*arm64*.rpm
             release/*arm64*.blockmap
           if-no-files-found: warn
           retention-days: 14
