@@ -4,6 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { hostApiFetch } from '@/lib/host-api';
 import { invokeIpc } from '@/lib/api-client';
+import { toast } from '@/lib/toast';
+
+const { mockToastError, mockToastSuccess, mockToastInfo } = vi.hoisted(() => ({
+  mockToastError: vi.fn(),
+  mockToastSuccess: vi.fn(),
+  mockToastInfo: vi.fn(),
+}));
 
 const mockSetSidebarCollapsed = vi.fn();
 const mockSwitchSession = vi.fn();
@@ -14,7 +21,6 @@ const mockFetchAgents = vi.fn(async () => {});
 const mockFetchChannels = vi.fn(async () => {});
 const mockMarkAllRead = vi.fn();
 const mockDismiss = vi.fn();
-
 const mockSettingsState = {
   sidebarCollapsed: false,
   setSidebarCollapsed: mockSetSidebarCollapsed,
@@ -40,7 +46,7 @@ const mockGatewayState = {
 };
 
 const mockAgentsState = {
-  agents: [{ id: 'main', name: 'KaiTianClaw', mainSessionKey: 'agent:main:main', isDefault: true }],
+  agents: [{ id: 'main', name: 'KaiTianClaw', mainSessionKey: 'agent:main:main', isDefault: true, chatAccess: 'direct', reportsTo: null }],
   fetchAgents: mockFetchAgents,
 };
 
@@ -88,6 +94,14 @@ vi.mock('@/lib/host-api', () => ({
 
 vi.mock('@/lib/api-client', () => ({
   invokeIpc: vi.fn(),
+}));
+
+vi.mock('@/lib/toast', () => ({
+  toast: {
+    error: mockToastError,
+    success: mockToastSuccess,
+    info: mockToastInfo,
+  },
 }));
 
 const mockTranslations: Record<string, string> = {
@@ -288,5 +302,24 @@ describe('workbench sidebar', () => {
         method: 'POST',
       }),
     );
+  });
+
+  it('blocks opening a leader-only worker from the agent list', () => {
+    mockChatState.currentSessionKey = 'agent:main:main';
+    mockAgentsState.agents = [
+      { id: 'main', name: 'KaiTianClaw', mainSessionKey: 'agent:main:main', isDefault: true, chatAccess: 'direct', reportsTo: null },
+      { id: 'researcher', name: 'Researcher', mainSessionKey: 'agent:researcher:main', isDefault: false, chatAccess: 'leader_only', reportsTo: 'main' },
+    ];
+
+    render(
+      <MemoryRouter>
+        <Sidebar />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByText('Researcher'));
+
+    expect(mockSwitchSession).not.toHaveBeenCalledWith('agent:researcher:main');
+    expect(toast.error).toHaveBeenCalledTimes(1);
   });
 });

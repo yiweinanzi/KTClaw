@@ -27,6 +27,11 @@ import { useProviderStore } from '@/stores/providers';
 import type { AgentSummary } from '@/types/agent';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import {
+  buildLeaderOnlyBlockedMessage,
+  isLeaderOnlyAgent,
+  resolveReportingLeader,
+} from '@/lib/team-chat-access';
 import { FolderSelectorPopover } from './FolderSelectorPopover';
 import { getChatInputSlashMatches, isSlashCommandPrefixInput, parseChatInputSlashCommand } from './slash-commands';
 
@@ -162,6 +167,14 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
     () => agents.find((agent) => agent.id === targetAgentId) ?? null,
     [agents, targetAgentId],
   );
+  const showLeaderOnlyBlockedMessage = useCallback((agentId: string) => {
+    const blockedAgent = agents.find((agent) => agent.id === agentId);
+    if (!blockedAgent) {
+      toast.error('No matching agent found.');
+      return;
+    }
+    toast.error(buildLeaderOnlyBlockedMessage(blockedAgent, resolveReportingLeader(blockedAgent, agents)));
+  }, [agents]);
   const showAgentPicker = mentionableAgents.length > 0;
   const slashMatches = useMemo(() => getChatInputSlashMatches(composerDraft), [composerDraft]);
   const showSlashMenu = useMemo(
@@ -415,6 +428,13 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
           toast.error(`No matching agent found for "${query}".`);
           return true;
         }
+        if (isLeaderOnlyAgent(match)) {
+          showLeaderOnlyBlockedMessage(match.id);
+          setTargetAgentId(null);
+          setPickerOpen(false);
+          setComposerDraft('');
+          return true;
+        }
 
         setTargetAgentId(match.id);
         setPickerOpen(false);
@@ -517,7 +537,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
       default:
         return false;
     }
-  }, [agents, canStop, currentAgentId, currentSessionKey, messages, navigate, newSession, onStop, setComposerDraft]);
+  }, [agents, canStop, currentAgentId, currentSessionKey, messages, navigate, newSession, onStop, setComposerDraft, showLeaderOnlyBlockedMessage]);
 
   const handleSend = useCallback(() => {
     if (executeLocalSlashCommand(composerDraft)) return;
@@ -792,6 +812,14 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
                     targetAgentId={targetAgentId}
                     title={t('composer.agentPickerTitle', { currentAgent: currentAgentName })}
                     onSelect={(id) => {
+                      const nextAgent = agents.find((agent) => agent.id === id);
+                      if (isLeaderOnlyAgent(nextAgent)) {
+                        showLeaderOnlyBlockedMessage(id);
+                        setTargetAgentId(null);
+                        setPickerOpen(false);
+                        textareaRef.current?.focus();
+                        return;
+                      }
                       setTargetAgentId(id);
                       setPickerOpen(false);
                       textareaRef.current?.focus();

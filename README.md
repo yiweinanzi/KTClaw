@@ -118,7 +118,11 @@ Agent detail pages now expose backend-owned cron relations and deep-link directl
 ### 👥 Team Control Plane (MVP)
 KTClaw now treats team pages as role-aware control surfaces instead of static member lists.
 In `Agent Detail`, each member can be configured with `teamRole` (`leader` or `worker`), `chatAccess` (`direct` or `leader_only`), and `responsibility`.
+`leader_only` is now enforced for normal direct-chat entry paths in the workbench: users are expected to route requests through the reporting leader instead of opening a direct worker chat.
+Team pages also surface user-facing channel ownership and lightweight work visibility derived from the existing kanban/runtime model, so you can see who owns entry points and which members are blocked, waiting, or actively executing work.
 `Team Overview` and `Team Map` now surface these semantics alongside runtime activity cues, so you can quickly identify who coordinates, who executes, and which members should be reached through leaders.
+Phase 4 extends that control plane with a leader-first progress briefing in Team Overview, richer collaboration-aware Team Map nodes and drawers, and a lightweight Team Brief panel in private leader chat for quick navigation back into member detail and Kanban.
+Phase 5 then refines those surfaces into a warmer leader command center: Team Overview prioritizes progress, active work, risks, and next-step guidance, while Team Map becomes a denser operations topology with a persistent task-focused rail.
 
 ### 🧩 Extensible Skill System
 Extend your AI agents with pre-built skills. Browse, install, and manage skills through the integrated skill panel—no package managers required.

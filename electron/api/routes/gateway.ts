@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { PORTS } from '../../utils/config';
+import { listAgentsSnapshot } from '../../utils/agent-config';
 import { buildOpenClawControlUiUrl } from '../../utils/openclaw-control-ui';
 import { isOutboundMediaPath } from '../../utils/outbound-media';
 import type { HostApiContext } from '../context';
@@ -112,6 +113,18 @@ export async function handleGatewayRoutes(
       const message = fileReferences.length > 0
         ? [body.message, ...fileReferences].filter(Boolean).join('\n')
         : body.message;
+      const snapshot = await listAgentsSnapshot().catch(() => null);
+      const blockedAgent = snapshot?.agents.find((agent) => (
+        agent.chatAccess === 'leader_only' && agent.mainSessionKey === body.sessionKey
+      ));
+      if (blockedAgent) {
+        sendJson(res, 403, {
+          success: false,
+          error: 'LEADER_ONLY_DIRECT_CHAT_BLOCKED',
+          sessionKey: body.sessionKey,
+        });
+        return true;
+      }
       const normalizedCwd = typeof body.cwd === 'string' ? body.cwd.trim() : '';
       const rpcParams: Record<string, unknown> = {
         sessionKey: body.sessionKey,

@@ -4,7 +4,8 @@
  * via gateway:rpc IPC. The page now acts as the main KaiTianClaw
  * workbench surface while retaining the existing chat runtime wiring.
  */
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/stores/settings';
 import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import { useChatStore, type RawMessage } from '@/stores/chat';
@@ -23,9 +24,16 @@ import { cn } from '@/lib/utils';
 import { useStickToBottomInstant } from '@/hooks/use-stick-to-bottom-instant';
 import { useMinLoading } from '@/hooks/use-min-loading';
 import { useNotificationsStore } from '@/stores/notifications';
+import {
+  buildLeaderOnlyBlockedMessage,
+  isDirectMainSessionBlocked,
+  resolveReportingLeader,
+} from '@/lib/team-chat-access';
+import { buildLeaderProgressBrief } from '@/lib/team-progress-brief';
 
 export function Chat() {
   const { t } = useTranslation(['chat', 'common']);
+  const navigate = useNavigate();
   const gatewayStatus = useGatewayStore((s) => s.status);
   const isGatewayRunning = gatewayStatus.state === 'running';
 
@@ -43,18 +51,22 @@ export function Chat() {
   const pendingFinal = useChatStore((s) => s.pendingFinal);
   const isRunActive = sending;
   const currentAgentId = useChatStore((s) => s.currentAgentId);
+  const sessionLastActivity = useChatStore((s) => s.sessionLastActivity);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const abortRun = useChatStore((s) => s.abortRun);
   const clearError = useChatStore((s) => s.clearError);
   const cleanupEmptySession = useChatStore((s) => s.cleanupEmptySession);
 
   const agents = useAgentsStore((s) => s.agents);
+  const configuredChannelTypes = useAgentsStore((s) => s.configuredChannelTypes);
+  const channelOwners = useAgentsStore((s) => s.channelOwners);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
 
   const minLoading = useMinLoading(loading && messages.length > 0);
   const { contentRef, scrollRef } = useStickToBottomInstant(currentSessionKey);
   const [streamingTimestamp, setStreamingTimestamp] = useState(0);
   const [agentPickerOpen, setAgentPickerOpen] = useState(false);
+  const [teamBriefOpen, setTeamBriefOpen] = useState(false);
   const agentPickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -70,6 +82,17 @@ export function Chat() {
 
   const switchSession = useChatStore((s) => s.switchSession);
   const currentAgentName = agents.find((agent) => agent.id === currentAgentId)?.name ?? 'KTClaw';
+  const currentAgent = agents.find((agent) => agent.id === currentAgentId) ?? null;
+  const teamBrief = useMemo(
+    () => buildLeaderProgressBrief({
+      leaderId: currentAgentId ?? 'main',
+      agents,
+      sessionLastActivity,
+      configuredChannelTypes,
+      channelOwners,
+    }),
+    [agents, channelOwners, configuredChannelTypes, currentAgentId, sessionLastActivity],
+  );
 
   useEffect(() => {
     return () => {
@@ -185,6 +208,11 @@ export function Chat() {
                     key={agent.id}
                     type="button"
                     onClick={() => {
+                      if (isDirectMainSessionBlocked(agent, agent.mainSessionKey)) {
+                        toast.error(buildLeaderOnlyBlockedMessage(agent, resolveReportingLeader(agent, agents)));
+                        setAgentPickerOpen(false);
+                        return;
+                      }
                       switchSession(agent.mainSessionKey);
                       setAgentPickerOpen(false);
                     }}
@@ -249,6 +277,15 @@ export function Chat() {
             >
               🤖 {t('common:workbench.agent')}
             </button>
+            {(currentAgent?.teamRole === 'leader' || currentAgent?.isDefault) && (
+              <button
+                type="button"
+                onClick={() => setTeamBriefOpen((open) => !open)}
+                className="rounded-lg border border-black/10 bg-white px-3 py-[5px] text-[13px] font-medium text-black shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-[1px] hover:bg-[#f9f9f9] hover:border-black/15 hover:shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
+              >
+                {t('common:teamBrief.open')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -339,6 +376,90 @@ export function Chat() {
             <LoadingSpinner size="md" />
           </div>
         </div>
+      )}
+      {teamBriefOpen && (
+        <aside className="absolute right-0 top-0 z-40 flex h-full w-[340px] flex-col overflow-y-auto border-l border-black/[0.06] bg-white">
+          <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-black/[0.06] px-5">
+            <span className="text-[14px] font-semibold text-[#000000]">{t('common:teamBrief.title')}</span>
+            <button
+              type="button"
+              aria-label="close-team-brief"
+              onClick={() => setTeamBriefOpen(false)}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-[16px] text-[#8e8e93] transition-colors hover:bg-[#f2f2f7]"
+            >
+              ×
+            </button>
+          </header>
+          <div className="space-y-4 px-5 py-4">
+            <div className="rounded-2xl border border-black/[0.06] bg-[#fffaf3] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#b45309]">{t('common:teamBrief.summary')}</p>
+              <p className="mt-2 text-[13px] leading-6 text-[#4b5563]">{teamBrief.summaryText}</p>
+              <p className="mt-3 rounded-xl bg-white px-3 py-2 text-[12px] text-[#334155]">{teamBrief.dashboard.primaryNextAction}</p>
+            </div>
+            <div className="grid gap-3">
+              <div className="rounded-2xl border border-black/[0.06] bg-[#f8fafc] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">{t('common:teamBrief.activeWork')}</p>
+                <div className="mt-2 space-y-2">
+                  {teamBrief.dashboard.activeWorkItems.length > 0 ? teamBrief.dashboard.activeWorkItems.slice(0, 3).map((item) => (
+                    <p key={`${item.memberId}-${item.title}`} className="rounded-xl bg-white px-3 py-2 text-[12px] text-[#111827]">
+                      {item.memberName}: {item.title}
+                    </p>
+                  )) : (
+                    <p className="rounded-xl bg-white px-3 py-2 text-[12px] text-[#64748b]">{t('common:teamBrief.noActiveWork')}</p>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-black/[0.06] bg-[#f8fafc] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">{t('common:teamBrief.blockers')}</p>
+                <div className="mt-2 space-y-2">
+                  {teamBrief.blockedItems.length > 0 ? teamBrief.blockedItems.map((item) => (
+                    <p key={item} className="rounded-xl bg-white px-3 py-2 text-[12px] text-[#111827]">{item}</p>
+                  )) : (
+                    <p className="rounded-xl bg-white px-3 py-2 text-[12px] text-[#64748b]">{t('common:teamBrief.noBlockers')}</p>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-black/[0.06] bg-[#f8fafc] p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#64748b]">{t('common:teamBrief.nextSteps')}</p>
+                <div className="mt-2 space-y-2">
+                  {teamBrief.nextSteps.length > 0 ? teamBrief.nextSteps.slice(0, 3).map((item) => (
+                    <p key={item} className="rounded-xl bg-white px-3 py-2 text-[12px] text-[#111827]">{item}</p>
+                  )) : (
+                    <p className="rounded-xl bg-white px-3 py-2 text-[12px] text-[#64748b]">{t('common:teamBrief.noNextSteps')}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            {teamBrief.members.map((member) => (
+              <div key={member.id} className="rounded-xl border border-black/[0.06] bg-[#fafafc] p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[13px] font-medium text-[#111827]">{member.name}</p>
+                  <span className="text-[11px] text-[#8e8e93]">{t(`common:teamMap.status.${member.statusKey}`)}</span>
+                </div>
+                <p className="mt-2 text-[11px] text-[#8e8e93]">{member.etaText}</p>
+                {member.currentWorkTitles.map((title) => (
+                  <p key={title} className="mt-2 text-[12px] text-[#374151]">{title}</p>
+                ))}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/agents/${encodeURIComponent(member.id)}`)}
+                    className="rounded-lg border border-black/10 bg-white px-2.5 py-1 text-[11px] text-[#374151]"
+                  >
+                    {t('common:teamBrief.openMember')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/kanban')}
+                    className="rounded-lg border border-black/10 bg-white px-2.5 py-1 text-[11px] text-[#374151]"
+                  >
+                    {t('common:teamBrief.openKanban')}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
       )}
     </div>
   );

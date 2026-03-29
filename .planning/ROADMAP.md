@@ -84,7 +84,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -95,7 +95,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8
 | 5. Refine leader control plane UI to match product intent | 3/3 | Complete | 2026-03-28 |
 | 6. Polish team pages to SaaS command-center visual standard | 3/3 | Complete | 2026-03-28 |
 | 7. Wire team runtime signals to frontend | 3/3 | Complete   | 2026-03-29 |
-| 8. Team Grouping, Broadcast Chat, and Workspace Edit | 2/3 | In Progress|  |
+| 8. Team Grouping, Broadcast Chat, and Workspace Edit | 3/3 | Complete | 2026-03-29 |
+| 9. Channel Feishu Sync Workbench | 0/? | Not started | — |
 
 ### Phase 7: Wire team runtime signals to frontend
 
@@ -206,4 +207,32 @@ Plans:
 Plans:
 - [x] 08-01: TeamOverview Leader-grouped layout
 - [x] 08-02: KTClaw internal broadcast chat view
-- [ ] 08-03: Workspace write endpoint + Save UI, Skills read endpoint + Skills tab
+- [x] 08-03: Workspace write endpoint + Save UI, Skills read endpoint + Skills tab
+
+### Phase 9: Channel Feishu Sync Workbench
+
+**Goal:** Upgrade the Channel page into a full bidirectional sync workbench for Feishu. Users can view all group/private conversations the bot participates in (full message history, paginated), send messages as bot or as themselves, and see messages role-colored by self/bot/others. Layout is adaptive (3-col wide, 2-col narrow). Config flow is wizard-based; token expiry degrades gracefully to bot-only mode.
+**Depends on:** Phase 8
+**Requirements**: [CHANNEL-SYNC-01]
+**UI hint**: yes
+**Canonical refs**:
+- `OpenClaw 飞书官方插件使用指南（公开版）.md` — Feishu bot setup, plugin install, auth flow
+- `src/pages/Channels/index.tsx` — existing channel page with sync session/conversation/message types
+- `src/types/channel-sync.ts` — ChannelSyncSession, ChannelSyncConversation, ChannelSyncMessage
+- `.planning/phases/09-channel-feishu-sync-workbench/09-CONTEXT.md` — locked decisions
+**Success Criteria** (what must be TRUE):
+  1. Channel page shows all Feishu conversations (groups the bot is in + private chats) with full message history
+  2. Messages are role-colored: self (right-aligned blue), bot (left-aligned brand), others (left-aligned grey)
+  3. User can send as bot or as self via a per-session toggle next to the composer
+  4. Scrolling to top triggers paginated history load (infinite scroll upward)
+  5. Images show inline with lightbox on click; files show info card + download button
+  6. Search filters sessions by title first, then message content
+  7. Bot-removed sessions are marked invalid but preserved; token expiry degrades to bot-only
+  8. Layout is adaptive: 3-col on wide screens, 2-col (merged rail+session list) on narrow
+**Plans:** 4 plans written, ready for execution
+
+Plans:
+- [ ] 09-01: Message display layer — role-colored messages, image lightbox, file cards, paginated history
+- [ ] 09-02: Composer upgrade — identity toggle (bot/self), send failure handling, @mention picker
+- [ ] 09-03: Session list upgrade — adaptive layout, search (title + content), invalid session state
+- [ ] 09-04: Backend sync endpoints — paginated message fetch, send-as-user, session state tracking

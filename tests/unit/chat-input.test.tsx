@@ -226,6 +226,7 @@ describe('ChatInput agent targeting', () => {
         agentDir: '~/.openclaw/agents/research/agent',
         mainSessionKey: 'agent:research:desk',
         channelTypes: [],
+        chatAccess: 'direct',
       },
     ];
 
@@ -353,6 +354,7 @@ describe('ChatInput agent targeting', () => {
         agentDir: '~/.openclaw/agents/research/agent',
         mainSessionKey: 'agent:research:desk',
         channelTypes: [],
+        chatAccess: 'direct',
       },
     ];
 
@@ -368,6 +370,85 @@ describe('ChatInput agent targeting', () => {
     fireEvent.click(screen.getByTitle('Send'));
 
     expect(onSend).toHaveBeenCalledWith('Route this', undefined, 'research', null);
+  });
+
+  it('blocks selecting a leader-only worker as the next target', () => {
+    const onSend = vi.fn();
+    agentsState.agents = [
+      {
+        id: 'main',
+        name: 'Main',
+        isDefault: true,
+        modelDisplay: 'MiniMax',
+        inheritedModel: true,
+        workspace: '~/.openclaw/workspace',
+        agentDir: '~/.openclaw/agents/main/agent',
+        mainSessionKey: 'agent:main:main',
+        channelTypes: [],
+        chatAccess: 'direct',
+      },
+      {
+        id: 'research',
+        name: 'Research',
+        isDefault: false,
+        modelDisplay: 'Claude',
+        inheritedModel: false,
+        workspace: '~/.openclaw/workspace-research',
+        agentDir: '~/.openclaw/agents/research/agent',
+        mainSessionKey: 'agent:research:desk',
+        channelTypes: [],
+        chatAccess: 'leader_only',
+        reportsTo: 'main',
+      },
+    ];
+
+    render(<ChatInput onSend={onSend} />);
+
+    fireEvent.click(screen.getByTitle('Choose agent'));
+    fireEvent.click(screen.getByText('Research'));
+
+    expect(screen.queryByText('@Research')).not.toBeInTheDocument();
+    expect(toastErrorMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks /agent when the requested worker is leader-only', () => {
+    const onSend = vi.fn();
+    agentsState.agents = [
+      {
+        id: 'main',
+        name: 'Main',
+        isDefault: true,
+        modelDisplay: 'MiniMax',
+        inheritedModel: true,
+        workspace: '~/.openclaw/workspace',
+        agentDir: '~/.openclaw/agents/main/agent',
+        mainSessionKey: 'agent:main:main',
+        channelTypes: [],
+        chatAccess: 'direct',
+      },
+      {
+        id: 'research',
+        name: 'Research',
+        isDefault: false,
+        modelDisplay: 'Claude',
+        inheritedModel: false,
+        workspace: '~/.openclaw/workspace-research',
+        agentDir: '~/.openclaw/agents/research/agent',
+        mainSessionKey: 'agent:research:desk',
+        channelTypes: [],
+        chatAccess: 'leader_only',
+        reportsTo: 'main',
+      },
+    ];
+
+    render(<ChatInput onSend={onSend} />);
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '/agent research' } });
+    fireEvent.click(screen.getByTitle('Send'));
+
+    expect(screen.queryByText('@Research')).not.toBeInTheDocument();
+    expect(onSend).not.toHaveBeenCalled();
+    expect(toastErrorMock).toHaveBeenCalledTimes(1);
   });
 
   it('executes /cwd and uses the selected directory for the next message', () => {

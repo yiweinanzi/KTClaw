@@ -8,6 +8,8 @@ const { agentsStoreState, chatStoreState } = vi.hoisted(() => ({
     agents: [] as AgentSummary[],
     loading: false,
     defaultAgentId: 'main',
+    configuredChannelTypes: [] as string[],
+    channelOwners: {} as Record<string, string>,
     fetchAgents: vi.fn(async () => {}),
   },
   chatStoreState: {
@@ -34,6 +36,9 @@ describe('TeamMap page', () => {
     vi.clearAllMocks();
     agentsStoreState.loading = false;
     agentsStoreState.defaultAgentId = 'main';
+    agentsStoreState.configuredChannelTypes = ['feishu', 'telegram'];
+    agentsStoreState.channelOwners = { feishu: 'main' };
+    window.localStorage.clear();
     agentsStoreState.agents = [
       {
         id: 'main',
@@ -72,28 +77,45 @@ describe('TeamMap page', () => {
       'agent:main:main': Date.now(),
       'agent:researcher:main': Date.now(),
     };
+    window.localStorage.setItem('clawport-kanban', JSON.stringify([
+      {
+        id: 'ticket-research',
+        title: 'Need reviewer approval',
+        description: 'Awaiting approval',
+        status: 'review',
+        priority: 'medium',
+        assigneeId: 'researcher',
+        workState: 'waiting_approval',
+        createdAt: '2026-03-27T09:00:00Z',
+        updatedAt: '2026-03-27T09:05:00Z',
+      },
+    ]));
   });
 
-  it('renders hierarchy, switches to teams view, and opens the detail drawer', async () => {
+  it('renders topology nodes, keeps an operations rail visible, and switches views', async () => {
     render(<TeamMap />);
 
     await waitFor(() => {
       expect(agentsStoreState.fetchAgents).toHaveBeenCalled();
     });
 
-    expect(screen.getByText('Main')).toBeInTheDocument();
-    expect(screen.getByText('Researcher')).toBeInTheDocument();
-    expect(screen.getAllByText('teamMap.status.active').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Main').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Researcher').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('teamMap.status.waiting_approval').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Need reviewer approval').length).toBeGreaterThan(0);
+    expect(screen.getByText('teamMap.rail.title')).toBeInTheDocument();
+    expect(screen.getByText('teamMap.rail.currentTask')).toBeInTheDocument();
+    expect(screen.getByText('teamMap.rail.nextStep')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Researcher'));
-    expect(screen.getByText('teamMap.drawer.title')).toBeInTheDocument();
-    expect(screen.getByText('teamMap.drawer.model')).toBeInTheDocument();
-    expect(screen.getByText('teamMap.drawer.role')).toBeInTheDocument();
+    expect(screen.getByText('teamMap.rail.title')).toBeInTheDocument();
+    expect(screen.getByText('teamMap.rail.profilePolicy')).toBeInTheDocument();
+    expect(screen.getByText('teamMap.rail.runtimeWork')).toBeInTheDocument();
     expect(screen.getAllByText('teamMap.role.worker').length).toBeGreaterThan(0);
-    expect(screen.getByText('teamMap.drawer.access')).toBeInTheDocument();
     expect(screen.getAllByText('teamMap.access.leader_only').length).toBeGreaterThan(0);
-    expect(screen.getByText('teamMap.drawer.responsibility')).toBeInTheDocument();
     expect(screen.getByText('Finds information')).toBeInTheDocument();
+    expect(screen.getByText('teamMap.rail.currentWork')).toBeInTheDocument();
+    expect(screen.getAllByText('Need reviewer approval').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: 'teamMap.tabs.teams' }));
     expect(screen.getByText('teamMap.allGroup')).toBeInTheDocument();

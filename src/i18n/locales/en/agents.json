@@ -64,7 +64,7 @@
         "chatAccessDirect": "direct",
         "chatAccessLeaderOnly": "leader_only",
         "chatAccessDirectHint": "Users can open a conversation with this agent directly.",
-        "chatAccessLeaderOnlyHint": "This agent should mainly be contacted through a leader rather than directly.",
+        "chatAccessLeaderOnlyHint": "This agent is blocked from normal direct chat and should be contacted through its leader.",
         "responsibility": "Responsibility",
         "responsibilityPlaceholder": "Describe this member’s primary responsibility",
         "saveTeamSettings": "Save team settings",

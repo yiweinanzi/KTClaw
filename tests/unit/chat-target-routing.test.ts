@@ -44,6 +44,8 @@ describe('chat target routing', () => {
         agentDir: '~/.openclaw/agents/main/agent',
         mainSessionKey: 'agent:main:main',
         channelTypes: [],
+        chatAccess: 'direct',
+        reportsTo: null,
       },
       {
         id: 'research',
@@ -55,6 +57,8 @@ describe('chat target routing', () => {
         agentDir: '~/.openclaw/agents/research/agent',
         mainSessionKey: 'agent:research:desk',
         channelTypes: [],
+        chatAccess: 'direct',
+        reportsTo: 'main',
       },
     ];
 
@@ -190,5 +194,45 @@ describe('chat target routing', () => {
     expect(payload.message).toBe('Process the attached file(s).');
     expect(payload.cwd).toBe('/tmp/workspace-media');
     expect(payload.media[0]?.filePath).toBe('/tmp/design.png');
+  });
+
+  it('rejects leader-only workers as direct target agents before switching sessions', async () => {
+    agentsState.agents[1] = {
+      ...agentsState.agents[1],
+      chatAccess: 'leader_only',
+    };
+
+    const { useChatStore } = await import('@/stores/chat');
+
+    useChatStore.setState({
+      currentSessionKey: 'agent:main:main',
+      currentAgentId: 'main',
+      sessions: [{ key: 'agent:main:main' }],
+      messages: [],
+      sessionLabels: {},
+      sessionLastActivity: {},
+      sending: false,
+      activeRunId: null,
+      streamingText: '',
+      streamingMessage: null,
+      streamingTools: [],
+      pendingFinal: false,
+      lastUserMessageAt: null,
+      pendingToolImages: [],
+      error: null,
+      loading: false,
+      thinkingLevel: null,
+      showThinking: true,
+    });
+
+    await expect(
+      useChatStore.getState().sendMessage('Blocked direct worker', undefined, 'research', null),
+    ).rejects.toThrow();
+
+    expect(useChatStore.getState().currentSessionKey).toBe('agent:main:main');
+    expect(gatewayRpcMock).not.toHaveBeenCalledWith(
+      'chat.send',
+      expect.objectContaining({ sessionKey: 'agent:research:desk' }),
+    );
   });
 });

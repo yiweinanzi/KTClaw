@@ -15,6 +15,9 @@ export type SearchAgentItem = {
   name: string;
   mainSessionKey: string;
   modelDisplay?: string;
+  chatAccess?: 'direct' | 'leader_only';
+  reportsTo?: string | null;
+  isDefault?: boolean;
 };
 
 type SearchCategory = 'sessions' | 'agents' | 'pages';
@@ -88,6 +91,7 @@ export interface GlobalSearchModalProps {
   agents: SearchAgentItem[];
   onSelectSession: (sessionKey: string) => void;
   onNavigate: (path: string) => void;
+  onBlockedAgent?: (agent: SearchAgentItem) => void;
 }
 
 function matchSearch(query: string, value: string): boolean {
@@ -151,6 +155,7 @@ export function GlobalSearchModal({
   agents,
   onSelectSession,
   onNavigate,
+  onBlockedAgent,
 }: GlobalSearchModalProps) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -252,6 +257,10 @@ export function GlobalSearchModal({
           category: 'agents' as const,
           icon: '🤖',
           action: () => {
+            if (agent.chatAccess === 'leader_only') {
+              onBlockedAgent?.(agent);
+              return;
+            }
             onSelectSession(agent.mainSessionKey);
             onNavigate('/');
             onOpenChange(false);
@@ -280,7 +289,7 @@ export function GlobalSearchModal({
       agents: agentResults,
       pages: pageResults,
     };
-  }, [agents, historyIndex, onNavigate, onOpenChange, onSelectSession, query, sessions]);
+  }, [agents, historyIndex, onBlockedAgent, onNavigate, onOpenChange, onSelectSession, query, sessions]);
 
   const flatResults = useMemo(
     () => [...groupedResults.sessions, ...groupedResults.agents, ...groupedResults.pages],

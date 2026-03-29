@@ -409,18 +409,51 @@
             "inherited": "(Inherited)",
             "lastActive": "Last Active",
             "activity": "Activity",
+            "state": "State",
+            "workload": "Workload",
             "role": "Role",
             "access": "Access",
             "responsibility": "Responsibility",
             "channels": "Channels",
+            "entryOwnership": "Entry ownership",
+            "currentWork": "Current work",
+            "noCurrentWork": "No active work in flight",
             "notConfigured": "Not configured",
+            "notOwner": "Not owner",
             "notSet": "Not set",
             "confirmDelete": "Confirm delete?",
             "dismiss": "Dismiss"
         },
+        "entrypoints": {
+            "title": "User-facing entry points",
+            "unassigned": "Unassigned"
+        },
+        "dashboard": {
+            "progress": "Progress",
+            "activeWork": "Active work",
+            "activeWorkSubtitle": "Execution queue in motion",
+            "risks": "Risks",
+            "nextStep": "Next step",
+            "noActiveWork": "No active work items are moving right now.",
+            "metrics": {
+                "totalMembers": "Team members",
+                "activeMembers": "In motion",
+                "blocked": "Blocked",
+                "waitingApproval": "Waiting"
+            }
+        },
+        "sections": {
+            "entryOwnership": "Entry ownership",
+            "entryOwnershipSubtitle": "Who currently owns the user-facing doors",
+            "members": "Members",
+            "membersSubtitle": "Supporting member context"
+        },
         "activity": {
             "active": "Active",
-            "idle": "Idle"
+            "idle": "Idle",
+            "working": "Working",
+            "blocked": "Blocked",
+            "waiting_approval": "Waiting approval"
         },
         "role": {
             "leader": "leader",
@@ -439,12 +472,29 @@
             "hoursAgo_other": "{{count}} hours ago",
             "daysAgo_one": "{{count}} day ago",
             "daysAgo_other": "{{count}} days ago"
+        },
+        "brief": {
+            "eyebrow": "Leader control plane",
+            "title": "Leader brief",
+            "blockers": "Blockers",
+            "nextSteps": "Next steps",
+            "noBlockers": "No blockers are blocking delivery right now.",
+            "noNextSteps": "No follow-up steps are queued right now.",
+            "openKanban": "Open Kanban",
+            "openMap": "Open Team Map"
         }
     },
     "teamMap": {
         "status": {
             "active": "Active",
-            "idle": "Idle"
+            "idle": "Idle",
+            "working": "Working",
+            "blocked": "Blocked",
+            "waiting_approval": "Waiting approval"
+        },
+        "node": {
+            "currentTask": "Current task",
+            "noCurrentWork": "No live work summary"
         },
         "empty": {
             "title": "No Agents Yet",
@@ -468,8 +518,22 @@
             "leader_only": "leader_only"
         },
         "allGroup": "All",
+        "rail": {
+            "title": "Operations rail",
+            "currentTask": "Current task",
+            "nextStep": "Next step",
+            "currentWork": "Current work",
+            "status": "Status",
+            "noCurrentTask": "No current task is active right now.",
+            "profilePolicy": "Profile and policy",
+            "runtimeWork": "Runtime and work",
+            "entryOwnership": "Entry ownership",
+            "systemDetails": "System details"
+        },
         "drawer": {
             "title": "Agent Details",
+            "profilePolicy": "Profile and policy",
+            "runtimeWork": "Runtime and work",
             "defaultAgent": "Default Agent",
             "model": "Model",
             "workspace": "Workspace",
@@ -477,7 +541,28 @@
             "role": "Role",
             "access": "Access",
             "responsibility": "Responsibility",
-            "channels": "Channels"
+            "channels": "Channels",
+            "entryOwnership": "Entry ownership",
+            "noOwnedEntryPoints": "No owned entry points",
+            "currentWork": "Current work",
+            "noCurrentWork": "No current work summary",
+            "output": "Recent output",
+            "outputPlaceholder": "Recent output snapshots will appear here as the runtime reports progress.",
+            "childRuntime": "Child runtime detail",
+            "childRuntimePlaceholder": "No child runtime detail is available for this member yet."
         }
+    },
+    "teamBrief": {
+        "title": "Team Brief",
+        "open": "Team Brief",
+        "summary": "Summary",
+        "activeWork": "Active work",
+        "blockers": "Blockers",
+        "nextSteps": "Next steps",
+        "noActiveWork": "No active work items are moving right now.",
+        "noBlockers": "No blockers are waiting on the leader right now.",
+        "noNextSteps": "No additional follow-up steps are queued right now.",
+        "openMember": "Open member",
+        "openKanban": "Open Kanban"
     }
 }

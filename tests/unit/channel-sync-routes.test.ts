@@ -552,4 +552,183 @@ describe('channel sync workbench routes', () => {
       success: true,
     }));
   });
+
+  it('returns paginated messages with hasMore=true when more messages exist', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    (globalThis as Record<string, unknown>)[TEST_FEISHU_SNAPSHOT_KEY] = {
+      sessions: [{ id: 'feishu:default:oc_pg', channelId: 'feishu-default', channelType: 'feishu', sessionType: 'group', title: 'PG Group', pinned: false, syncState: 'synced' }],
+      messagesByConversationId: new Map([
+        ['feishu:default:oc_pg', [
+          { id: 'msg-1', role: 'human', content: 'oldest', createdAt: '2026-03-01T00:00:00.000Z' },
+          { id: 'msg-2', role: 'human', content: 'middle', createdAt: '2026-03-02T00:00:00.000Z' },
+          { id: 'msg-3', role: 'agent', content: 'newest', createdAt: '2026-03-03T00:00:00.000Z' },
+        ]],
+      ]),
+    };
+    mocks.bindingGet.mockResolvedValue({ sessionKey: 'agent:main:main', agentId: 'main' });
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(async () => { throw new Error('not used'); }),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/workbench/conversations/feishu:default:oc_pg/messages?limit=2'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, expect.objectContaining({
+      success: true,
+      hasMore: true,
+    }));
+  });
+
+  it('paginates messages older than the cursor timestamp', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    (globalThis as Record<string, unknown>)[TEST_FEISHU_SNAPSHOT_KEY] = {
+      sessions: [{ id: 'feishu:default:oc_cursor', channelId: 'feishu-default', channelType: 'feishu', sessionType: 'group', title: 'Cursor Group', pinned: false, syncState: 'synced' }],
+      messagesByConversationId: new Map([
+        ['feishu:default:oc_cursor', [
+          { id: 'msg-old', role: 'human', content: 'before cursor', createdAt: '2026-03-01T00:00:00.000Z' },
+          { id: 'msg-new', role: 'human', content: 'after cursor', createdAt: '2026-03-10T00:00:00.000Z' },
+        ]],
+      ]),
+    };
+    mocks.bindingGet.mockResolvedValue({ sessionKey: 'agent:main:main', agentId: 'main' });
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(async () => { throw new Error('not used'); }),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/workbench/conversations/feishu:default:oc_cursor/messages?cursor=2026-03-05T00:00:00.000Z'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    const call = mocks.sendJson.mock.lastCall;
+    const body = call?.[2] as { messages?: Array<{ id: string }> };
+    expect(body.messages?.map((m) => m.id)).toEqual(['msg-old']);
+  });
+
+  it('media proxy rejects non-Feishu URLs with 403', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const writtenChunks: string[] = [];
+    let writtenStatusCode = 0;
+    const mockRes = {
+      writeHead: vi.fn((code: number) => { writtenStatusCode = code; }),
+      end: vi.fn((chunk: string) => { writtenChunks.push(chunk); }),
+    } as unknown as ServerResponse;
+
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      mockRes,
+      new URL('http://127.0.0.1:3210/api/channels/workbench/media?url=' + encodeURIComponent('https://evil.example.com/img.png')),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(writtenStatusCode).toBe(403);
+    const body = JSON.parse(writtenChunks[0] ?? '{}') as { error?: string };
+    expect(body.error).toBeTruthy();
+  });
+
+  it('members endpoint returns 400 when sessionId is missing', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/workbench/members'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 400, expect.objectContaining({ error: expect.any(String) }));
+  });
+
+  it('members endpoint returns members array for a known session', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    (globalThis as Record<string, unknown>)[TEST_FEISHU_SNAPSHOT_KEY] = {
+      sessions: [{ id: 'feishu:default:oc_members', channelId: 'feishu-default', channelType: 'feishu', sessionType: 'group', title: 'Members Group', pinned: false, syncState: 'synced' }],
+      messagesByConversationId: new Map(),
+    };
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/workbench/members?sessionId=feishu:default:oc_members'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, expect.objectContaining({
+      success: true,
+      members: expect.any(Array),
+    }));
+  });
+
+  it('send with identity=self falls back to bot send with warning when feishu user auth unavailable', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    mocks.parseJsonBody.mockResolvedValue({ text: '你好', conversationId: 'oc_test', identity: 'self' });
+    const gatewayRpc = vi.fn(async (method: string) => {
+      if (method === 'chat.send') return { success: true };
+      throw new Error(`Unexpected: ${method}`);
+    });
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: gatewayRpc,
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('POST'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/feishu-default/send'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, expect.objectContaining({ success: true }));
+  });
 });

@@ -69,3 +69,4 @@ docs/pr-session-notes-*.md
 .gstack/
 .npm-cache/
 .worktrees/
+.planning/

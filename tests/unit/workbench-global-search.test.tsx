@@ -55,6 +55,17 @@ const mockAgentsState = {
       mainSessionKey: 'agent:planner:main',
       modelDisplay: 'gpt-5',
       isDefault: false,
+      chatAccess: 'direct',
+      reportsTo: 'main',
+    },
+    {
+      id: 'researcher',
+      name: 'Research Worker',
+      mainSessionKey: 'agent:researcher:main',
+      modelDisplay: 'claude-sonnet-4',
+      isDefault: false,
+      chatAccess: 'leader_only',
+      reportsTo: 'planner',
     },
   ],
   fetchAgents: mockFetchAgents,
@@ -206,5 +217,16 @@ describe('workbench global search from sidebar', () => {
 
     expect(mockSwitchSession).toHaveBeenCalledWith('session-beta');
     expect(screen.getByTestId('pathname')).toHaveTextContent('/');
+  });
+
+  it('does not jump into a leader-only worker main session from search results', async () => {
+    renderSidebar();
+
+    fireEvent.click(screen.getByRole('button', { name: /open search/i }));
+    const input = await screen.findByRole('textbox', { name: /search all/i });
+    fireEvent.change(input, { target: { value: 'research worker' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(mockSwitchSession).not.toHaveBeenCalledWith('agent:researcher:main');
   });
 });

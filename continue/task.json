@@ -1,65 +1,65 @@
 {
   "project": "ClawX Control Plane",
-  "objective": "Ship Team Control Plane MVP on top of the existing agent/runtime/kanban architecture.",
+  "objective": "Complete the post-MVP Team Control Plane evolution on top of the existing agent/runtime/kanban/channels architecture.",
   "current_phase": "completed",
-  "current_focus": "PLAN-2026-03-27-TEAM-CONTROL-PLANE-MVP (completed)",
-  "last_updated": "2026-03-27T16:21:37+08:00",
+  "current_focus": "PLAN-2026-03-27-TEAM-CONTROL-PLANE-EVOLUTION (completed)",
+  "last_updated": "2026-03-27T22:35:00+08:00",
   "tasks": [
     {
-      "id": "PLAN-2026-03-27-TEAM-CONTROL-PLANE-MVP",
-      "title": "Upgrade TeamOverview/TeamMap/AgentDetail into a role-aware team control plane MVP",
+      "id": "PLAN-2026-03-27-TEAM-CONTROL-PLANE-EVOLUTION",
+      "title": "Evolve the completed Team Control Plane MVP into enforced access + ownership + work visibility",
       "type": "planning",
       "status": "done",
       "priority": "P0"
     },
     {
-      "id": "SESSION-39-001",
-      "title": "Persist teamRole/chatAccess/responsibility across type/store/config/route pipeline",
+      "id": "SESSION-41-001",
+      "title": "Enforce leader_only across chat entry points, store routing, and host send route",
       "type": "feature",
       "status": "done",
       "priority": "P0"
     },
     {
-      "id": "SESSION-39-002",
-      "title": "Add editable Team Settings section in AgentDetail for role/access/responsibility/reportsTo",
+      "id": "SESSION-41-002",
+      "title": "Surface team entry ownership on TeamOverview and TeamMap using existing channelOwners/configuredChannelTypes data",
       "type": "feature",
       "status": "done",
       "priority": "P0"
     },
     {
-      "id": "SESSION-39-003",
-      "title": "Upgrade TeamOverview and TeamMap to role-aware team visibility surfaces",
+      "id": "SESSION-41-003",
+      "title": "Translate existing kanban/runtime state into team-level work visibility signals on team pages",
       "type": "feature",
       "status": "done",
       "priority": "P0"
     },
     {
-      "id": "SESSION-39-004",
-      "title": "Sync i18n keys and pass targeted team regression tests",
+      "id": "SESSION-41-004",
+      "title": "Strengthen team-facing copy, i18n, and README docs for the enforced control-plane behavior",
       "type": "test",
       "status": "done",
       "priority": "P0"
     },
     {
-      "id": "SESSION-39-005",
-      "title": "Sync README and README.zh-CN for Team Control Plane MVP semantics",
-      "type": "docs",
-      "status": "done",
-      "priority": "P0"
-    },
-    {
-      "id": "SESSION-39-006",
-      "title": "Run final focused verification and close continuity files",
+      "id": "SESSION-41-005",
+      "title": "Run final focused verification and sync continuity/planning state for the team evolution stream",
       "type": "verification",
       "status": "done",
       "priority": "P0"
     },
     {
-      "id": "TECHDEBT-2026-03-27-TASKKANBAN-TSC",
-      "title": "Resolve or explicitly track pre-existing TaskKanban typecheck errors",
-      "type": "techdebt",
+      "id": "SESSION-42-001",
+      "title": "Productize leader progress briefing across Team Overview and private leader chat",
+      "type": "feature",
       "status": "done",
-      "priority": "P1"
+      "priority": "P0"
+    },
+    {
+      "id": "SESSION-42-002",
+      "title": "Backfill Phase 4 planning artifacts and sync team continuity after leader briefing delivery",
+      "type": "docs",
+      "status": "done",
+      "priority": "P0"
     }
   ]
 }

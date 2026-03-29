@@ -2728,3 +2728,78 @@ Focus: PLAN-2026-03-27-TEAM-CONTROL-PLANE-MVP
 ### Notes
 - This stream no longer has pending checklist items in Prompt/task continuity
 - Team Control Plane MVP implementation + docs + quality gates are fully closed in this workspace
+
+---
+
+[2026-03-27 18:05 +08:00] Session 41: Team Control Plane Evolution Completion
+Focus: PLAN-2026-03-27-TEAM-CONTROL-PLANE-EVOLUTION
+
+### Completed
+1. `leader_only` enforcement is now real, not display-only
+   - blocked direct-worker main-session entry from Chat header agent picker
+   - blocked direct-worker main-session entry from Sidebar agent list
+   - blocked direct-worker main-session entry from Global Search agent results
+   - blocked `@agent` / `/agent` worker targeting in `src/pages/Chat/ChatInput.tsx`
+   - added store-level protection in `src/stores/chat.ts`
+   - added host-route protection in `electron/api/routes/gateway.ts` for `/api/chat/send-with-media`
+
+2. Team entry ownership visibility added
+   - `src/pages/TeamOverview/index.tsx` now shows user-facing entrypoint ownership summary plus per-member `entryOwnership`
+   - `src/pages/TeamMap/index.tsx` drawer now shows owned entrypoints per member
+
+3. Team work visibility upgraded from simple recent activity to derived work state
+   - introduced `src/lib/team-work-visibility.ts`
+   - team pages now derive `blocked` / `waiting_approval` / `working` / `active` / `idle` from existing `clawport-kanban` ticket state plus current session activity
+   - `TeamOverview` now shows workload signal
+   - `TeamMap` drawer now shows current work titles
+
+4. Docs / i18n / continuity synced
+   - strengthened `leader_only` explanation in `src/pages/AgentDetail/index.tsx`
+   - updated `src/i18n/locales/en/agents.json`, `src/i18n/locales/zh/agents.json`, `src/i18n/locales/en/common.json`, `src/i18n/locales/zh/common.json`
+   - updated `README.md` and `README.zh-CN.md`
+   - refreshed `.planning/ROADMAP.md`, `.planning/STATE.md`, `Prompt.md`, `continue/task.json`
+
+### Verification
+- `pnpm test -- --run tests/unit/chat-page-team-access.test.tsx tests/unit/workbench-sidebar.test.tsx tests/unit/workbench-global-search.test.tsx tests/unit/chat-target-routing.test.ts tests/unit/chat-input.test.tsx tests/unit/gateway-routes-security.test.ts tests/unit/agent-detail-page.test.tsx tests/unit/team-overview-page.test.tsx tests/unit/team-map-page.test.tsx` -> pass
+- `pnpm run typecheck` -> pass
+- `pnpm run lint` -> pass
+- `pnpm run build:vite` -> pass
+
+### Notes
+- Team pages now express the original `team-项目文档.md` intent more faithfully: leaders are the normal user-facing contact surface; workers can be backend-routed and still remain configurable/observable
+- Remaining future work is now genuinely next-stage scope: analytics, cross-team routing, or formal Team entities
+
+---
+
+[2026-03-27 22:35 +08:00] Session 42: Leader Progress Briefing Productization
+Focus: PLAN-2026-03-27-TEAM-CONTROL-PLANE-EVOLUTION / Phase 4
+
+### Completed
+1. Shared leader briefing model
+   - added `src/lib/team-progress-brief.ts`
+   - leader briefing now aggregates member-first team state from existing ownership + kanban-derived work visibility
+
+2. TeamOverview
+   - added top-level `Leader brief` summary block
+   - supports expandable detail with blockers / next steps
+   - added lightweight navigation actions to kanban and team map
+
+3. Private leader chat
+   - Chat header now shows `Team Brief` for leader / default main agent contexts
+   - right-side briefing panel renders the same aggregated team state and exposes lightweight member / kanban navigation
+
+4. Planning + docs sync
+   - added Phase 4 requirements and roadmap details for `Productize Leader Progress Briefing`
+   - created `.planning/phases/04-productize-leader-progress-briefing/04-CONTEXT.md`
+   - created `.planning/phases/04-productize-leader-progress-briefing/04-01-PLAN.md`
+   - created `.planning/phases/04-productize-leader-progress-briefing/04-01-SUMMARY.md`
+   - updated `Prompt.md` and `continue/task.json`
+
+### Verification
+- `pnpm test -- --run tests/unit/chat-page-team-access.test.tsx tests/unit/workbench-sidebar.test.tsx tests/unit/workbench-global-search.test.tsx tests/unit/chat-target-routing.test.ts tests/unit/chat-input.test.tsx tests/unit/gateway-routes-security.test.ts tests/unit/agent-detail-page.test.tsx tests/unit/team-overview-page.test.tsx tests/unit/team-map-page.test.tsx tests/unit/team-progress-brief.test.ts` -> pass
+- `pnpm run typecheck` -> pass
+- `pnpm run lint` -> pass
+- `pnpm run build:vite` -> pass
+
+### Notes
+- The team stream is now closed at the product layer originally implied by `team-项目文档.md`: role semantics, direct-chat boundaries, entry ownership, work visibility, and leader progress briefing are all in place

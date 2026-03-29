@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { app } from 'electron';
-import { existsSync, cpSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
+import { existsSync, cpSync, mkdirSync, rmSync, readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -144,6 +144,9 @@ function ensurePluginInstalled(
     if (!existsSync(join(targetDir, 'openclaw.plugin.json'))) {
       return { installed: false, warning: `Failed to install ${pluginLabel} plugin mirror (manifest missing).` };
     }
+    // Patch bare ESM relative specifiers (e.g. './accounts' → './accounts.js') so
+    // Node ESM can resolve them when "type":"module" is set in package.json.
+    fixBareEsmSpecifiers(join(targetDir, 'src'));
     return { installed: true };
   } catch {
     return { installed: false, warning: `Failed to install bundled ${pluginLabel} plugin mirror` };
@@ -279,6 +282,8 @@ type WorkbenchConversationMessage = {
   durationMs?: number;
   summary?: string;
   internal?: boolean;
+  /** True when the message was sent by the workbench user (right-aligned bubble) */
+  isSelf?: boolean;
 };
 
 const FEISHU_PLUGIN_ROOT = join(homedir(), '.openclaw', 'extensions', 'feishu-openclaw-plugin');
@@ -482,9 +487,35 @@ async function readOpenClawConfigJson(): Promise<Record<string, unknown> | null>
   }
 }
 
+function fixBareEsmSpecifiers(dir: string): void {
+  if (!existsSync(dir)) return;
+  const bareRelative = /((?:from|import)\s+')(\.{1,2}\/[^']*?)(')/g;
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, entry.name);
+    if (statSync(p).isDirectory()) {
+      fixBareEsmSpecifiers(p);
+    } else if (entry.name.endsWith('.js')) {
+      const orig = readFileSync(p, 'utf-8');
+      const fixed = orig.replace(bareRelative, (m, pre: string, spec: string, post: string) =>
+        spec.endsWith('.js') || spec.endsWith('/') ? m : pre + spec + '.js' + post
+      );
+      if (fixed !== orig) writeFileSync(p, fixed, 'utf-8');
+    }
+  }
+}
+
 async function importFeishuPluginModule(relativePath: string): Promise<Record<string, unknown>> {
   const fullPath = join(FEISHU_PLUGIN_ROOT, relativePath);
   return import(pathToFileURL(fullPath).href) as Promise<Record<string, unknown>>;
+}
+
+// Feishu plugin prepends sender open_id to message text: "ou_xxx: message"
+// Strip this prefix so workbench shows clean message content.
+const FEISHU_OPEN_ID_PREFIX_RE = /^(ou_[a-z0-9]+):\s*/i;
+function stripFeishuSenderPrefix(text: string): { openId: string; cleaned: string } | null {
+  const m = FEISHU_OPEN_ID_PREFIX_RE.exec(text);
+  if (!m) return null;
+  return { openId: m[1], cleaned: text.slice(m[0].length) };
 }
 
 function readInjectedFeishuWorkbenchSnapshotForTests():
@@ -747,6 +778,8 @@ async function fetchFeishuWorkbenchSnapshot(): Promise<{
           authorName: senderName ?? (senderType === 'bot' ? 'KTClaw' : '飞书用户'),
           createdAt: typeof message.create_time === 'string' ? message.create_time : undefined,
           content: typeof message.content === 'string' ? message.content : undefined,
+          // Human messages from Feishu API are from external users (not the workbench user)
+          ...(senderType !== 'bot' ? { isSelf: false } : {}),
         };
       });
       messagesByConversationId.set(conversationId, visibleMessages);
@@ -935,7 +968,17 @@ function mapRuntimeHistoryItemToWorkbenchMessage(
 
   const row = item as Record<string, unknown>;
   const role = normalizeRuntimeWorkbenchRole(row.role);
-  const content = extractRuntimeText(row.content ?? row.message ?? row.text ?? row.output ?? row.result);
+  const rawContent = extractRuntimeText(row.content ?? row.message ?? row.text ?? row.output ?? row.result);
+  // Strip Feishu sender prefix "ou_xxx: message" -> isSelf=false marks it as incoming Feishu message
+  let content: string | undefined = rawContent;
+  let isSelf: boolean | undefined;
+  if (rawContent) {
+    const stripped = stripFeishuSenderPrefix(rawContent);
+    if (stripped !== null) {
+      content = stripped.cleaned || undefined;
+      isSelf = false;
+    }
+  }
   const summary = extractFirstStringValue(row, ['summary']);
   const id = extractFirstStringValue(row, ['id', 'message_id', 'toolCallId', 'tool_call_id']) ?? `runtime-${index}`;
   const toolName = extractFirstStringValue(row, ['toolName', 'tool_name', 'name']);
@@ -971,6 +1014,7 @@ function mapRuntimeHistoryItemToWorkbenchMessage(
     ...(toolName ? { toolName } : {}),
     ...(durationMs !== undefined ? { durationMs } : {}),
     ...(summary ? { summary } : {}),
+    ...(isSelf !== undefined ? { isSelf } : {}),
   };
 }
 
@@ -1260,10 +1304,20 @@ export async function handleChannelRoutes(
 
           const fallbackMessages = liveSnapshot.messagesByConversationId.get(conversationId) ?? [];
 
+          // Merge runtime messages (agent responses, tool calls) with Feishu snapshot messages
+          // (user messages from Feishu API) so both sides of the conversation are visible.
+          const mergedIds = new Set(runtimeMessages.map((m) => m.id));
+          const uniqueSnapshotMessages = fallbackMessages.filter((m: WorkbenchConversationMessage) => !mergedIds.has(m.id));
+          const merged = [...runtimeMessages, ...uniqueSnapshotMessages].sort((a, b) => {
+            const ta = Date.parse(a.createdAt ?? '') || 0;
+            const tb = Date.parse(b.createdAt ?? '') || 0;
+            return ta - tb;
+          });
+
           sendJson(res, 200, {
             success: true,
             conversation: buildFeishuConversationPayload(conversationId, discoveredConversation, binding.agentId),
-            messages: runtimeMessages.length > 0 ? runtimeMessages : fallbackMessages,
+            messages: merged.length > 0 ? merged : fallbackMessages,
           });
           return true;
         }
@@ -1316,8 +1370,8 @@ export async function handleChannelRoutes(
       const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 200) : 50;
       const cursor = url.searchParams.get('cursor')?.trim() || null;
 
-      // Reuse existing snapshot logic to fetch all messages for the conversation
       let allMessages: Array<Record<string, unknown>> = [];
+      let conversationObj: { id: string; title: string; syncState: string; participantSummary?: string; visibleAgentId?: string } | null = null;
 
       if (conversationId.startsWith('feishu:')) {
         const liveSnapshot = await fetchFeishuWorkbenchSnapshot().catch(() => ({ sessions: [], messagesByConversationId: new Map() }));
@@ -1368,6 +1422,54 @@ export async function handleChannelRoutes(
         }
 
         allMessages = workbenchMessages as unknown as Array<Record<string, unknown>>;
+        conversationObj = buildFeishuConversationPayload(conversationId, discoveredConversation, binding?.agentId);
+      } else {
+        // Non-feishu: session IDs (e.g. "feishu-default" fallback) — look up conversation from
+        // status snapshot and try to pull messages from the agent session.
+        const channelType = conversationId.split('-')[0] || '';
+        const statusSnap = await ctx.gatewayManager.rpc<ChannelsStatusSnapshot>('channels.status', { probe: true }).catch(() => null);
+        const sessions = buildWorkbenchSessions(channelType, statusSnap);
+        const session = sessions.find((s) => s.id === conversationId) ?? null;
+        if (session) {
+          conversationObj = {
+            id: session.id,
+            title: session.title,
+            syncState: session.syncState,
+            ...(session.participantSummary ? { participantSummary: session.participantSummary } : {}),
+            ...(session.visibleAgentId ? { visibleAgentId: session.visibleAgentId } : {}),
+          };
+          // Try feishu-specific session keys first, then fall back to main session
+          const agentId = session.visibleAgentId || 'main';
+          const feishuKeys = [
+            `agent:${agentId}:feishu:group:default`,
+            `agent:${agentId}:feishu:direct:default`,
+            `agent:${agentId}:feishu:channel:default`,
+          ];
+          for (const key of feishuKeys) {
+            const payload = await ctx.gatewayManager.rpc<unknown>('chat.history', { sessionKey: key, limit: 500 }).catch(() => null);
+            if (payload) {
+              const msgs = mapRuntimeHistoryToWorkbenchMessages(payload);
+              if (msgs.length > 0) { allMessages = msgs as unknown as Array<Record<string, unknown>>; break; }
+            }
+          }
+          // Fall back to main session — show all human + agent + tool messages.
+          // Human messages from Feishu (with or without ou_xxx prefix) must be visible.
+          if (allMessages.length === 0) {
+            const mainKeys = [`agent:${agentId}:main`, 'agent:main:main'];
+            for (const key of [...new Set(mainKeys)]) {
+              const payload = await ctx.gatewayManager.rpc<unknown>('chat.history', { sessionKey: key, limit: 500 }).catch(() => null);
+              if (payload) {
+                const msgs = mapRuntimeHistoryToWorkbenchMessages(payload);
+                // Include all visible messages (human, agent, tool) — exclude only internal system messages
+                const visible = msgs.filter((m) => m.role !== 'system' || !m.internal);
+                if (visible.length > 0) {
+                  allMessages = visible as unknown as Array<Record<string, unknown>>;
+                  break;
+                }
+              }
+            }
+          }
+        }
       }
 
       // Apply cursor-based pagination (older messages before cursor createdAt)
@@ -1383,11 +1485,10 @@ export async function handleChannelRoutes(
         }
       }
 
-      // Return the most recent `limit` messages from the filtered set
       const page = filtered.slice(-limit);
       const hasMore = filtered.length > limit;
 
-      sendJson(res, 200, { success: true, messages: page, hasMore, nextCursor: page[0]?.createdAt ?? null });
+      sendJson(res, 200, { success: true, conversation: conversationObj, messages: page, hasMore, nextCursor: page[0]?.createdAt ?? null });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error), messages: [], hasMore: false, nextCursor: null });
     }
@@ -1692,15 +1793,35 @@ export async function handleChannelRoutes(
         return true;
       }
       if (body.conversationId?.startsWith('feishu:')) {
+        const parsedConv = parseFeishuConversationId(body.conversationId);
         const binding = await resolveFeishuBindingForConversation(
           body.conversationId,
           undefined,
           { createIfMissing: true },
         ).catch(() => null);
 
-        if (binding?.sessionKey) {
+        // Determine the correct session key for sending.
+        // If the binding resolved to the agent's main session (agent:X:main),
+        // replace it with a feishu-specific session key to keep Feishu messages
+        // isolated from the main Chat page.
+        let sendSessionKey = binding?.sessionKey;
+        if (sendSessionKey && /^agent:[^:]+:main$/.test(sendSessionKey) && parsedConv) {
+          const agentId = binding?.agentId || 'main';
+          const chatId = parsedConv.externalConversationId;
+          sendSessionKey = `agent:${agentId}:feishu:group:${chatId}`;
+          // Persist the feishu-specific session key so future reads also use it
+          await channelConversationBindings.upsert({
+            channelType: 'feishu',
+            accountId: parsedConv.accountId,
+            externalConversationId: chatId,
+            agentId,
+            sessionKey: sendSessionKey,
+          }).catch(() => undefined);
+        }
+
+        if (sendSessionKey) {
           const result = await ctx.gatewayManager.rpc<Record<string, unknown>>('chat.send', {
-            sessionKey: binding.sessionKey,
+            sessionKey: sendSessionKey,
             message: body.text.trim(),
             deliver: false,
             idempotencyKey: randomUUID(),
@@ -1708,7 +1829,7 @@ export async function handleChannelRoutes(
           sendJson(res, 200, {
             success: true,
             runId: extractFirstStringValue(result, ['runId', 'run_id']),
-            sessionKey: binding.sessionKey,
+            sessionKey: sendSessionKey,
           });
           return true;
         }

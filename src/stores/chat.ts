@@ -5,6 +5,13 @@
  */
 import { create } from 'zustand';
 import { hostApiFetch } from '@/lib/host-api';
+import {
+  buildLeaderOnlyBlockedMessage,
+  findAgentBySessionKey,
+  isDirectMainSessionBlocked,
+  isLeaderOnlyAgent,
+  resolveReportingLeader,
+} from '@/lib/team-chat-access';
 import { useGatewayStore } from './gateway';
 import { useAgentsStore } from './agents';
 import { buildCronSessionHistoryPath, isCronSessionKey } from './chat/cron-session-utils';
@@ -764,6 +771,17 @@ function resolveMainSessionKeyForAgent(agentId: string | undefined | null): stri
   return summary?.mainSessionKey || buildFallbackMainSessionKey(normalizedAgentId);
 }
 
+function buildLeaderOnlyDirectChatError(agentId: string): Error {
+  const agents = useAgentsStore.getState().agents;
+  const blockedAgent = agents.find((agent) => agent.id === agentId);
+  const leader = resolveReportingLeader(blockedAgent ?? null, agents);
+  return new Error(
+    blockedAgent
+      ? buildLeaderOnlyBlockedMessage(blockedAgent, leader)
+      : 'This worker is routed through a leader and is not available for direct chat.',
+  );
+}
+
 function ensureSessionEntry(sessions: ChatSession[], sessionKey: string): ChatSession[] {
   if (sessions.some((session) => session.key === sessionKey)) {
     return sessions;
@@ -1234,6 +1252,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   switchSession: (key: string) => {
     if (key === get().currentSessionKey) return;
+    const blockedAgent = findAgentBySessionKey(useAgentsStore.getState().agents, key);
+    if (blockedAgent && isDirectMainSessionBlocked(blockedAgent, key)) {
+      set({ error: buildLeaderOnlyBlockedMessage(blockedAgent, resolveReportingLeader(blockedAgent, useAgentsStore.getState().agents)) });
+      return;
+    }
     set((s) => buildSessionSwitchPatch(s, key));
     get().loadHistory();
   },
@@ -1538,8 +1561,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   ) => {
     const trimmed = text.trim();
     if (!trimmed && (!attachments || attachments.length === 0)) return;
+    if (targetAgentId) {
+      const targetAgent = useAgentsStore.getState().agents.find((agent) => agent.id === normalizeAgentId(targetAgentId));
+      if (targetAgent && isLeaderOnlyAgent(targetAgent)) {
+        throw buildLeaderOnlyDirectChatError(targetAgent.id);
+      }
+    }
 
     const targetSessionKey = resolveMainSessionKeyForAgent(targetAgentId) ?? get().currentSessionKey;
+    const blockedSessionAgent = findAgentBySessionKey(useAgentsStore.getState().agents, targetSessionKey);
+    if (blockedSessionAgent && isDirectMainSessionBlocked(blockedSessionAgent, targetSessionKey)) {
+      throw buildLeaderOnlyDirectChatError(blockedSessionAgent.id);
+    }
 
     if (targetSessionKey !== get().currentSessionKey) {
       set((s) => buildSessionSwitchPatch(s, targetSessionKey));
@@ -1705,7 +1738,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     } catch (err) {
       clearHistoryPoll();
-      set({ error: String(err), sending: false });
+      set({ error: err instanceof Error ? err.message : String(err), sending: false });
+      throw err;
     }
   },
 

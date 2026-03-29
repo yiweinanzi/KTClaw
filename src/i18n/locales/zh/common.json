@@ -409,18 +409,51 @@
             "inherited": "(继承)",
             "lastActive": "最近活跃",
             "activity": "活跃状态",
+            "state": "状态",
+            "workload": "工作负载",
             "role": "角色",
             "access": "访问方式",
             "responsibility": "职责",
             "channels": "频道",
+            "entryOwnership": "对外入口归属",
+            "currentWork": "当前工作",
+            "noCurrentWork": "当前没有正在推进的工作",
             "notConfigured": "未配置",
+            "notOwner": "不负责外部入口",
             "notSet": "未设置",
             "confirmDelete": "确认删除？",
             "dismiss": "解雇"
         },
+        "entrypoints": {
+            "title": "对外入口",
+            "unassigned": "未分配"
+        },
+        "dashboard": {
+            "progress": "整体进度",
+            "activeWork": "正在推进的工作",
+            "activeWorkSubtitle": "当前执行中的任务队列",
+            "risks": "风险与阻塞",
+            "nextStep": "下一步",
+            "noActiveWork": "当前没有正在推进的工作项。",
+            "metrics": {
+                "totalMembers": "团队成员",
+                "activeMembers": "进行中",
+                "blocked": "已阻塞",
+                "waitingApproval": "待审批"
+            }
+        },
+        "sections": {
+            "entryOwnership": "对外入口归属",
+            "entryOwnershipSubtitle": "当前由谁负责用户侧入口",
+            "members": "成员视图",
+            "membersSubtitle": "辅助性的成员上下文"
+        },
         "activity": {
             "active": "活跃",
-            "idle": "待命"
+            "idle": "待命",
+            "working": "执行中",
+            "blocked": "已阻塞",
+            "waiting_approval": "等待审批"
         },
         "role": {
             "leader": "leader",
@@ -439,12 +472,29 @@
             "hoursAgo_other": "{{count}} 小时前",
             "daysAgo_one": "{{count}} 天前",
             "daysAgo_other": "{{count}} 天前"
+        },
+        "brief": {
+            "eyebrow": "Leader 控制台",
+            "title": "Leader 简报",
+            "blockers": "阻塞项",
+            "nextSteps": "下一步",
+            "noBlockers": "当前没有阻塞交付的事项。",
+            "noNextSteps": "当前没有待推进的后续动作。",
+            "openKanban": "打开看板",
+            "openMap": "打开团队地图"
         }
     },
     "teamMap": {
         "status": {
             "active": "活跃",
-            "idle": "待命"
+            "idle": "待命",
+            "working": "执行中",
+            "blocked": "已阻塞",
+            "waiting_approval": "等待审批"
+        },
+        "node": {
+            "currentTask": "当前任务",
+            "noCurrentWork": "暂无实时工作摘要"
         },
         "empty": {
             "title": "暂无 Agent",
@@ -468,8 +518,22 @@
             "leader_only": "leader_only"
         },
         "allGroup": "全部",
+        "rail": {
+            "title": "作战侧栏",
+            "currentTask": "当前任务",
+            "nextStep": "下一步",
+            "currentWork": "当前工作",
+            "status": "状态",
+            "noCurrentTask": "当前没有正在执行的任务。",
+            "profilePolicy": "成员资料与策略",
+            "runtimeWork": "运行态与工作",
+            "entryOwnership": "对外入口归属",
+            "systemDetails": "系统详情"
+        },
         "drawer": {
             "title": "Agent 详情",
+            "profilePolicy": "成员资料与策略",
+            "runtimeWork": "运行态与工作",
             "defaultAgent": "默认 Agent",
             "model": "模型",
             "workspace": "工作区",
@@ -477,7 +541,28 @@
             "role": "角色",
             "access": "访问方式",
             "responsibility": "职责",
-            "channels": "频道"
+            "channels": "频道",
+            "entryOwnership": "对外入口归属",
+            "noOwnedEntryPoints": "暂无归属入口",
+            "currentWork": "当前工作",
+            "noCurrentWork": "暂无当前工作摘要",
+            "output": "最近输出",
+            "outputPlaceholder": "runtime 回传进展后，会在这里显示最近输出摘要。",
+            "childRuntime": "子 runtime 详情",
+            "childRuntimePlaceholder": "当前成员还没有可显示的子 runtime 详情。"
         }
+    },
+    "teamBrief": {
+        "title": "团队简报",
+        "open": "团队简报",
+        "summary": "摘要",
+        "activeWork": "正在推进的工作",
+        "blockers": "阻塞项",
+        "nextSteps": "下一步",
+        "noActiveWork": "当前没有正在推进的工作项。",
+        "noBlockers": "当前没有等待 Leader 处理的阻塞项。",
+        "noNextSteps": "当前没有新增的后续动作。",
+        "openMember": "打开成员",
+        "openKanban": "打开看板"
     }
 }

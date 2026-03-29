@@ -181,4 +181,31 @@ for (const plugin of PLUGINS) {
   bundleOnePlugin(plugin);
 }
 
+// Fix bare ESM relative specifiers in the Feishu plugin.
+// TypeScript compiled output may omit .js extensions on relative imports,
+// which are required by Node ESM ("type": "module"). Patch them after bundling.
+function fixEsmExtensions(dir) {
+  if (!fs.existsSync(dir)) return;
+  const bareRelative = /((?:from|import)\s+')(\.{1,2}\/[^']*?)(')/g;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      fixEsmExtensions(p);
+    } else if (entry.name.endsWith('.js')) {
+      const orig = fs.readFileSync(p, 'utf-8');
+      const fixed = orig.replace(bareRelative, (m, pre, spec, post) =>
+        spec.endsWith('.js') || spec.endsWith('/') ? m : pre + spec + '.js' + post
+      );
+      if (fixed !== orig) fs.writeFileSync(p, fixed, 'utf-8');
+    }
+  }
+}
+
+const feishuBuildDir = path.join(OUTPUT_ROOT, 'feishu-openclaw-plugin', 'src');
+if (fs.existsSync(feishuBuildDir)) {
+  echo`🔧 Patching bare ESM specifiers in feishu-openclaw-plugin...`;
+  fixEsmExtensions(feishuBuildDir);
+  echo`   ✅ ESM specifiers patched`;
+}
+
 echo`✅ Plugin mirrors ready: ${OUTPUT_ROOT}`;

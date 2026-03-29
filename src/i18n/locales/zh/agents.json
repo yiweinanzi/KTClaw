@@ -64,7 +64,7 @@
         "chatAccessDirect": "direct",
         "chatAccessLeaderOnly": "leader_only",
         "chatAccessDirectHint": "用户可以直接与该成员发起会话。",
-        "chatAccessLeaderOnlyHint": "该成员主要通过 Leader 调度，不建议直接对话。",
+        "chatAccessLeaderOnlyHint": "该成员已被系统限制为不可直接对话，应通过其 Leader 转达请求。",
         "responsibility": "职责",
         "responsibilityPlaceholder": "描述该成员主要负责的工作",
         "saveTeamSettings": "保存团队设置",

@@ -6,6 +6,7 @@ import { subscribeHostEvent } from '@/lib/host-events';
 import { useChannelsStore } from '@/stores/channels';
 import { useSettingsStore } from '@/stores/settings';
 import { FeishuOnboardingWizard } from '@/components/channels/FeishuOnboardingWizard';
+import MarkdownContent from '@/pages/Chat/MarkdownContent';
 import {
   CHANNEL_ICONS,
   CHANNEL_META,
@@ -145,7 +146,7 @@ function MessageBubble({
 
   return (
     <div data-testid={`bubble-${message.id}`} className={cn('rounded-2xl px-4 py-3 text-[14px] leading-7', bubbleClass)}>
-      {message.content}
+      <MarkdownContent content={message.content ?? ''} />
     </div>
   );
 }
@@ -191,6 +192,7 @@ export function Channels() {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [workbenchMembers, setWorkbenchMembers] = useState<Array<{ openId: string; name: string }>>([]);
   const composerRef = useRef<HTMLInputElement>(null);
+  const [sessionSearchQuery, setSessionSearchQuery] = useState('');
 
   const {
     channels,
@@ -448,10 +450,18 @@ export function Channels() {
       const filtered = prev.filter((m) => m.id !== optimisticId);
       return [...filtered, optimisticMsg];
     });
+    // For feishu-default sessions, construct a feishu: prefixed conversationId
+    // so the backend routes it through the Feishu send path.
+    let sendConversationId = convId;
+    if (activeChannel === 'feishu' && !convId.startsWith('feishu:')) {
+      // feishu-default → feishu:default:default (account:chatId)
+      const accountId = convId.replace(/^feishu-/, '') || 'default';
+      sendConversationId = `feishu:${accountId}:default`;
+    }
     try {
       await hostApiFetch(`/api/channels/${encodeURIComponent(selectedChannel.id)}/send`, {
         method: 'POST',
-        body: JSON.stringify({ text, conversationId: convId, identity: identityMode }),
+        body: JSON.stringify({ text, conversationId: sendConversationId, identity: identityMode }),
       });
       // Replace optimistic with polled messages
       await loadConversation(convId);
@@ -472,6 +482,16 @@ export function Channels() {
     }
   };
 
+  const ARCHIVE_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const filteredSessions = sessions.filter((s) => {
+    if (!sessionSearchQuery) return true;
+    const q = sessionSearchQuery.toLowerCase();
+    if (s.title.toLowerCase().includes(q)) return true;
+    if (s.previewText?.toLowerCase().includes(q)) return true;
+    return false;
+  });
+
   const handleTest = async () => {
     if (!selectedChannel) return;
     try {
@@ -485,7 +505,10 @@ export function Channels() {
 
   return (
     <div className="flex h-full flex-row overflow-hidden bg-[#f2f2f7]">
-      <section className="flex w-[290px] shrink-0 flex-col border-r border-black/[0.06] bg-white">
+      <section className={cn(
+        'flex w-[290px] shrink-0 flex-col border-r border-black/[0.06] bg-white',
+        selectedConversationId ? 'hidden xl:flex' : 'flex',
+      )}>
         <div className="flex h-[56px] items-center justify-between px-5">
           <div>
             <h1 className="text-[15px] font-semibold text-[#111827]">{CHANNEL_FAMILY_UI[activeChannel].panelTitle}</h1>
@@ -504,6 +527,9 @@ export function Channels() {
           <input
             className="w-full rounded-2xl border border-black/10 bg-[#f4f7fb] px-4 py-2.5 text-[13px] outline-none"
             placeholder={t('syncWorkbench.searchPlaceholder', { defaultValue: '搜索群聊或机器人...' })}
+            value={sessionSearchQuery}
+            onChange={(e) => setSessionSearchQuery(e.target.value)}
+            data-testid="session-search-input"
           />
         </div>
 
@@ -512,16 +538,20 @@ export function Channels() {
             <div className="px-2 py-8 text-[13px] text-[#8e8e93]">{t('common:status.loading')}</div>
           ) : error ? (
             <div className="px-2 py-8 text-[13px] text-[#ef4444]">{error}</div>
-          ) : sessions.length === 0 ? (
+          ) : filteredSessions.length === 0 ? (
             <div className="px-2 py-8 text-[13px] text-[#8e8e93]">{t('syncWorkbench.emptySessions', { defaultValue: '暂无同步会话' })}</div>
           ) : (
             <div className="flex flex-col gap-2">
-              {sessions.map((session) => {
+              {filteredSessions.map((session) => {
                 const isActive = session.id === selectedConversationId;
+                const isError = session.syncState === 'error';
+                const lastActivity = session.latestActivityAt ? Date.parse(session.latestActivityAt) : null;
+                const isArchived = lastActivity != null && (now - lastActivity) > ARCHIVE_THRESHOLD_MS;
                 return (
                   <button
                     key={session.id}
                     type="button"
+                    data-testid={`session-item-${session.id}`}
                     onClick={() => {
                       setSelectedConversationId(session.id);
                       void loadConversation(session.id);
@@ -529,25 +559,33 @@ export function Channels() {
                     className={cn(
                       'rounded-2xl border px-3 py-3 text-left transition-colors',
                       isActive
-                        ? 'border-[#bfdbfe] bg-[#f8fbff] shadow-[0_2px_8px_rgba(59,130,246,0.08)]'
+                        ? 'border-l-[3px] border-[#6366f1] bg-[#EEF2FF]'
                         : 'border-black/[0.06] bg-white hover:bg-[#f8fafc]',
+                      isArchived && 'opacity-50',
                     )}
                   >
                     <div className="mb-1 flex items-start justify-between gap-3">
-                      <span className="truncate text-[14px] font-medium text-[#111827]">{session.title}</span>
+                      <span className={cn('truncate text-[14px] font-medium text-[#111827]', isArchived && 'italic')} data-testid={isArchived ? `session-archived-${session.id}` : undefined}>
+                        {isArchived ? `[归档] ${session.title}` : session.title}
+                      </span>
                       <div className="flex items-center gap-1.5">
                         {session.pinned ? <span className="text-[11px] text-[#f59e0b]">📌</span> : null}
-                        <span className="h-2 w-2 rounded-full bg-[#10b981]" />
+                        {isError
+                          ? <span className="h-2 w-2 rounded-full bg-[#ef4444]" data-testid={`session-error-badge-${session.id}`} />
+                          : <span className="h-2 w-2 rounded-full bg-[#10b981]" />}
                       </div>
                     </div>
                     <div className="mb-2 flex items-center gap-2">
                       <span className="rounded-full bg-[#f1f5f9] px-2 py-0.5 text-[11px] text-[#475569]">
                         {SESSION_TYPE_LABEL[session.sessionType]}
                       </span>
-                      {session.syncState ? (
+                      {session.syncState && !isError ? (
                         <span className="rounded-full bg-[#eff6ff] px-2 py-0.5 text-[11px] text-[#0284c7]">
                           {session.syncState === 'synced' ? '已同步' : session.syncState}
                         </span>
+                      ) : null}
+                      {isError ? (
+                        <span className="rounded-full bg-[#fee2e2] px-2 py-0.5 text-[11px] text-[#ef4444]">同步失败</span>
                       ) : null}
                     </div>
                     {session.previewText ? (
@@ -575,6 +613,13 @@ export function Channels() {
           <>
             <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-black/[0.06] px-6">
               <div className="flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  className="xl:hidden mr-1 flex h-7 w-7 items-center justify-center rounded-full text-[#6366f1] hover:bg-[#EEF2FF]"
+                  onClick={() => setSelectedConversationId(null)}
+                  aria-label="返回会话列表"
+                  data-testid="back-to-sessions"
+                >←</button>
                 <h2 className="truncate text-[17px] font-semibold text-[#111827]">{conversation.title}</h2>
                 <span className="rounded-full border border-[#dbeafe] bg-[#eff6ff] px-3 py-1 text-[12px] text-[#0284c7]">
                   {conversation.syncState === 'synced' ? '飞书同步中' : conversation.syncState}

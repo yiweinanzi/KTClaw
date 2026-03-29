@@ -715,4 +715,76 @@ describe('Channels sync workbench', () => {
     expect(input).toHaveValue('@李明 ');
     expect(screen.queryByTestId('mention-popover')).not.toBeInTheDocument();
   });
+
+  it('filters sessions by title match when search query is entered', async () => {
+    const fixtures = buildWorkbenchFixtures();
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return fixtures.capabilities;
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      return { success: true };
+    });
+
+    render(<Channels />);
+    const list = await screen.findByTestId('channels-conversation-list');
+    expect(within(list).getByText('研发中心 DevOps 总群')).toBeInTheDocument();
+    expect(within(list).getByText('数据分析项目组')).toBeInTheDocument();
+
+    const searchInput = screen.getByTestId('session-search-input');
+    fireEvent.change(searchInput, { target: { value: 'DevOps' } });
+
+    await waitFor(() => {
+      expect(within(list).getByText('研发中心 DevOps 总群')).toBeInTheDocument();
+      expect(within(list).queryByText('数据分析项目组')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows a red error badge on sessions with syncState error', async () => {
+    const fixtures = buildWorkbenchFixtures();
+    const sessionsWithError = {
+      ...fixtures.sessions,
+      sessions: [
+        { ...fixtures.sessions.sessions[0], id: 'feishu-conv-devops', syncState: 'error' },
+        ...fixtures.sessions.sessions.slice(1),
+      ],
+    };
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return fixtures.capabilities;
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return sessionsWithError;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      return { success: true };
+    });
+
+    render(<Channels />);
+    const list = await screen.findByTestId('channels-conversation-list');
+    const errorBadge = within(list).getByTestId('session-error-badge-feishu-conv-devops');
+    expect(errorBadge).toBeInTheDocument();
+    // Other sessions don't show error badge
+    expect(within(list).queryByTestId('session-error-badge-feishu-conv-bot-ops')).not.toBeInTheDocument();
+  });
+
+  it('mutes sessions older than 30 days with archived label', async () => {
+    const fixtures = buildWorkbenchFixtures();
+    const oldDate = new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString();
+    const sessionsWithOld = {
+      ...fixtures.sessions,
+      sessions: [
+        fixtures.sessions.sessions[0],
+        { ...fixtures.sessions.sessions[1], latestActivityAt: oldDate },
+        fixtures.sessions.sessions[2],
+      ],
+    };
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return fixtures.capabilities;
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return sessionsWithOld;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      return { success: true };
+    });
+
+    render(<Channels />);
+    const list = await screen.findByTestId('channels-conversation-list');
+    const archivedLabel = within(list).getByTestId('session-archived-feishu-conv-bot-ops');
+    expect(archivedLabel).toBeInTheDocument();
+    expect(within(list).queryByTestId('session-archived-feishu-conv-devops')).not.toBeInTheDocument();
+  });
 });
