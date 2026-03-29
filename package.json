@@ -1,6 +1,7 @@
 {
     "name": "clawx",
     "version": "0.2.3",
+    "packageManager": "pnpm@9.15.5",
     "pnpm": {
         "onlyBuiltDependencies": [
             "@discordjs/opus",
@@ -71,6 +72,7 @@
         "postversion": "git push && git push --tags"
     },
     "dependencies": {
+        "@tencent-weixin/openclaw-weixin": "2.1.1",
         "clawhub": "^0.5.0",
         "electron-store": "^11.0.2",
         "electron-updater": "^6.8.3",
