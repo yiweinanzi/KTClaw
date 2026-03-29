@@ -1,8 +1,9 @@
 #!/usr/bin/env zx
 
 import 'zx/globals';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, mkdirSync, rmSync, cpSync, writeFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,16 +16,19 @@ function loadManifest() {
   if (!existsSync(MANIFEST_PATH)) {
     throw new Error(`Missing manifest: ${MANIFEST_PATH}`);
   }
+
   const raw = readFileSync(MANIFEST_PATH, 'utf8');
   const parsed = JSON.parse(raw);
   if (!parsed || !Array.isArray(parsed.skills)) {
     throw new Error('Invalid preinstalled-skills manifest format');
   }
+
   for (const item of parsed.skills) {
     if (!item.slug || !item.repo || !item.repoPath) {
       throw new Error(`Invalid manifest entry: ${JSON.stringify(item)}`);
     }
   }
+
   return parsed.skills;
 }
 
@@ -33,7 +37,9 @@ function groupByRepoRef(entries) {
   for (const entry of entries) {
     const ref = entry.ref || 'main';
     const key = `${entry.repo}#${ref}`;
-    if (!grouped.has(key)) grouped.set(key, { repo: entry.repo, ref, entries: [] });
+    if (!grouped.has(key)) {
+      grouped.set(key, { repo: entry.repo, ref, entries: [] });
+    }
     grouped.get(key).entries.push(entry);
   }
   return [...grouped.values()];
@@ -43,76 +49,115 @@ function createRepoDirName(repo, ref) {
   return `${repo.replace(/[\\/]/g, '__')}__${ref.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 }
 
-async function fetchSparseRepo(repo, ref, paths, checkoutDir) {
+export function getSparseCheckoutGitCommands({ repo, ref, paths, checkoutDir }) {
   const remote = `https://github.com/${repo}.git`;
+  // On Windows, MSYS git can misinterpret backslashes in paths passed via CLI as escape chars.
+  // We must normalize paths to use forward slashes before giving them to git.
+  const nCheckoutDir = checkoutDir.replace(/\\/g, '/');
+  const nPaths = paths.map((p) => p.replace(/\\/g, '/'));
+  
+  return [
+    ['git', ['init', nCheckoutDir]],
+    ['git', ['-C', nCheckoutDir, 'remote', 'add', 'origin', remote]],
+    ['git', ['-C', nCheckoutDir, 'sparse-checkout', 'init', '--cone']],
+    ['git', ['-C', nCheckoutDir, 'sparse-checkout', 'set', ...nPaths]],
+    ['git', ['-C', nCheckoutDir, 'fetch', '--depth', '1', 'origin', ref]],
+    ['git', ['-C', nCheckoutDir, 'checkout', 'FETCH_HEAD']],
+    ['git', ['-C', nCheckoutDir, 'rev-parse', 'HEAD']],
+  ];
+}
+
+function runGit(command, args, { capture = false } = {}) {
+  return execFileSync(command, args, {
+    stdio: capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
+    encoding: capture ? 'utf8' : undefined,
+  });
+}
+
+async function fetchSparseRepo(repo, ref, paths, checkoutDir) {
   mkdirSync(checkoutDir, { recursive: true });
 
-  await $`git init ${checkoutDir}`;
-  await $`git -C ${checkoutDir} remote add origin ${remote}`;
-  await $`git -C ${checkoutDir} sparse-checkout init --cone`;
-  await $`git -C ${checkoutDir} sparse-checkout set ${paths}`;
-  await $`git -C ${checkoutDir} fetch --depth 1 origin ${ref}`;
-  await $`git -C ${checkoutDir} checkout FETCH_HEAD`;
+  const commands = getSparseCheckoutGitCommands({
+    repo,
+    ref,
+    paths,
+    checkoutDir,
+  });
 
-  const commit = (await $`git -C ${checkoutDir} rev-parse HEAD`).stdout.trim();
-  return commit;
-}
-
-echo`Bundling preinstalled skills...`;
-const manifestSkills = loadManifest();
-
-rmSync(OUTPUT_ROOT, { recursive: true, force: true });
-mkdirSync(OUTPUT_ROOT, { recursive: true });
-rmSync(TMP_ROOT, { recursive: true, force: true });
-mkdirSync(TMP_ROOT, { recursive: true });
-
-const lock = {
-  generatedAt: new Date().toISOString(),
-  skills: [],
-};
-
-const groups = groupByRepoRef(manifestSkills);
-for (const group of groups) {
-  const repoDir = join(TMP_ROOT, createRepoDirName(group.repo, group.ref));
-  const sparsePaths = [...new Set(group.entries.map((entry) => entry.repoPath))];
-
-  echo`Fetching ${group.repo} @ ${group.ref}`;
-  const commit = await fetchSparseRepo(group.repo, group.ref, sparsePaths, repoDir);
-  echo`   commit ${commit}`;
-
-  for (const entry of group.entries) {
-    const sourceDir = join(repoDir, entry.repoPath);
-    const targetDir = join(OUTPUT_ROOT, entry.slug);
-
-    if (!existsSync(sourceDir)) {
-      throw new Error(`Missing source path in repo checkout: ${entry.repoPath}`);
-    }
-
-    rmSync(targetDir, { recursive: true, force: true });
-    cpSync(sourceDir, targetDir, { recursive: true, dereference: true });
-
-    const skillManifest = join(targetDir, 'SKILL.md');
-    if (!existsSync(skillManifest)) {
-      throw new Error(`Skill ${entry.slug} is missing SKILL.md after copy`);
-    }
-
-    const requestedVersion = (entry.version || '').trim();
-    const resolvedVersion = !requestedVersion || requestedVersion === 'main'
-      ? commit
-      : requestedVersion;
-    lock.skills.push({
-      slug: entry.slug,
-      version: resolvedVersion,
-      repo: entry.repo,
-      repoPath: entry.repoPath,
-      ref: group.ref,
-      commit,
-    });
-
-    echo`   OK ${entry.slug}`;
+  for (let index = 0; index < commands.length - 1; index += 1) {
+    const [command, args] = commands[index];
+    runGit(command, args);
   }
+
+  const [command, args] = commands[commands.length - 1];
+  return runGit(command, args, { capture: true }).trim();
 }
 
-writeFileSync(join(OUTPUT_ROOT, '.preinstalled-lock.json'), `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
-rmSync(TMP_ROOT, { recursive: true, force: true });
-echo`Preinstalled skills ready: ${OUTPUT_ROOT}`;
+export async function main() {
+  echo('Bundling preinstalled skills...');
+  const manifestSkills = loadManifest();
+
+  rmSync(OUTPUT_ROOT, { recursive: true, force: true });
+  mkdirSync(OUTPUT_ROOT, { recursive: true });
+  rmSync(TMP_ROOT, { recursive: true, force: true });
+  mkdirSync(TMP_ROOT, { recursive: true });
+
+  const lock = {
+    generatedAt: new Date().toISOString(),
+    skills: [],
+  };
+
+  const groups = groupByRepoRef(manifestSkills);
+  for (const group of groups) {
+    const repoDir = join(TMP_ROOT, createRepoDirName(group.repo, group.ref));
+    const sparsePaths = [...new Set(group.entries.map((entry) => entry.repoPath))];
+
+    echo(`Fetching ${group.repo} @ ${group.ref}`);
+    const commit = await fetchSparseRepo(group.repo, group.ref, sparsePaths, repoDir);
+    echo(`   commit ${commit}`);
+
+    for (const entry of group.entries) {
+      const sourceDir = join(repoDir, entry.repoPath);
+      const targetDir = join(OUTPUT_ROOT, entry.slug);
+
+      if (!existsSync(sourceDir)) {
+        throw new Error(`Missing source path in repo checkout: ${entry.repoPath}`);
+      }
+
+      rmSync(targetDir, { recursive: true, force: true });
+      cpSync(sourceDir, targetDir, { recursive: true, dereference: true });
+
+      const skillManifest = join(targetDir, 'SKILL.md');
+      if (!existsSync(skillManifest)) {
+        throw new Error(`Skill ${entry.slug} is missing SKILL.md after copy`);
+      }
+
+      const requestedVersion = (entry.version || '').trim();
+      const resolvedVersion = !requestedVersion || requestedVersion === 'main'
+        ? commit
+        : requestedVersion;
+
+      lock.skills.push({
+        slug: entry.slug,
+        version: resolvedVersion,
+        repo: entry.repo,
+        repoPath: entry.repoPath,
+        ref: group.ref,
+        commit,
+      });
+
+      echo(`   OK ${entry.slug}`);
+    }
+  }
+
+  writeFileSync(join(OUTPUT_ROOT, '.preinstalled-lock.json'), `${JSON.stringify(lock, null, 2)}\n`, 'utf8');
+  rmSync(TMP_ROOT, { recursive: true, force: true });
+  echo(`Preinstalled skills ready: ${OUTPUT_ROOT}`);
+}
+
+const scriptPath = process.argv[1] ? resolve(process.argv[1]) : null;
+const currentModulePath = fileURLToPath(import.meta.url);
+
+if (scriptPath === currentModulePath) {
+  await main();
+}
