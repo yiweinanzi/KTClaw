@@ -14,6 +14,7 @@ import { buildProxyEnv, resolveProxySettings } from '../utils/proxy';
 import { syncProxyConfigToOpenClaw } from '../utils/openclaw-proxy';
 import { logger } from '../utils/logger';
 import { prependPathEntry } from '../utils/env-path';
+import { patchInstalledFeishuPluginCompatibility, patchInstalledWeChatPluginCompatibility } from '../utils/wechat-plugin-compat';
 
 export interface GatewayLaunchContext {
   appSettings: Awaited<ReturnType<typeof getAllSettings>>;
@@ -35,6 +36,7 @@ const CHANNEL_PLUGIN_MAP: Record<string, { dirName: string; npmName: string }> =
   wecom: { dirName: 'wecom', npmName: '@wecom/wecom-openclaw-plugin' },
   feishu: { dirName: 'feishu-openclaw-plugin', npmName: '@larksuite/openclaw-lark' },
   qqbot: { dirName: 'qqbot', npmName: '@sliverp/qqbot' },
+  wechat: { dirName: 'openclaw-weixin', npmName: '@tencent-weixin/openclaw-weixin' },
 };
 
 function readPluginVersion(pkgJsonPath: string): string | null {
@@ -166,6 +168,14 @@ function buildBundledPluginSources(pluginDirName: string): string[] {
     ];
 }
 
+function buildBundledPluginSourcesWithLegacyFallback(pluginDirName: string): string[] {
+  const sources = buildBundledPluginSources(pluginDirName);
+  if (pluginDirName === 'openclaw-weixin') {
+    sources.push(...buildBundledPluginSources('wechat'));
+  }
+  return [...new Set(sources)];
+}
+
 /**
  * Auto-upgrade all configured channel plugins before Gateway start.
  * - Packaged mode: uses bundled plugins from resources/ (includes deps)
@@ -179,26 +189,47 @@ function ensureConfiguredPluginsUpgraded(configuredChannels: string[]): void {
 
     const targetDir = join(homedir(), '.openclaw', 'extensions', dirName);
     const targetManifest = join(targetDir, 'openclaw.plugin.json');
-    if (!existsSync(targetManifest)) continue; // not installed, nothing to upgrade
+    const legacyTargetDir = channelType === 'wechat'
+      ? join(homedir(), '.openclaw', 'extensions', 'wechat')
+      : null;
+    const isInstalled = existsSync(targetManifest);
 
-    const installedVersion = readPluginVersion(join(targetDir, 'package.json'));
+    const installedVersion = isInstalled ? readPluginVersion(join(targetDir, 'package.json')) : null;
+    const patchInstalledPluginCompat = () => {
+      if (!existsSync(targetDir)) return;
+      try {
+        if (channelType === 'wechat' && patchInstalledWeChatPluginCompatibility(targetDir)) {
+          logger.info('[plugin] Applied WeChat compatibility shim for OpenClaw 2026.3.22');
+        }
+        if (channelType === 'feishu' && patchInstalledFeishuPluginCompatibility(targetDir)) {
+          logger.info('[plugin] Applied Feishu compatibility shim for OpenClaw 2026.3.22');
+        }
+      } catch (err) {
+        logger.warn('[plugin] Failed to patch plugin compatibility shim:', err);
+      }
+    };
 
     // Try bundled sources first (packaged mode or if bundle-plugins was run)
-    const bundledSources = buildBundledPluginSources(dirName);
+    const bundledSources = buildBundledPluginSourcesWithLegacyFallback(dirName);
     const bundledDir = bundledSources.find((dir) => existsSync(join(dir, 'openclaw.plugin.json')));
 
     if (bundledDir) {
       const sourceVersion = readPluginVersion(join(bundledDir, 'package.json'));
-      if (sourceVersion && installedVersion && sourceVersion !== installedVersion) {
+      if (!isInstalled || (sourceVersion && installedVersion && sourceVersion !== installedVersion)) {
         logger.info(`[plugin] Auto-upgrading ${channelType} plugin: ${installedVersion} → ${sourceVersion} (bundled)`);
         try {
           mkdirSync(join(homedir(), '.openclaw', 'extensions'), { recursive: true });
+          if (legacyTargetDir && legacyTargetDir !== targetDir) {
+            rmSync(legacyTargetDir, { recursive: true, force: true });
+          }
           rmSync(targetDir, { recursive: true, force: true });
           cpSync(bundledDir, targetDir, { recursive: true, dereference: true });
+          patchInstalledPluginCompat();
         } catch (err) {
           logger.warn(`[plugin] Failed to auto-upgrade ${channelType} plugin:`, err);
         }
       }
+      patchInstalledPluginCompat();
       continue;
     }
 
@@ -207,16 +238,22 @@ function ensureConfiguredPluginsUpgraded(configuredChannels: string[]): void {
       const npmPkgPath = join(process.cwd(), 'node_modules', ...npmName.split('/'));
       if (!existsSync(join(npmPkgPath, 'openclaw.plugin.json'))) continue;
       const sourceVersion = readPluginVersion(join(npmPkgPath, 'package.json'));
-      if (!sourceVersion || !installedVersion || sourceVersion === installedVersion) continue;
+      if (!sourceVersion) continue;
+      if (isInstalled && installedVersion && sourceVersion === installedVersion) continue;
 
       logger.info(`[plugin] Auto-upgrading ${channelType} plugin: ${installedVersion} → ${sourceVersion} (dev/node_modules)`);
       try {
         mkdirSync(join(homedir(), '.openclaw', 'extensions'), { recursive: true });
+        if (legacyTargetDir && legacyTargetDir !== targetDir) {
+          rmSync(legacyTargetDir, { recursive: true, force: true });
+        }
         copyPluginFromNodeModules(npmPkgPath, targetDir, npmName);
+        patchInstalledPluginCompat();
       } catch (err) {
         logger.warn(`[plugin] Failed to auto-upgrade ${channelType} plugin from node_modules:`, err);
       }
     }
+    patchInstalledPluginCompat();
   }
 }
 

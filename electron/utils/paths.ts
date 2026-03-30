@@ -44,7 +44,15 @@ export function getOpenClawSkillsDir(): string {
  * Get KTClaw config directory
  */
 export function getKTClawConfigDir(): string {
-  return join(homedir(), '.clawx');
+  const ktclawDir = join(homedir(), '.ktclaw');
+  const legacyClawxDir = join(homedir(), '.clawx');
+  if (existsSync(ktclawDir)) {
+    return ktclawDir;
+  }
+  if (existsSync(legacyClawxDir)) {
+    return legacyClawxDir;
+  }
+  return ktclawDir;
 }
 
 /**

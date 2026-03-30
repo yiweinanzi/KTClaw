@@ -487,7 +487,7 @@
     "dialogAriaLabel": "配置迁移向导",
     "header": {
       "title": "配置迁移",
-      "subtitle": "从 OpenClaw 迁移配置到 AutoClaw"
+      "subtitle": "从 OpenClaw 迁移配置到 KTClaw"
     },
     "actions": {
       "close": "关闭迁移向导",
@@ -511,7 +511,7 @@
         "providers": { "label": "模型提供商配置", "description": "没有可迁移的自定义模型提供商（zai/zhi…" },
         "browser": { "label": "浏览器状态", "description": "浏览器数据不存在" },
         "media": { "label": "媒体文件", "description": "媒体文件不存在" },
-        "plugins": { "label": "插件 (plugins/)", "description": "AutoClaw 使用不同的插件架构，无法迁移" },
+        "plugins": { "label": "插件 (plugins/)", "description": "KTClaw 使用不同的插件架构，无法迁移" },
         "gateway": { "label": "Gateway 配置", "description": "Gateway 架构不同，无法直接迁移" }
       }
     },
@@ -526,7 +526,7 @@
       "title": "确认执行迁移",
       "checklist": {
         "copyOnly": "原配置不删除（复制非移动）",
-        "keepDefaults": "冲突保留 AutoClaw 默认值",
+        "keepDefaults": "冲突保留 KTClaw 默认值",
         "backupPath": "备份至 ~/.openclaw.backup/"
       },
       "securityNotice": "安全提醒：skills/ 可能含自定义脚本，迁移前建议审查",

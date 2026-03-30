@@ -23,6 +23,7 @@ import {
   isOAuthProviderType,
   isOpenClawOAuthPluginProviderKey,
 } from './provider-keys';
+import { OPENCLAW_WECHAT_CHANNEL_TYPE } from './channel-alias';
 import { withConfigLock } from './config-mutex';
 import { logger } from './logger';
 
@@ -1016,6 +1017,16 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
       logger.info('[sanitize] Enforced tools.profile="full" and tools.sessions.visibility="all" for OpenClaw 3.8+');
     }
 
+    const channelsObj = config.channels as Record<string, Record<string, unknown>> | undefined;
+    if (channelsObj && typeof channelsObj === 'object' && channelsObj.wechat) {
+      if (!channelsObj[OPENCLAW_WECHAT_CHANNEL_TYPE]) {
+        channelsObj[OPENCLAW_WECHAT_CHANNEL_TYPE] = channelsObj.wechat;
+      }
+      delete channelsObj.wechat;
+      modified = true;
+      logger.info(`[sanitize] Migrated channels.wechat -> channels.${OPENCLAW_WECHAT_CHANNEL_TYPE}`);
+    }
+
     // ── plugins.entries.feishu cleanup ──────────────────────────────
     // The official feishu plugin registers its channel AS 'feishu' via
     // openclaw.plugin.json.  An explicit entries.feishu.enabled=false
@@ -1081,6 +1092,29 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
           }
         }
       }
+
+      const LEGACY_WECHAT_ID = 'wechat';
+      if (Array.isArray(pluginsObj.allow)) {
+        const allowArr = pluginsObj.allow as string[];
+        const legacyIdx = allowArr.indexOf(LEGACY_WECHAT_ID);
+        if (legacyIdx !== -1) {
+          if (!allowArr.includes(OPENCLAW_WECHAT_CHANNEL_TYPE)) {
+            allowArr[legacyIdx] = OPENCLAW_WECHAT_CHANNEL_TYPE;
+          } else {
+            allowArr.splice(legacyIdx, 1);
+          }
+          logger.info(`[sanitize] Migrated plugins.allow: ${LEGACY_WECHAT_ID} -> ${OPENCLAW_WECHAT_CHANNEL_TYPE}`);
+          modified = true;
+        }
+      }
+      if (pEntries?.[LEGACY_WECHAT_ID]) {
+        if (!pEntries[OPENCLAW_WECHAT_CHANNEL_TYPE]) {
+          pEntries[OPENCLAW_WECHAT_CHANNEL_TYPE] = pEntries[LEGACY_WECHAT_ID];
+        }
+        delete pEntries[LEGACY_WECHAT_ID];
+        logger.info(`[sanitize] Migrated plugins.entries: ${LEGACY_WECHAT_ID} -> ${OPENCLAW_WECHAT_CHANNEL_TYPE}`);
+        modified = true;
+      }
     }
 
     // ── channels default-account migration ─────────────────────────
@@ -1089,7 +1123,6 @@ export async function sanitizeOpenClawConfig(): Promise<void> {
     // but KTClaw historically stored them only under `channels.<type>.accounts.default`.
     // Mirror the default account credentials at the top level so plugins can
     // discover them.
-    const channelsObj = config.channels as Record<string, Record<string, unknown>> | undefined;
     if (channelsObj && typeof channelsObj === 'object') {
       for (const [channelType, section] of Object.entries(channelsObj)) {
         if (!section || typeof section !== 'object') continue;

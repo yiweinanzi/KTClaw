@@ -30,7 +30,7 @@ export function normalizeUpdateChannel(channel: unknown): UpdateChannel {
  * Generate a random token for gateway authentication
  */
 function generateToken(): string {
-  return `clawx-${randomBytes(16).toString('hex')}`;
+  return `ktclaw-${randomBytes(16).toString('hex')}`;
 }
 
 /**

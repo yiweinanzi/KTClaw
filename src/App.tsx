@@ -2,7 +2,7 @@
  * Root Application Component
  * Handles routing and global providers
  */
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Component, lazy, Suspense, useEffect } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { AppToaster } from '@/components/ui/Toast';
@@ -29,7 +29,6 @@ const Setup = lazy(() => import('./pages/Setup').then((m) => ({ default: m.Setup
 const BroadcastChat = lazy(() => import('./pages/BroadcastChat').then((m) => ({ default: m.BroadcastChat })));
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
-import { isBrowserPreviewMode } from './lib/browser-preview';
 import { wireGatewayNotifications } from './stores/notifications';
 
 
@@ -99,14 +98,11 @@ class ErrorBoundary extends Component<
 
 function App() {
   const navigate = useNavigate();
-  const location = useLocation();
   const initSettings = useSettingsStore((state) => state.init);
   const theme = useSettingsStore((state) => state.theme);
   const accentColor = useSettingsStore((state) => state.accentColor);
   const language = useSettingsStore((state) => state.language);
-  const setupComplete = useSettingsStore((state) => state.setupComplete);
   const initGateway = useGatewayStore((state) => state.init);
-  const browserPreviewMode = isBrowserPreviewMode();
 
   useEffect(() => {
     const initApp = async () => {

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-export const PINNED_SESSIONS_STORAGE_KEY = 'clawx-sidebar-pinned-sessions';
-const PINNED_SESSIONS_EVENT = 'clawx:pinned-sessions-updated';
+export const PINNED_SESSIONS_STORAGE_KEY = 'ktclaw-sidebar-pinned-sessions';
+const LEGACY_PINNED_SESSIONS_STORAGE_KEY = 'clawx-sidebar-pinned-sessions';
+const PINNED_SESSIONS_EVENT = 'ktclaw:pinned-sessions-updated';
 
 function parsePinnedSessionKeys(raw: string | null): string[] {
   if (!raw) return [];
@@ -16,11 +17,27 @@ function parsePinnedSessionKeys(raw: string | null): string[] {
 }
 
 export function readPinnedSessionKeys(): string[] {
-  return parsePinnedSessionKeys(localStorage.getItem(PINNED_SESSIONS_STORAGE_KEY));
+  try {
+    const currentRaw = localStorage.getItem(PINNED_SESSIONS_STORAGE_KEY);
+    if (currentRaw !== null) {
+      return parsePinnedSessionKeys(currentRaw);
+    }
+
+    const legacyRaw = localStorage.getItem(LEGACY_PINNED_SESSIONS_STORAGE_KEY);
+    const legacyKeys = parsePinnedSessionKeys(legacyRaw);
+    if (legacyRaw !== null) {
+      localStorage.setItem(PINNED_SESSIONS_STORAGE_KEY, JSON.stringify(legacyKeys));
+      localStorage.removeItem(LEGACY_PINNED_SESSIONS_STORAGE_KEY);
+    }
+    return legacyKeys;
+  } catch {
+    return [];
+  }
 }
 
 export function writePinnedSessionKeys(keys: string[]): void {
   localStorage.setItem(PINNED_SESSIONS_STORAGE_KEY, JSON.stringify(keys));
+  localStorage.removeItem(LEGACY_PINNED_SESSIONS_STORAGE_KEY);
   window.dispatchEvent(new CustomEvent(PINNED_SESSIONS_EVENT, { detail: keys }));
 }
 

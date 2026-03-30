@@ -84,7 +84,10 @@ const UNIFIED_CHANNELS = new Set<string>([
 ]);
 
 const customInvokers = new Map<Exclude<TransportKind, 'ipc'>, TransportInvoker>();
-const GATEWAY_WS_DIAG_FLAG = 'clawx:gateway-ws-diagnostic';
+const GATEWAY_WS_DIAG_FLAG = 'ktclaw:gateway-ws-diagnostic';
+const LEGACY_GATEWAY_WS_DIAG_FLAG = 'clawx:gateway-ws-diagnostic';
+const API_LOG_FLAG = 'ktclaw:api-log';
+const LEGACY_API_LOG_FLAG = 'clawx:api-log';
 
 let transportConfig: ApiClientTransportConfig = {
   enabled: {
@@ -184,7 +187,9 @@ function mapUnifiedErrorCode(code?: string): AppErrorCode {
 
 function shouldLogApiRequests(): boolean {
   try {
-    return import.meta.env.DEV || window.localStorage.getItem('clawx:api-log') === '1';
+    return import.meta.env.DEV
+      || window.localStorage.getItem(API_LOG_FLAG) === '1'
+      || window.localStorage.getItem(LEGACY_API_LOG_FLAG) === '1';
   } catch {
     return !!import.meta.env.DEV;
   }
@@ -282,19 +287,23 @@ export function applyGatewayTransportPreference(): void {
 
 export function getGatewayWsDiagnosticEnabled(): boolean {
   try {
-    return window.localStorage.getItem(GATEWAY_WS_DIAG_FLAG) === '1';
+    if (window.localStorage.getItem(GATEWAY_WS_DIAG_FLAG) !== null) {
+      window.localStorage.removeItem(GATEWAY_WS_DIAG_FLAG);
+    }
+    if (window.localStorage.getItem(LEGACY_GATEWAY_WS_DIAG_FLAG) !== null) {
+      window.localStorage.removeItem(LEGACY_GATEWAY_WS_DIAG_FLAG);
+    }
   } catch {
-    return false;
+    // ignore localStorage errors
   }
+  return false;
 }
 
 export function setGatewayWsDiagnosticEnabled(enabled: boolean): void {
   try {
-    if (enabled) {
-      window.localStorage.setItem(GATEWAY_WS_DIAG_FLAG, '1');
-    } else {
-      window.localStorage.removeItem(GATEWAY_WS_DIAG_FLAG);
-    }
+    void enabled;
+    window.localStorage.removeItem(GATEWAY_WS_DIAG_FLAG);
+    window.localStorage.removeItem(LEGACY_GATEWAY_WS_DIAG_FLAG);
   } catch {
     // ignore localStorage errors
   }

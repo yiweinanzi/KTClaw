@@ -301,6 +301,11 @@ type FeishuConversationIdParts = {
   externalConversationId: string;
 };
 
+type WeChatConversationIdParts = {
+  accountId: string;
+  externalConversationId: string;
+};
+
 type NormalizedChannelCapability = {
   channelId: string;
   channelType: string;
@@ -434,6 +439,28 @@ function readLatestActivityAt(account: {
   return new Date(Math.max(...candidates)).toISOString();
 }
 
+function buildWorkbenchSessionId(
+  channelType: string,
+  accountId: string,
+  externalConversationId?: string,
+): string {
+  if (channelType === 'wechat') {
+    const conversationId = externalConversationId?.trim() || accountId;
+    return `wechat:${accountId}:${conversationId}`;
+  }
+  return `${channelType}-${accountId}`;
+}
+
+function resolveConversationChannelType(conversationId: string): string {
+  if (conversationId.includes(':')) {
+    return conversationId.split(':')[0] || '';
+  }
+  if (conversationId.includes('-')) {
+    return conversationId.split('-')[0] || '';
+  }
+  return conversationId;
+}
+
 function buildWorkbenchSessions(
   channelType: string,
   statusSnapshot: ChannelsStatusSnapshot | null,
@@ -449,7 +476,7 @@ function buildWorkbenchSessions(
       const status = resolveNormalizedStatus(summary, account);
       const latestActivityAt = readLatestActivityAt(account);
       return {
-        id: `${channelType}-${accountId}`,
+        id: buildWorkbenchSessionId(channelType, accountId),
         channelId: `${channelType}-${accountId}`,
         channelType,
         sessionType: accountId === defaultAccountId ? 'group' : 'private',
@@ -471,7 +498,7 @@ function buildWorkbenchSessions(
   const fallbackStatus = normalizeWorkbenchSyncState(resolveNormalizedStatus(summary, undefined));
   return [
     {
-      id: `${channelType}-${defaultAccountId}`,
+      id: buildWorkbenchSessionId(channelType, defaultAccountId),
       channelId: `${channelType}-${defaultAccountId}`,
       channelType,
       sessionType: 'group',
@@ -843,6 +870,22 @@ async function sendFeishuConversationMessage(params: {
 
 function parseFeishuConversationId(conversationId: string): FeishuConversationIdParts | null {
   if (!conversationId.startsWith('feishu:')) {
+    return null;
+  }
+  const parts = conversationId.split(':');
+  if (parts.length < 3) {
+    return null;
+  }
+  const accountId = parts[1]?.trim();
+  const externalConversationId = parts.slice(2).join(':').trim();
+  if (!accountId || !externalConversationId) {
+    return null;
+  }
+  return { accountId, externalConversationId };
+}
+
+function parseWeChatConversationId(conversationId: string): WeChatConversationIdParts | null {
+  if (!conversationId.startsWith('wechat:')) {
     return null;
   }
   const parts = conversationId.split(':');
@@ -1349,10 +1392,17 @@ export async function handleChannelRoutes(
         });
         return true;
       }
-      const [channelType] = conversationId.split('-');
+      const channelType = resolveConversationChannelType(conversationId);
       const statusSnapshot = await ctx.gatewayManager.rpc<ChannelsStatusSnapshot>('channels.status', { probe: true }).catch(() => null);
       const sessions = buildWorkbenchSessions(channelType, statusSnapshot);
-      const conversation = sessions.find((session) => session.id === conversationId) ?? null;
+      const parsedWeChatConversation = parseWeChatConversationId(conversationId);
+      const conversation = sessions.find((session) => session.id === conversationId)
+        ?? (
+          parsedWeChatConversation
+            ? sessions.find((session) => session.channelId === `wechat-${parsedWeChatConversation.accountId}`) ?? null
+            : null
+        );
+      const fallbackConversationTitle = parsedWeChatConversation?.externalConversationId || conversationId;
       sendJson(res, 200, {
         success: true,
         conversation: conversation
@@ -1363,7 +1413,17 @@ export async function handleChannelRoutes(
             participantSummary: conversation.participantSummary,
             visibleAgentId: conversation.visibleAgentId,
           }
-          : null,
+          : (
+            parsedWeChatConversation
+              ? {
+                id: conversationId,
+                title: fallbackConversationTitle,
+                syncState: 'connecting',
+                participantSummary: '等待同步会话',
+                visibleAgentId: 'main',
+              }
+              : null
+          ),
         messages: [],
       });
     } catch (error) {
@@ -1435,49 +1495,48 @@ export async function handleChannelRoutes(
         allMessages = workbenchMessages as unknown as Array<Record<string, unknown>>;
         conversationObj = buildFeishuConversationPayload(conversationId, discoveredConversation, binding?.agentId);
       } else {
-        // Non-feishu: session IDs (e.g. "feishu-default" fallback) — look up conversation from
-        // status snapshot and try to pull messages from the agent session.
-        const channelType = conversationId.split('-')[0] || '';
+        const channelType = resolveConversationChannelType(conversationId);
         const statusSnap = await ctx.gatewayManager.rpc<ChannelsStatusSnapshot>('channels.status', { probe: true }).catch(() => null);
         const sessions = buildWorkbenchSessions(channelType, statusSnap);
-        const session = sessions.find((s) => s.id === conversationId) ?? null;
-        if (session) {
+        const parsedWeChatConversation = parseWeChatConversationId(conversationId);
+        const session = sessions.find((s) => s.id === conversationId)
+          ?? (
+            parsedWeChatConversation
+              ? sessions.find((s) => s.channelId === `wechat-${parsedWeChatConversation.accountId}`) ?? null
+              : null
+          );
+        if (session || parsedWeChatConversation) {
+          const resolvedConversationId = session?.id ?? conversationId;
+          const resolvedConversationTitle = session?.title
+            ?? parsedWeChatConversation?.externalConversationId
+            ?? conversationId;
           conversationObj = {
-            id: session.id,
-            title: session.title,
-            syncState: session.syncState,
-            ...(session.participantSummary ? { participantSummary: session.participantSummary } : {}),
-            ...(session.visibleAgentId ? { visibleAgentId: session.visibleAgentId } : {}),
+            id: resolvedConversationId,
+            title: resolvedConversationTitle,
+            syncState: session?.syncState ?? 'connecting',
+            ...(session?.participantSummary ? { participantSummary: session.participantSummary } : {}),
+            ...(session?.visibleAgentId ? { visibleAgentId: session.visibleAgentId } : {}),
           };
-          // Try feishu-specific session keys first, then fall back to main session
-          const agentId = session.visibleAgentId || 'main';
-          const feishuKeys = [
-            `agent:${agentId}:feishu:group:default`,
-            `agent:${agentId}:feishu:direct:default`,
-            `agent:${agentId}:feishu:channel:default`,
-          ];
-          for (const key of feishuKeys) {
+          const agentId = session?.visibleAgentId || 'main';
+          const sessionKeys = channelType === 'wechat' && parsedWeChatConversation
+            ? [
+              `agent:${agentId}:wechat:group:${parsedWeChatConversation.externalConversationId}`,
+              `agent:${agentId}:wechat:direct:${parsedWeChatConversation.externalConversationId}`,
+              `agent:${agentId}:main`,
+              'agent:main:main',
+            ]
+            : [
+              `agent:${agentId}:main`,
+              'agent:main:main',
+            ];
+          for (const key of [...new Set(sessionKeys)]) {
             const payload = await ctx.gatewayManager.rpc<unknown>('chat.history', { sessionKey: key, limit: 500 }).catch(() => null);
-            if (payload) {
-              const msgs = mapRuntimeHistoryToWorkbenchMessages(payload);
-              if (msgs.length > 0) { allMessages = msgs as unknown as Array<Record<string, unknown>>; break; }
-            }
-          }
-          // Fall back to main session — show all human + agent + tool messages.
-          // Human messages from Feishu (with or without ou_xxx prefix) must be visible.
-          if (allMessages.length === 0) {
-            const mainKeys = [`agent:${agentId}:main`, 'agent:main:main'];
-            for (const key of [...new Set(mainKeys)]) {
-              const payload = await ctx.gatewayManager.rpc<unknown>('chat.history', { sessionKey: key, limit: 500 }).catch(() => null);
-              if (payload) {
-                const msgs = mapRuntimeHistoryToWorkbenchMessages(payload);
-                // Include all visible messages (human, agent, tool) — exclude only internal system messages
-                const visible = msgs.filter((m) => m.role !== 'system' || !m.internal);
-                if (visible.length > 0) {
-                  allMessages = visible as unknown as Array<Record<string, unknown>>;
-                  break;
-                }
-              }
+            if (!payload) continue;
+            const msgs = mapRuntimeHistoryToWorkbenchMessages(payload);
+            const visible = msgs.filter((m) => m.role !== 'system' || !m.internal);
+            if (visible.length > 0) {
+              allMessages = visible as unknown as Array<Record<string, unknown>>;
+              break;
             }
           }
         }
@@ -1672,7 +1731,14 @@ export async function handleChannelRoutes(
         sendJson(res, 500, { success: false, error: 'Failed to generate QR code' });
         return true;
       }
-      sendJson(res, 200, { success: true, qrcode: state.qrcode, qrcodeUrl: state.qrcodeUrl, status: state.status });
+      sendJson(res, 200, {
+        success: true,
+        qrcode: state.qrcode,
+        qrcodeUrl: state.qrcodeUrl,
+        sessionKey: state.sessionKey,
+        connected: state.connected,
+        status: state.status,
+      });
     } catch (error) {
       sendJson(res, 500, { success: false, error: String(error) });
     }
@@ -1682,10 +1748,18 @@ export async function handleChannelRoutes(
   if (url.pathname === '/api/channels/wechat/qr/status' && req.method === 'GET') {
     const state = weChatLoginManager.getState();
     if (!state) {
-      sendJson(res, 200, { success: true, status: 'idle' });
+      sendJson(res, 200, { success: true, sessionKey: 'wechat-login', status: 'idle', connected: false });
       return true;
     }
-    sendJson(res, 200, { success: true, status: state.status, accountId: state.accountId, error: state.error });
+    sendJson(res, 200, {
+      success: true,
+      sessionKey: state.sessionKey,
+      status: state.status,
+      connected: state.connected,
+      accountId: state.accountId,
+      message: state.message,
+      error: state.error,
+    });
     return true;
   }
 

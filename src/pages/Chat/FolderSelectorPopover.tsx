@@ -7,13 +7,24 @@ import { createPortal } from 'react-dom';
 import { FolderPlus, Clock, Folder, ChevronRight } from 'lucide-react';
 import { invokeIpc } from '@/lib/api-client';
 
-const RECENT_KEY = 'clawx-recent-cwds';
+const RECENT_KEY = 'ktclaw-recent-cwds';
+const LEGACY_RECENT_KEY = 'clawx-recent-cwds';
 const MAX_RECENT = 10;
 
 function loadRecent(): string[] {
   try {
     const raw = localStorage.getItem(RECENT_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    if (raw) {
+      return JSON.parse(raw) as string[];
+    }
+
+    const legacyRaw = localStorage.getItem(LEGACY_RECENT_KEY);
+    const legacy = legacyRaw ? (JSON.parse(legacyRaw) as string[]) : [];
+    if (legacyRaw) {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(legacy));
+      localStorage.removeItem(LEGACY_RECENT_KEY);
+    }
+    return legacy;
   } catch {
     return [];
   }
@@ -22,6 +33,7 @@ function loadRecent(): string[] {
 function saveRecent(path: string) {
   const prev = loadRecent().filter((p) => p !== path);
   localStorage.setItem(RECENT_KEY, JSON.stringify([path, ...prev].slice(0, MAX_RECENT)));
+  localStorage.removeItem(LEGACY_RECENT_KEY);
 }
 
 function isWindowsDriveRoot(p: string): boolean {

@@ -29,6 +29,13 @@ import {
   createMainWindowFocusState,
   requestSecondInstanceFocus,
 } from './main-window-focus';
+import {
+  createQuitLifecycleState,
+  markQuitCleanupCompleted,
+  requestQuitLifecycleAction,
+} from './quit-lifecycle';
+import { createSignalQuitHandler } from './signal-quit';
+import { acquireProcessInstanceFileLock } from './process-instance-lock';
 import { getSetting } from '../utils/store';
 import { ensureBuiltinSkillsInstalled, ensurePreinstalledSkillsInstalled } from '../utils/skill-config';
 import { startHostApiServer } from '../api/server';
@@ -72,10 +79,37 @@ if (process.platform === 'linux') {
 // same port, then each treats the other's gateway as "orphaned" and kills
 // it — creating an infinite kill/restart loop on Windows.
 // The losing process must exit immediately so it never reaches Gateway startup.
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
+const gotElectronLock = app.requestSingleInstanceLock();
+if (!gotElectronLock) {
   app.exit(0);
 }
+let releaseProcessInstanceFileLock: () => void = () => {};
+let gotFileLock = true;
+if (gotElectronLock) {
+  try {
+    const fileLock = acquireProcessInstanceFileLock({
+      userDataDir: app.getPath('userData'),
+      lockName: 'ktclaw',
+      force: true,
+    });
+    gotFileLock = fileLock.acquired;
+    releaseProcessInstanceFileLock = fileLock.release;
+    if (!fileLock.acquired) {
+      const ownerDescriptor = fileLock.ownerPid
+        ? `${fileLock.ownerFormat ?? 'legacy'} pid=${fileLock.ownerPid}`
+        : fileLock.ownerFormat === 'unknown'
+          ? 'unknown lock format/content'
+          : 'unknown owner';
+      logger.info(
+        `Another instance already holds process lock (${fileLock.lockPath}, ${ownerDescriptor}); exiting duplicate process`,
+      );
+      app.exit(0);
+    }
+  } catch (error) {
+    logger.warn('Failed to acquire process instance file lock; continuing with Electron single-instance lock only', error);
+  }
+}
+const gotTheLock = gotElectronLock && gotFileLock;
 
 // Global references
 let mainWindow: BrowserWindow | null = null;
@@ -87,6 +121,7 @@ let sessionRuntimeManager!: SessionRuntimeManager;
 let hostApiServer: Server | null = null;
 const hostApiSessionToken = randomBytes(24).toString('hex');
 const mainWindowFocusState = createMainWindowFocusState();
+const quitLifecycleState = createQuitLifecycleState();
 
 /**
  * Resolve the icons directory path (works in both dev and packaged mode)
@@ -466,6 +501,22 @@ async function initialize(): Promise<void> {
 }
 
 if (gotTheLock) {
+  const requestQuitOnSignal = createSignalQuitHandler({
+    logInfo: (message) => logger.info(message),
+    requestQuit: () => app.quit(),
+  });
+
+  process.on('exit', () => {
+    releaseProcessInstanceFileLock();
+  });
+
+  process.once('SIGINT', () => requestQuitOnSignal('SIGINT'));
+  process.once('SIGTERM', () => requestQuitOnSignal('SIGTERM'));
+
+  app.on('will-quit', () => {
+    releaseProcessInstanceFileLock();
+  });
+
   if (process.platform === 'win32') {
     app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
   }
@@ -557,17 +608,50 @@ if (gotTheLock) {
     }
   });
 
-  app.on('before-quit', () => {
+  app.on('before-quit', (event) => {
     setQuitting();
+    const action = requestQuitLifecycleAction(quitLifecycleState);
+
+    if (action === 'allow-quit') {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (action === 'cleanup-in-progress') {
+      logger.debug('Quit requested while cleanup already in progress; waiting for shutdown task to finish');
+      return;
+    }
+
     hostEventBus.closeAll();
     hostApiServer?.close();
-    // Fire-and-forget: do not await gatewayManager.stop() here.
-    // Awaiting inside before-quit can stall Electron's quit sequence.
-    void gatewayManager.stop().catch((err) => {
-      logger.warn('gatewayManager.stop() error during quit:', err);
+
+    const shutdownPromise = Promise.allSettled([
+      gatewayManager.stop().catch((err) => {
+        logger.warn('gatewayManager.stop() error during quit:', err);
+      }),
+      mcpRuntimeManager.shutdown().catch((err) => {
+        logger.warn('mcpRuntimeManager.shutdown() error during quit:', err);
+      }),
+    ]).then(() => 'stopped' as const);
+    const timeoutPromise = new Promise<'timeout'>((resolve) => {
+      setTimeout(() => resolve('timeout'), 5000);
     });
-    void mcpRuntimeManager.shutdown().catch((err) => {
-      logger.warn('mcpRuntimeManager.shutdown() error during quit:', err);
+
+    void Promise.race([shutdownPromise, timeoutPromise]).then((result) => {
+      if (result === 'timeout') {
+        logger.warn('Gateway shutdown timed out during app quit; proceeding with forced quit');
+        void gatewayManager.forceTerminateOwnedProcessForQuit().then((terminated) => {
+          if (terminated) {
+            logger.warn('Forced gateway process termination completed after quit timeout');
+          }
+        }).catch((err) => {
+          logger.warn('Forced gateway termination failed after quit timeout:', err);
+        });
+      }
+
+      markQuitCleanupCompleted(quitLifecycleState);
+      app.quit();
     });
   });
 }

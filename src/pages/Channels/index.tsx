@@ -13,12 +13,21 @@ import {
   CHANNEL_ICONS,
   CHANNEL_META,
   CHANNEL_NAMES,
+  CHANNEL_WORKBENCH_TYPES,
   type ChannelRuntimeCapability,
   type ChannelType,
 } from '@/types/channel';
 import type { ChannelSyncConversation, ChannelSyncFileInfo, ChannelSyncMessage, ChannelSyncSession } from '@/types/channel-sync';
 
-const DOMESTIC_CHANNEL_TYPES: ChannelType[] = ['feishu', 'dingtalk', 'wecom', 'qqbot', 'wechat'];
+const DOMESTIC_CHANNEL_TYPES: ChannelType[] = CHANNEL_WORKBENCH_TYPES;
+
+function resolveRequestedChannel(search: string): ChannelType {
+  const params = new URLSearchParams(search);
+  const requested = params.get('channel');
+  return requested && DOMESTIC_CHANNEL_TYPES.includes(requested as ChannelType)
+    ? requested as ChannelType
+    : 'feishu';
+}
 
 const CHANNEL_FAMILY_UI: Record<ChannelType, { railLabel: string; panelTitle: string; icon: string }> = {
   feishu: { railLabel: '飞书接入', panelTitle: '飞书配置详情', icon: '🪶' },
@@ -157,14 +166,8 @@ function MessageBubble({
 export function Channels() {
   const location = useLocation();
   const { t } = useTranslation(['channels', 'common']);
-  const requestedChannel = (() => {
-    const params = new URLSearchParams(window.location.search);
-    const requested = params.get('channel');
-    return requested && DOMESTIC_CHANNEL_TYPES.includes(requested as ChannelType)
-      ? requested as ChannelType
-      : 'feishu';
-  })();
-  const [activeChannel, setActiveChannel] = useState<ChannelType>(requestedChannel);
+  const requestedChannel = resolveRequestedChannel(location.search);
+  const [activeChannel, setActiveChannel] = useState<ChannelType>(() => requestedChannel);
   const [composerValue, setComposerValue] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [addType, setAddType] = useState<ChannelType>('feishu');
@@ -214,21 +217,18 @@ export function Channels() {
     void fetchChannels();
   }, [fetchChannels]);
 
-  // Watch for URL changes and update activeChannel
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const requested = params.get('channel');
-    const newChannel = requested && DOMESTIC_CHANNEL_TYPES.includes(requested as ChannelType)
-      ? requested as ChannelType
-      : 'feishu';
-    if (newChannel !== activeChannel) {
-      setActiveChannel(newChannel);
+    if (requestedChannel !== activeChannel) {
+      setActiveChannel(requestedChannel);
     }
-  }, [location.search, activeChannel]);
+  }, [requestedChannel, activeChannel]);
 
   // Fetch feishu user auth status to decide whether to show identity toggle
   useEffect(() => {
-    if (activeChannel !== 'feishu') return;
+    if (activeChannel !== 'feishu') {
+      setUserAuthStatus('unauthorized');
+      return;
+    }
     hostApiFetch<{ status?: string; channel?: { configured?: boolean; pluginEnabled?: boolean } }>('/api/feishu/status')
       .then((resp) => {
         // 'authorized' = explicit status field; fallback: channel configured + plugin enabled
@@ -246,22 +246,19 @@ export function Channels() {
   // Fetch group members when mention popover opens
   const fetchMembers = useCallback(() => {
     if (!selectedConversationId) return;
+    const membersPath = activeChannel === 'wechat'
+      ? '/api/channels/workbench/wechat/members'
+      : '/api/channels/workbench/members';
     hostApiFetch<{ members?: Array<{ openId: string; name: string }> }>(
-      `/api/channels/workbench/members?sessionId=${encodeURIComponent(selectedConversationId)}`,
+      `${membersPath}?sessionId=${encodeURIComponent(selectedConversationId)}`,
     )
       .then((resp) => setWorkbenchMembers(resp.members ?? []))
       .catch(() => setWorkbenchMembers([]));
-  }, [selectedConversationId]);
+  }, [activeChannel, selectedConversationId]);
 
   useEffect(() => {
     if (mentionOpen) fetchMembers();
   }, [mentionOpen, fetchMembers]);
-
-  useEffect(() => {
-    if (requestedChannel !== activeChannel) {
-      setActiveChannel(requestedChannel);
-    }
-  }, [requestedChannel, activeChannel]);
 
   useEffect(() => {
     let active = true;
@@ -474,9 +471,10 @@ export function Channels() {
       return [...filtered, optimisticMsg];
     });
     try {
+      const sendIdentity = activeChannel === 'feishu' ? identityMode : 'bot';
       await hostApiFetch(`/api/channels/${encodeURIComponent(selectedChannel.id)}/send`, {
         method: 'POST',
-        body: JSON.stringify({ text, conversationId: convId, identity: identityMode }),
+        body: JSON.stringify({ text, conversationId: convId, identity: sendIdentity }),
       });
       // Replace optimistic with polled messages
       await loadConversation(convId);
@@ -825,7 +823,7 @@ export function Channels() {
                 <span className="inline-flex items-center gap-2 rounded-full bg-[#ecfeff] px-3 py-1 text-[12px] font-medium text-[#0f766e]">
                   当前发言身份：{conversation.visibleAgentId || 'KTClaw'}
                 </span>
-                {userAuthStatus === 'authorized' && (
+                {activeChannel === 'feishu' && userAuthStatus === 'authorized' && (
                   <div
                     data-testid="identity-toggle"
                     aria-label="切换发言身份"

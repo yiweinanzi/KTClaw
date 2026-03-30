@@ -22,6 +22,9 @@ const mocks = vi.hoisted(() => ({
   getChannelFormValues: vi.fn(),
   saveChannelConfig: vi.fn(),
   whatsAppStart: vi.fn(),
+  weChatStart: vi.fn(),
+  weChatStop: vi.fn(),
+  weChatGetState: vi.fn(() => null),
   bindingGet: vi.fn(),
   bindingUpsert: vi.fn(),
 }));
@@ -61,9 +64,9 @@ vi.mock('@electron/utils/whatsapp-login', () => ({
 
 vi.mock('@electron/utils/wechat-login', () => ({
   weChatLoginManager: {
-    start: vi.fn(),
-    stop: vi.fn(),
-    getState: vi.fn(() => null),
+    start: mocks.weChatStart,
+    stop: mocks.weChatStop,
+    getState: mocks.weChatGetState,
   },
 }));
 
@@ -91,6 +94,7 @@ describe('channel sync workbench routes', () => {
     vi.resetModules();
     vi.clearAllMocks();
     delete (globalThis as Record<string, unknown>)[TEST_FEISHU_SNAPSHOT_KEY];
+    mocks.weChatGetState.mockReturnValue(null);
     mocks.bindingGet.mockResolvedValue(null);
     mocks.bindingUpsert.mockImplementation(async (record: Record<string, unknown>) => ({
       ...record,
@@ -747,11 +751,129 @@ describe('WeChat workbench routes', () => {
     vi.resetModules();
     Object.values(mocks).forEach((m) => typeof m === 'function' && m.mockReset?.());
     mocks.listConfiguredChannels.mockResolvedValue(['wechat']);
+    mocks.weChatGetState.mockReturnValue(null);
   });
 
   function createRequest(method: string): IncomingMessage {
     return { method } as IncomingMessage;
   }
+
+  it('wechat qr endpoint returns contract fields required by onboarding wizard', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    mocks.weChatGetState.mockReturnValue({
+      qrcode: 'base64-qrcode',
+      qrcodeUrl: 'https://wechat.test/qr.png',
+      sessionKey: 'wechat-login',
+      status: 'pending',
+      connected: false,
+    });
+
+    const ctx = { gatewayManager: { getStatus: () => ({ state: 'running', port: 18789 }), rpc: vi.fn(), debouncedRestart: vi.fn(), debouncedReload: vi.fn() } } as never;
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/wechat/qr'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.weChatStart).toHaveBeenCalledTimes(1);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, {
+      success: true,
+      qrcode: 'base64-qrcode',
+      qrcodeUrl: 'https://wechat.test/qr.png',
+      sessionKey: 'wechat-login',
+      connected: false,
+      status: 'pending',
+    });
+  });
+
+  it('wechat qr status endpoint includes connected/sessionKey/account contract fields', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    mocks.weChatGetState.mockReturnValue({
+      qrcode: 'base64-qrcode',
+      qrcodeUrl: 'https://wechat.test/qr.png',
+      sessionKey: 'wechat-login',
+      status: 'confirmed',
+      connected: true,
+      accountId: 'default',
+    });
+
+    const ctx = { gatewayManager: { getStatus: () => ({ state: 'running', port: 18789 }), rpc: vi.fn(), debouncedRestart: vi.fn(), debouncedReload: vi.fn() } } as never;
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/wechat/qr/status'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, {
+      success: true,
+      sessionKey: 'wechat-login',
+      status: 'confirmed',
+      connected: true,
+      accountId: 'default',
+      error: undefined,
+    });
+  });
+
+  it('builds wechat sessions with namespaced conversation ids', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    const gatewayRpc = vi.fn(async (method: string) => {
+      if (method === 'channels.status') {
+        return {
+          channels: {
+            wechat: { configured: true, running: true },
+          },
+          channelAccounts: {
+            wechat: [
+              {
+                accountId: 'default',
+                configured: true,
+                connected: true,
+                name: 'WeChat Workspace',
+              },
+            ],
+          },
+          channelDefaultAccountId: {
+            wechat: 'default',
+          },
+        };
+      }
+      throw new Error(`Unexpected RPC method: ${method}`);
+    });
+
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: gatewayRpc,
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/workbench/sessions?channelType=wechat'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, {
+      success: true,
+      sessions: [
+        expect.objectContaining({
+          id: 'wechat:default:default',
+          channelId: 'wechat-default',
+          channelType: 'wechat',
+          sessionType: 'group',
+          title: 'WeChat Workspace',
+        }),
+      ],
+    });
+  });
 
   it('wechat media proxy rejects non-WeChat URLs with 400', async () => {
     const { handleChannelRoutes } = await import('@electron/api/routes/channels');

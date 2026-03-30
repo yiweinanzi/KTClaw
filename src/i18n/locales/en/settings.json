@@ -487,7 +487,7 @@
     "dialogAriaLabel": "Configuration migration wizard",
     "header": {
       "title": "Configuration Migration",
-      "subtitle": "Migrate settings from OpenClaw to AutoClaw"
+      "subtitle": "Migrate settings from OpenClaw to KTClaw"
     },
     "actions": {
       "close": "Close migration wizard",
@@ -511,7 +511,7 @@
         "providers": { "label": "Model Provider Config", "description": "No custom model providers are available to migrate (zai/zhi…)" },
         "browser": { "label": "Browser State", "description": "Browser data does not exist" },
         "media": { "label": "Media Files", "description": "Media files do not exist" },
-        "plugins": { "label": "Plugins (plugins/)", "description": "AutoClaw uses a different plugin architecture and cannot migrate them directly" },
+        "plugins": { "label": "Plugins (plugins/)", "description": "KTClaw uses a different plugin architecture and cannot migrate them directly" },
         "gateway": { "label": "Gateway Config", "description": "Gateway architecture differs and cannot be migrated directly" }
       }
     },
@@ -526,7 +526,7 @@
       "title": "Confirm Migration",
       "checklist": {
         "copyOnly": "Original config is not deleted (copy, not move)",
-        "keepDefaults": "Conflicts keep AutoClaw defaults",
+        "keepDefaults": "Conflicts keep KTClaw defaults",
         "backupPath": "Back up to ~/.openclaw.backup/"
       },
       "securityNotice": "Security notice: skills/ may contain custom scripts, review them before migrating",

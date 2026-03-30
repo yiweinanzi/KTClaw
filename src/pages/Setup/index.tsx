@@ -49,6 +49,8 @@ const STEP = {
   COMPLETE: 4,
 } as const;
 
+export const SETUP_GATEWAY_CHECK_TIMEOUT_MS = 180_000;
+
 const getSteps = (t: TFunction): SetupStep[] => [
   {
     id: 'welcome',
@@ -522,14 +524,18 @@ function RuntimeContent({ onStatusChange }: RuntimeContentProps) {
     gatewayTimeoutRef.current = setTimeout(() => {
       setChecks((prev) => {
         if (prev.gateway.status === 'checking') {
+          const timeoutSeconds = Math.floor(SETUP_GATEWAY_CHECK_TIMEOUT_MS / 1000);
           return {
             ...prev,
-            gateway: { status: 'error', message: 'Gateway startup timed out' },
+            gateway: {
+              status: 'error',
+              message: `Gateway startup timed out after ${timeoutSeconds}s. Check logs and retry.`,
+            },
           };
         }
         return prev;
       });
-    }, 600 * 1000); // 600 seconds — enough for gateway to fully initialize
+    }, SETUP_GATEWAY_CHECK_TIMEOUT_MS);
 
     return () => {
       if (gatewayTimeoutRef.current) {

@@ -65,6 +65,37 @@ const DOMESTIC_CHANNEL_ENTRIES: Array<{ type: ChannelType; labelKey: string }> =
 
 const NOTIFICATION_REFRESH_INTERVAL_MS = 60_000;
 const INITIAL_NOTIFICATION_TIME = Date.now();
+const SIDEBAR_NICKNAME_KEY = 'ktclaw-user-nickname';
+const SIDEBAR_NICKNAME_LEGACY_KEY = 'clawx-user-nickname';
+const SIDEBAR_AVATAR_KEY = 'ktclaw-user-avatar';
+const SIDEBAR_AVATAR_LEGACY_KEY = 'clawx-user-avatar';
+
+function readSidebarProfileValue(key: string, legacyKey: string, fallback: string): string {
+  try {
+    const value = localStorage.getItem(key);
+    if (value && value.trim().length > 0) {
+      return value;
+    }
+    const legacyValue = localStorage.getItem(legacyKey);
+    if (legacyValue && legacyValue.trim().length > 0) {
+      localStorage.setItem(key, legacyValue);
+      localStorage.removeItem(legacyKey);
+      return legacyValue;
+    }
+  } catch {
+    // ignore storage read errors
+  }
+  return fallback;
+}
+
+function writeSidebarProfileValue(key: string, legacyKey: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+    localStorage.removeItem(legacyKey);
+  } catch {
+    // ignore storage write errors
+  }
+}
 
 export function Sidebar() {
   const sidebarCollapsed = useSettingsStore((state) => state.sidebarCollapsed);
@@ -74,8 +105,12 @@ export function Sidebar() {
   const brandIconDataUrl = useSettingsStore((state) => state.brandIconDataUrl);
   const brandMarkDataUrl = brandIconDataUrl ?? brandLogoDataUrl;
   const [avatarPopupOpen, setAvatarPopupOpen] = useState(false);
-  const [nickname, setNickname] = useState(() => localStorage.getItem('clawx-user-nickname') || 'Administrator');
-  const [selectedAvatar, setSelectedAvatar] = useState(() => localStorage.getItem('clawx-user-avatar') || '🐱');
+  const [nickname, setNickname] = useState(() =>
+    readSidebarProfileValue(SIDEBAR_NICKNAME_KEY, SIDEBAR_NICKNAME_LEGACY_KEY, 'Administrator'),
+  );
+  const [selectedAvatar, setSelectedAvatar] = useState(() =>
+    readSidebarProfileValue(SIDEBAR_AVATAR_KEY, SIDEBAR_AVATAR_LEGACY_KEY, '🐱'),
+  );
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -732,8 +767,14 @@ export function Sidebar() {
         <AvatarPopup
           nickname={nickname}
           avatar={selectedAvatar}
-          onNicknameChange={(v) => { setNickname(v); localStorage.setItem('clawx-user-nickname', v); }}
-          onAvatarChange={(v) => { setSelectedAvatar(v); localStorage.setItem('clawx-user-avatar', v); }}
+          onNicknameChange={(v) => {
+            setNickname(v);
+            writeSidebarProfileValue(SIDEBAR_NICKNAME_KEY, SIDEBAR_NICKNAME_LEGACY_KEY, v);
+          }}
+          onAvatarChange={(v) => {
+            setSelectedAvatar(v);
+            writeSidebarProfileValue(SIDEBAR_AVATAR_KEY, SIDEBAR_AVATAR_LEGACY_KEY, v);
+          }}
           onClose={() => setAvatarPopupOpen(false)}
         />
       )}

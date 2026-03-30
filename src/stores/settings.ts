@@ -3,7 +3,7 @@
  * Manages application settings
  */
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import i18n from '@/i18n';
 import { hostApiFetch } from '@/lib/host-api';
 import { resolveSupportedLanguage } from '../../shared/language';
@@ -154,6 +154,56 @@ interface SettingsState {
   removeCustomToolGrant: (value: string) => void;
   markSetupComplete: () => void;
   resetSettings: () => void;
+}
+
+const SETTINGS_STORAGE_KEY = 'ktclaw-settings';
+const LEGACY_SETTINGS_STORAGE_KEY = 'clawx-settings';
+
+function createSettingsStateStorage(): StateStorage {
+  return {
+    getItem: (name) => {
+      if (typeof window === 'undefined') return null;
+      try {
+        const value = window.localStorage.getItem(name);
+        if (value !== null) {
+          return value;
+        }
+        if (name !== SETTINGS_STORAGE_KEY) {
+          return null;
+        }
+        const legacyValue = window.localStorage.getItem(LEGACY_SETTINGS_STORAGE_KEY);
+        if (legacyValue !== null) {
+          window.localStorage.setItem(SETTINGS_STORAGE_KEY, legacyValue);
+          window.localStorage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+        }
+        return legacyValue;
+      } catch {
+        return null;
+      }
+    },
+    setItem: (name, value) => {
+      if (typeof window === 'undefined') return;
+      try {
+        window.localStorage.setItem(name, value);
+        if (name === SETTINGS_STORAGE_KEY) {
+          window.localStorage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+        }
+      } catch {
+        // ignore renderer storage errors
+      }
+    },
+    removeItem: (name) => {
+      if (typeof window === 'undefined') return;
+      try {
+        window.localStorage.removeItem(name);
+        if (name === SETTINGS_STORAGE_KEY) {
+          window.localStorage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+        }
+      } catch {
+        // ignore renderer storage errors
+      }
+    },
+  };
 }
 
 function normalizeListEntry(value: string): string | null {
@@ -476,7 +526,8 @@ export const useSettingsStore = create<SettingsState>()(
       resetSettings: () => set(defaultSettings),
     }),
     {
-      name: 'clawx-settings',
+      name: SETTINGS_STORAGE_KEY,
+      storage: createJSONStorage(createSettingsStateStorage),
     }
   )
 );

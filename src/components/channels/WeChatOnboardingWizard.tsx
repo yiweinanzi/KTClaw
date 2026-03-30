@@ -12,6 +12,8 @@ type QrState = {
   qrcode: string;
   qrcodeUrl: string;
   sessionKey: string;
+  connected: boolean;
+  status: string;
 };
 
 export function WeChatOnboardingWizard({ onClose, onComplete }: {
@@ -37,11 +39,29 @@ export function WeChatOnboardingWizard({ onClose, onComplete }: {
   const fetchQr = async () => {
     setError(null);
     try {
-      const result = await hostApiFetch<{ success: boolean; qrcode: string; qrcodeUrl: string; sessionKey: string }>(
+      const result = await hostApiFetch<{
+        success: boolean;
+        qrcode: string;
+        qrcodeUrl: string;
+        sessionKey: string;
+        connected: boolean;
+        status: string;
+      }>(
         '/api/channels/wechat/qr',
       );
-      setQr({ qrcode: result.qrcode, qrcodeUrl: result.qrcodeUrl, sessionKey: result.sessionKey });
+      setQr({
+        qrcode: result.qrcode,
+        qrcodeUrl: result.qrcodeUrl,
+        sessionKey: result.sessionKey,
+        connected: result.connected,
+        status: result.status,
+      });
       setScanStatus('');
+      if (result.connected || result.status === 'confirmed') {
+        clearTimers();
+        setStep('ready');
+        return;
+      }
       startPolling(result.sessionKey);
       refreshRef.current = setTimeout(() => { void fetchQr(); }, WECHAT_QR_REFRESH_MS);
     } catch (e) {
@@ -53,14 +73,27 @@ export function WeChatOnboardingWizard({ onClose, onComplete }: {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
-        const result = await hostApiFetch<{ success: boolean; connected: boolean; accountId?: string; message?: string }>(
+        const result = await hostApiFetch<{
+          success: boolean;
+          sessionKey?: string;
+          connected: boolean;
+          status: string;
+          accountId?: string;
+          message?: string;
+          error?: string;
+        }>(
           `/api/channels/wechat/qr/status?sessionKey=${encodeURIComponent(sessionKey)}`,
         );
-        if (result.connected) {
+        if (result.connected || result.status === 'confirmed') {
           clearTimers();
           setStep('ready');
+        } else if (result.status === 'expired') {
+          setScanStatus('二维码已过期，请刷新二维码');
         } else if (result.message) {
           setScanStatus(result.message);
+        }
+        if (result.error) {
+          setError(result.error);
         }
       } catch {
         // ignore transient poll errors

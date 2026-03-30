@@ -2,13 +2,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Channels } from '@/pages/Channels';
 
+vi.mock('react-router-dom', () => ({
+  useLocation: () => ({
+    search: locationState.search,
+  }),
+}));
+
 const {
   hostApiFetchMock,
+  locationState,
   channelsStoreState,
   settingsState,
   hostEventSubscribers,
 } = vi.hoisted(() => ({
   hostApiFetchMock: vi.fn(),
+  locationState: {
+    search: '',
+  },
   channelsStoreState: {
     channels: [] as Array<{
       id: string;
@@ -185,6 +195,7 @@ describe('Channels sync workbench', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     hostEventSubscribers.clear();
+    locationState.search = '';
     channelsStoreState.channels = [
       {
         id: 'feishu-default',
@@ -791,12 +802,25 @@ describe('Channels sync workbench', () => {
 
 describe('WeChat workbench', () => {
   beforeEach(() => {
+    locationState.search = '?channel=wechat';
+    channelsStoreState.channels = [
+      {
+        id: 'wechat-default',
+        type: 'wechat',
+        name: 'wechat',
+        status: 'connected',
+        accountId: 'default',
+      },
+    ] as typeof channelsStoreState.channels;
+    channelsStoreState.loading = false;
+    channelsStoreState.error = null;
     Object.defineProperty(window, 'location', {
       writable: true,
       value: { ...window.location, search: '?channel=wechat' },
     });
   });
   afterEach(() => {
+    locationState.search = '';
     Object.defineProperty(window, 'location', {
       writable: true,
       value: { ...window.location, search: '' },
@@ -848,5 +872,110 @@ describe('WeChat workbench', () => {
     render(<Channels />);
     const list = await screen.findByTestId('channels-conversation-list');
     expect(within(list).getByTestId('session-error-badge-wechat:default:gc_err')).toBeInTheDocument();
+  });
+
+  it('loads mention members from the wechat members endpoint', async () => {
+    const wechatSessions = {
+      success: true,
+      sessions: [
+        { id: 'wechat:default:gc_001', channelId: 'wechat-default', channelType: 'wechat', sessionType: 'group', title: '技术交流群', pinned: true, syncState: 'synced', latestActivityAt: new Date().toISOString(), previewText: '最新消息' },
+      ],
+    };
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return { success: true, capabilities: [{ channelId: 'wechat-default', channelType: 'wechat', accountId: 'default', status: 'connected', availableActions: ['send'], capabilityFlags: { supportsConnect: true, supportsDisconnect: true, supportsTest: true, supportsSend: true, supportsSchemaSummary: false, supportsCredentialValidation: false }, configSchemaSummary: { totalFieldCount: 0, requiredFieldCount: 0, optionalFieldCount: 0, sensitiveFieldCount: 0, fieldKeys: [] } }] };
+      if (path === '/api/channels/workbench/sessions?channelType=wechat') return wechatSessions;
+      if (path.startsWith('/api/channels/workbench/conversations/wechat%3Adefault%3Agc_001/messages')) return { success: true, conversation: { id: 'wechat:default:gc_001', title: '技术交流群', syncState: 'synced' }, messages: [], hasMore: false };
+      if (path.startsWith('/api/channels/workbench/wechat/members?sessionId=')) {
+        return { success: true, members: [{ openId: 'wx_001', name: '微信同事' }] };
+      }
+      if (path.startsWith('/api/channels/workbench/members?sessionId=')) {
+        return { success: true, members: [] };
+      }
+      return { success: true };
+    });
+
+    render(<Channels />);
+    const input = await screen.findByPlaceholderText('在群聊发送消息（将同步至飞书）...');
+    fireEvent.change(input, { target: { value: '@' } });
+
+    const popover = await screen.findByTestId('mention-popover');
+    expect(within(popover).getByText('微信同事')).toBeInTheDocument();
+    expect(hostApiFetchMock).toHaveBeenCalledWith(
+      '/api/channels/workbench/wechat/members?sessionId=wechat%3Adefault%3Agc_001',
+    );
+  });
+
+  it('uses router search as the single source of truth for the active channel', async () => {
+    locationState.search = '?channel=wechat';
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { ...window.location, search: '?channel=feishu' },
+    });
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') {
+        return {
+          success: true,
+          capabilities: [{
+            channelId: 'wechat-default',
+            channelType: 'wechat',
+            accountId: 'default',
+            status: 'connected',
+            availableActions: ['send'],
+            capabilityFlags: {
+              supportsConnect: true,
+              supportsDisconnect: true,
+              supportsTest: true,
+              supportsSend: true,
+              supportsSchemaSummary: false,
+              supportsCredentialValidation: false,
+            },
+            configSchemaSummary: {
+              totalFieldCount: 0,
+              requiredFieldCount: 0,
+              optionalFieldCount: 0,
+              sensitiveFieldCount: 0,
+              fieldKeys: [],
+            },
+          }],
+        };
+      }
+      if (path === '/api/channels/workbench/sessions?channelType=wechat') {
+        return {
+          success: true,
+          sessions: [{
+            id: 'wechat:default:gc_001',
+            channelId: 'wechat-default',
+            channelType: 'wechat',
+            sessionType: 'group',
+            title: '技术交流群',
+            pinned: true,
+            syncState: 'synced',
+            latestActivityAt: new Date().toISOString(),
+            previewText: '最新消息',
+          }],
+        };
+      }
+      if (path.startsWith('/api/channels/workbench/conversations/wechat%3Adefault%3Agc_001/messages')) {
+        return {
+          success: true,
+          conversation: { id: 'wechat:default:gc_001', title: '技术交流群', syncState: 'synced' },
+          messages: [],
+          hasMore: false,
+        };
+      }
+      if (path === '/api/feishu/status') {
+        throw new Error('unexpected feishu status request');
+      }
+      return { success: true };
+    });
+
+    render(<Channels />);
+
+    const list = await screen.findByTestId('channels-conversation-list');
+    expect(within(list).getByText('技术交流群')).toBeInTheDocument();
+    expect(hostApiFetchMock).toHaveBeenCalledWith('/api/channels/workbench/sessions?channelType=wechat');
+    expect(hostApiFetchMock).not.toHaveBeenCalledWith('/api/channels/workbench/sessions?channelType=feishu');
+    expect(hostApiFetchMock).not.toHaveBeenCalledWith('/api/feishu/status');
   });
 });

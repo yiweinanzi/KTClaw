@@ -8,6 +8,11 @@ import {
 } from '../utils/device-identity';
 import { logger } from '../utils/logger';
 
+export const DEFAULT_GATEWAY_READY_RETRIES = 60;
+export const DEFAULT_GATEWAY_READY_INTERVAL_MS = 250;
+export const DEFAULT_GATEWAY_READY_PROBE_TIMEOUT_MS = 1000;
+export const DEFAULT_GATEWAY_READY_MAX_RETRIES = process.platform === 'win32' ? 144 : DEFAULT_GATEWAY_READY_RETRIES;
+
 export async function probeGatewayReady(
   port: number,
   timeoutMs = 1500,
@@ -63,12 +68,17 @@ export async function waitForGatewayReady(options: {
   port: number;
   getProcessExitCode: () => number | null;
   retries?: number;
+  maxRetries?: number;
   intervalMs?: number;
+  probeTimeoutMs?: number;
 }): Promise<void> {
-  const retries = options.retries ?? 2400;
-  const intervalMs = options.intervalMs ?? 200;
+  const retries = options.retries ?? DEFAULT_GATEWAY_READY_RETRIES;
+  const maxRetries = Math.max(retries, options.maxRetries ?? DEFAULT_GATEWAY_READY_MAX_RETRIES);
+  const intervalMs = options.intervalMs ?? DEFAULT_GATEWAY_READY_INTERVAL_MS;
+  const probeTimeoutMs = options.probeTimeoutMs ?? DEFAULT_GATEWAY_READY_PROBE_TIMEOUT_MS;
+  let extensionLogged = false;
 
-  for (let i = 0; i < retries; i++) {
+  for (let i = 0; i < maxRetries; i++) {
     const exitCode = options.getProcessExitCode();
     if (exitCode !== null) {
       logger.error(`Gateway process exited before ready (code=${exitCode})`);
@@ -76,7 +86,7 @@ export async function waitForGatewayReady(options: {
     }
 
     try {
-      const ready = await probeGatewayReady(options.port, 1500);
+      const ready = await probeGatewayReady(options.port, probeTimeoutMs);
       if (ready) {
         logger.debug(`Gateway ready after ${i + 1} attempt(s)`);
         return;
@@ -86,14 +96,28 @@ export async function waitForGatewayReady(options: {
     }
 
     if (i > 0 && i % 10 === 0) {
-      logger.debug(`Still waiting for Gateway... (attempt ${i + 1}/${retries})`);
+      logger.debug(`Still waiting for Gateway... (attempt ${i + 1}/${maxRetries})`);
+    }
+
+    if (!extensionLogged && i + 1 === retries && maxRetries > retries && exitCode === null) {
+      extensionLogged = true;
+      const baseBudgetMs = retries * (intervalMs + probeTimeoutMs);
+      const extendedBudgetMs = maxRetries * (intervalMs + probeTimeoutMs);
+      logger.warn(
+        `Gateway still booting after initial ${baseBudgetMs}ms; extending ready wait budget to ${extendedBudgetMs}ms on ${process.platform}`,
+      );
     }
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 
-  logger.error(`Gateway failed to become ready after ${retries} attempts on port ${options.port}`);
-  throw new Error(`Gateway failed to start after ${retries} retries (port ${options.port})`);
+  const waitBudgetMs = maxRetries * (intervalMs + probeTimeoutMs);
+  logger.error(
+    `Gateway failed to become ready after ${maxRetries} attempts on port ${options.port} (budget=${waitBudgetMs}ms)`,
+  );
+  throw new Error(
+    `Gateway failed to become ready within ${waitBudgetMs}ms (port ${options.port}, attempts ${maxRetries})`,
+  );
 }
 
 export function buildGatewayConnectFrame(options: {

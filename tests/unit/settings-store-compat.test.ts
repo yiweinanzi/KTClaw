@@ -1,0 +1,31 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const KTCLAW_SETTINGS_KEY = 'ktclaw-settings';
+const LEGACY_SETTINGS_KEY = 'clawx-settings';
+
+describe('settings store persistence compatibility', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.resetModules();
+  });
+
+  it('hydrates from legacy renderer storage and migrates to KTClaw key', async () => {
+    localStorage.setItem(
+      LEGACY_SETTINGS_KEY,
+      JSON.stringify({
+        state: {
+          sidebarCollapsed: true,
+          language: 'en',
+        },
+        version: 0,
+      }),
+    );
+
+    const { useSettingsStore } = await import('@/stores/settings');
+
+    expect(useSettingsStore.getState().sidebarCollapsed).toBe(true);
+    expect(localStorage.getItem(KTCLAW_SETTINGS_KEY)).toBeTruthy();
+    expect(localStorage.getItem(LEGACY_SETTINGS_KEY)).toBeNull();
+  });
+});
+

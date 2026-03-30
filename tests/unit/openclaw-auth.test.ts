@@ -52,6 +52,11 @@ async function writeOpenClawJson(config: unknown): Promise<void> {
   await writeFile(join(openclawDir, 'openclaw.json'), JSON.stringify(config, null, 2), 'utf8');
 }
 
+async function readOpenClawJson(): Promise<Record<string, unknown>> {
+  const content = await readFile(join(testHome, '.openclaw', 'openclaw.json'), 'utf8');
+  return JSON.parse(content) as Record<string, unknown>;
+}
+
 async function readAuthProfiles(agentId: string): Promise<Record<string, unknown>> {
   const content = await readFile(join(testHome, '.openclaw', 'agents', agentId, 'agent', 'auth-profiles.json'), 'utf8');
   return JSON.parse(content) as Record<string, unknown>;
@@ -122,5 +127,48 @@ describe('saveProviderKeyToOpenClaw', () => {
     expect(mockLoggerInfo).toHaveBeenCalledWith(
       'Saved API key for provider "openrouter" to OpenClaw auth-profiles (agents: main, test3)',
     );
+  });
+});
+
+describe('sanitizeOpenClawConfig', () => {
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    await rm(testHome, { recursive: true, force: true });
+    await rm(testUserData, { recursive: true, force: true });
+  });
+
+  it('migrates legacy channels.wechat config to channels.openclaw-weixin', async () => {
+    await writeOpenClawJson({
+      channels: {
+        wechat: {
+          enabled: true,
+          defaultAccount: 'default',
+          accounts: {
+            default: { enabled: true },
+          },
+        },
+      },
+      plugins: {
+        allow: ['wechat'],
+        entries: {
+          wechat: { enabled: true },
+        },
+      },
+    });
+
+    const { sanitizeOpenClawConfig } = await import('@electron/utils/openclaw-auth');
+    await sanitizeOpenClawConfig();
+
+    const config = await readOpenClawJson();
+    const channels = config.channels as Record<string, unknown>;
+    expect(channels.wechat).toBeUndefined();
+    expect(channels['openclaw-weixin']).toBeDefined();
+
+    const plugins = config.plugins as { allow?: string[]; entries?: Record<string, { enabled?: boolean }> };
+    expect(plugins.allow).toContain('openclaw-weixin');
+    expect(plugins.allow).not.toContain('wechat');
+    expect(plugins.entries?.wechat).toBeUndefined();
+    expect(plugins.entries?.['openclaw-weixin']?.enabled).toBe(true);
   });
 });

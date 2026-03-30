@@ -78,6 +78,16 @@ const GATEWAY_FETCH_PRELOAD_SOURCE = `'use strict';
 })();
 `;
 
+const OPENCLAW_EXPERIMENTAL_WARNING_FLAG = '--disable-warning=ExperimentalWarning';
+
+function appendNodeOptionFlag(existing: string | undefined, flag: string): string {
+  const trimmed = existing?.trim() ?? '';
+  if (!trimmed) {
+    return flag;
+  }
+  return trimmed.includes(flag) ? trimmed : `${trimmed} ${flag}`;
+}
+
 function ensureGatewayFetchPreload(): string {
   const dest = path.join(app.getPath('userData'), 'gateway-fetch-preload.cjs');
   try {
@@ -117,6 +127,11 @@ export async function launchGatewayProcess(options: {
   const lastSpawnSummary = `mode=${mode}, entry="${entryScript}", args="${options.sanitizeSpawnArgs(gatewayArgs).join(' ')}", cwd="${openclawDir}"`;
 
   const runtimeEnv = { ...forkEnv };
+  runtimeEnv.OPENCLAW_NODE_OPTIONS_READY = runtimeEnv.OPENCLAW_NODE_OPTIONS_READY || '1';
+  runtimeEnv.NODE_OPTIONS = appendNodeOptionFlag(
+    runtimeEnv.NODE_OPTIONS,
+    OPENCLAW_EXPERIMENTAL_WARNING_FLAG,
+  );
   if (!app.isPackaged) {
     try {
       const preloadPath = ensureGatewayFetchPreload();

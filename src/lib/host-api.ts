@@ -4,6 +4,8 @@ import { normalizeAppError } from './error-model';
 
 const HOST_API_PORT = 3210;
 const HOST_API_BASE = `http://127.0.0.1:${HOST_API_PORT}`;
+const LOCALHOST_FALLBACK_FLAG = 'ktclaw:allow-localhost-fallback';
+const LEGACY_LOCALHOST_FALLBACK_FLAG = 'clawx:allow-localhost-fallback';
 
 /** Cached Host API auth token, fetched once from the main process via IPC. */
 let cachedHostApiToken: string | null = null;
@@ -126,15 +128,96 @@ function shouldFallbackToBrowser(message: string): boolean {
 
 function allowLocalhostFallback(): boolean {
   try {
-    return window.localStorage.getItem('clawx:allow-localhost-fallback') === '1';
+    const flag = window.localStorage.getItem(LOCALHOST_FALLBACK_FLAG);
+    if (flag === '1') {
+      return true;
+    }
+    const legacyFlag = window.localStorage.getItem(LEGACY_LOCALHOST_FALLBACK_FLAG);
+    if (legacyFlag === '1') {
+      window.localStorage.setItem(LOCALHOST_FALLBACK_FLAG, '1');
+      window.localStorage.removeItem(LEGACY_LOCALHOST_FALLBACK_FLAG);
+      return true;
+    }
+    return false;
   } catch {
     return false;
+  }
+}
+
+function isBrowserPreviewShimEnabled(): boolean {
+  try {
+    return Boolean(
+      (window.electron as { __ktclawBrowserPreviewShim?: boolean } | undefined)
+        ?.__ktclawBrowserPreviewShim,
+    );
+  } catch {
+    return false;
+  }
+}
+
+type BrowserFetchMode = {
+  source: 'browser-preview-shim' | 'browser-fallback';
+  includeAuthToken: boolean;
+};
+
+function shouldAttachJsonContentType(method: string, body: BodyInit | null | undefined): boolean {
+  if (method === 'GET' || method === 'HEAD') return false;
+  return typeof body === 'string';
+}
+
+async function runBrowserFetch<T>(
+  path: string,
+  init: RequestInit | undefined,
+  method: string,
+  startedAt: number,
+  mode: BrowserFetchMode,
+): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (shouldAttachJsonContentType(method, init?.body) && !headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
+  if (mode.includeAuthToken) {
+    const token = await getHostApiToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  }
+
+  const response = await fetch(`${HOST_API_BASE}${path}`, {
+    ...init,
+    method,
+    headers,
+  });
+  trackUiEvent('hostapi.fetch', {
+    path,
+    method,
+    source: mode.source,
+    durationMs: Date.now() - startedAt,
+    status: response.status,
+  });
+
+  if (response.status === 204) return undefined as T;
+
+  try {
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      return await response.json() as T;
+    }
+    return await response.text() as T;
+  } catch (error) {
+    throw normalizeAppError(error, { source: mode.source, path, method });
   }
 }
 
 export async function hostApiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const startedAt = Date.now();
   const method = init?.method || 'GET';
+  if (isBrowserPreviewShimEnabled()) {
+    return runBrowserFetch<T>(path, init, method, startedAt, {
+      source: 'browser-preview-shim',
+      includeAuthToken: false,
+    });
+  }
   // In Electron renderer, always proxy through main process to avoid CORS.
   try {
     const response = await invokeIpc<HostApiProxyResponse>('hostapi:fetch', {
@@ -177,29 +260,10 @@ export async function hostApiFetch<T>(path: string, init?: RequestInit): Promise
   }
 
   // Browser-only fallback (non-Electron environments).
-  const token = await getHostApiToken();
-  const response = await fetch(`${HOST_API_BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...(init?.headers || {}),
-    },
-  });
-  trackUiEvent('hostapi.fetch', {
-    path,
-    method,
+  return runBrowserFetch<T>(path, init, method, startedAt, {
     source: 'browser-fallback',
-    durationMs: Date.now() - startedAt,
-    status: response.status,
+    includeAuthToken: true,
   });
-  try {
-    if (response.status === 204) return undefined as T;
-    const payload = await response.json() as T;
-    return payload;
-  } catch (error) {
-    throw normalizeAppError(error, { source: 'browser-fallback', path, method });
-  }
 }
 
 export function createHostEventSource(path = '/api/events'): EventSource {

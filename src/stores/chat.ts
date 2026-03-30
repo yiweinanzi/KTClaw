@@ -223,7 +223,8 @@ const DEFAULT_SESSION_KEY = `${DEFAULT_CANONICAL_PREFIX}:main`;
 // [media attached: <path> ...] reference in the Gateway's user message text).
 // Keying by path avoids the race condition of keying by runId (which is only
 // available after the RPC returns, but history may load before that).
-const IMAGE_CACHE_KEY = 'clawx:image-cache';
+const IMAGE_CACHE_KEY = 'ktclaw:image-cache';
+const LEGACY_IMAGE_CACHE_KEY = 'clawx:image-cache';
 const IMAGE_CACHE_MAX = 100; // max entries to prevent unbounded growth
 
 function loadImageCache(): Map<string, AttachedFileMeta> {
@@ -232,6 +233,14 @@ function loadImageCache(): Map<string, AttachedFileMeta> {
     if (raw) {
       const entries = JSON.parse(raw) as Array<[string, AttachedFileMeta]>;
       return new Map(entries);
+    }
+
+    const legacyRaw = localStorage.getItem(LEGACY_IMAGE_CACHE_KEY);
+    if (legacyRaw) {
+      const legacyEntries = JSON.parse(legacyRaw) as Array<[string, AttachedFileMeta]>;
+      localStorage.setItem(IMAGE_CACHE_KEY, legacyRaw);
+      localStorage.removeItem(LEGACY_IMAGE_CACHE_KEY);
+      return new Map(legacyEntries);
     }
   } catch { /* ignore parse errors */ }
   return new Map();
@@ -245,6 +254,7 @@ function saveImageCache(cache: Map<string, AttachedFileMeta>): void {
       ? entries.slice(entries.length - IMAGE_CACHE_MAX)
       : entries;
     localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(trimmed));
+    localStorage.removeItem(LEGACY_IMAGE_CACHE_KEY);
   } catch { /* ignore quota errors */ }
 }
 

@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Sidebar } from '@/components/layout/Sidebar';
 
-const PINNED_STORAGE_KEY = 'clawx-sidebar-pinned-sessions';
+const PINNED_STORAGE_KEY = 'ktclaw-sidebar-pinned-sessions';
 
 const mockSetSidebarCollapsed = vi.fn();
 const mockSwitchSession = vi.fn();

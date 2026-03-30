@@ -130,6 +130,38 @@ describe('channel credential normalization and duplicate checks', () => {
       expect.objectContaining({ channelType: 'feishu', accountId: 'agent-a', key: 'appId' }),
     );
   });
+
+  it('stores wechat config under the OpenClaw plugin channel id', async () => {
+    const { saveChannelConfig } = await import('@electron/utils/channel-config');
+
+    await saveChannelConfig('wechat', { enabled: true }, 'default');
+
+    const config = await readOpenClawJson();
+    const channels = config.channels as Record<string, unknown>;
+    expect(channels.wechat).toBeUndefined();
+    expect(channels['openclaw-weixin']).toBeDefined();
+
+    const plugins = config.plugins as { allow?: string[]; entries?: Record<string, { enabled?: boolean }> };
+    expect(plugins.allow).toContain('openclaw-weixin');
+    expect(plugins.entries?.['openclaw-weixin']?.enabled).toBe(true);
+  });
+
+  it('maps stored openclaw-weixin back to ui wechat in configured channel list', async () => {
+    await writeOpenClawJson({
+      channels: {
+        'openclaw-weixin': {
+          enabled: true,
+          defaultAccount: 'default',
+          accounts: {
+            default: { enabled: true },
+          },
+        },
+      },
+    });
+
+    const { listConfiguredChannels } = await import('@electron/utils/channel-config');
+    await expect(listConfiguredChannels()).resolves.toContain('wechat');
+  });
 });
 
 describe('parseDoctorValidationOutput', () => {
