@@ -413,6 +413,29 @@
             "title": "还没有团队",
             "description": "从右侧拖拽 Agent 到左侧创建区来创建第一个团队"
         },
+        "createZone": {
+            "title": "创建新团队",
+            "description": "从右侧拖拽 Agent 到这里开始创建团队",
+            "leaderZone": "Leader（限 1 人）",
+            "leaderPlaceholder": "拖拽 Agent 到这里设为 Leader",
+            "memberZone": "成员",
+            "memberPlaceholder": "拖拽 Agent 到这里添加成员",
+            "memberHint": "建议至少 2-3 人",
+            "confirmTitle": "确认创建团队",
+            "nameLabel": "团队名称",
+            "namePlaceholder": "输入团队名称",
+            "descriptionLabel": "职责描述（可选）",
+            "descriptionPlaceholder": "描述团队的职责和目标",
+            "creating": "创建中...",
+            "confirm": "确认创建",
+            "cancel": "取消",
+            "createSuccess": "团队创建成功",
+            "createFailed": "创建失败"
+        },
+        "agentPanel": {
+            "title": "可用 Agent",
+            "teamBadge": "{{count}} 个团队"
+        },
         "createModal": {
             "title": "雇佣新员工",
             "nameLabel": "Agent 名称",

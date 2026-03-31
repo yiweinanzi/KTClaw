@@ -30,6 +30,7 @@ const BroadcastChat = lazy(() => import('./pages/BroadcastChat').then((m) => ({ 
 import { useSettingsStore } from './stores/settings';
 import { useGatewayStore } from './stores/gateway';
 import { wireGatewayNotifications } from './stores/notifications';
+import { TeamMapPlaceholder } from './pages/TeamMapPlaceholder';
 
 
 /**
@@ -211,6 +212,7 @@ function App() {
             <Route path="skills" element={<Skills />} />
             <Route path="cron" element={<Cron />} />
             <Route path="team-overview" element={<TeamOverview />} />
+            <Route path="team-map/:teamId" element={<TeamMapPlaceholder />} />
             <Route path="team-map" element={<TeamMap />} />
             <Route path="broadcast" element={<BroadcastChat />} />
             <Route path="kanban" element={<TaskKanban />} />
