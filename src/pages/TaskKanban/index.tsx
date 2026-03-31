@@ -2,7 +2,7 @@
  * Task Kanban Page - Phase 02 Redesign
  * 4-column Agent swimlane layout with team task support
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
 import { useApprovalsStore } from '@/stores/approvals';
@@ -11,9 +11,12 @@ import type { KanbanTask, TaskStatus, WorkState } from '@/types/task';
 import type { AgentSummary } from '@/types/agent';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { ManualTaskForm } from './ManualTaskForm';
 
 const COLUMNS: { key: TaskStatus; label: string }[] = [
   { key: 'todo', label: '待办' },
@@ -173,6 +176,7 @@ export default function TaskKanban() {
   const tasks = useApprovalsStore((s) => s.tasks) || [];
   const fetchTasks = useApprovalsStore((s) => s.fetchTasks);
   const openPanel = useRightPanelStore((s) => s.openPanel);
+  const [manualFormOpen, setManualFormOpen] = useState(false);
 
   useEffect(() => {
     if (fetchAgents) fetchAgents();
@@ -207,6 +211,16 @@ export default function TaskKanban() {
             {t('kanban.subtitle', { count: Array.isArray(tasks) ? tasks.filter((t) => t.status === 'in-progress').length : 0 })}
           </p>
         </div>
+        {/* Weakened manual creation entry (per D-29, UI-SPEC) */}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setManualFormOpen(true)}
+          className="gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          创建任务
+        </Button>
       </div>
       <Tabs defaultValue="board" className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 pt-2">
@@ -243,6 +257,7 @@ export default function TaskKanban() {
           </div>
         </TabsContent>
       </Tabs>
+      <ManualTaskForm open={manualFormOpen} onOpenChange={setManualFormOpen} />
     </div>
   );
 }
