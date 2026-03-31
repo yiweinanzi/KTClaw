@@ -252,7 +252,7 @@ export default function TaskKanban() {
           </div>
         </TabsContent>
         <TabsContent value="calendar" className="flex-1 overflow-auto m-0">
-          <CalendarView />
+          <CalendarView onTaskClick={(taskId) => openPanel('task', taskId)} />
         </TabsContent>
       </Tabs>
       <ManualTaskForm open={manualFormOpen} onOpenChange={setManualFormOpen} />
