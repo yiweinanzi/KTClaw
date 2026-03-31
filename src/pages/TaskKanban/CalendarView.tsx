@@ -1,8 +1,8 @@
 /**
  * CalendarView component for Task Kanban
- * Phase 02 Plan 02 Task 2 - Deeply customized calendar with modern styling
+ * Phase 02 - Completely custom header with Shadcn components
  */
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -10,53 +10,51 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { useApprovalsStore } from '@/stores/approvals';
 import { useAgentsStore } from '@/stores/agents';
 import type { EventInput, EventContentArg } from '@fullcalendar/core';
-import type { WorkState } from '@/types/task';
+import type { WorkState, TaskStatus } from '@/types/task';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import './calendar-custom.css';
 
 interface CalendarViewProps {
   onTaskClick?: (taskId: string) => void;
 }
 
-function getWorkStateDot(workState: WorkState) {
-  const colors: Record<WorkState, string> = {
-    idle: 'bg-gray-400',
-    starting: 'bg-blue-400',
-    working: 'bg-blue-500',
-    blocked: 'bg-red-500',
-    waiting_approval: 'bg-yellow-500',
-    scheduled: 'bg-purple-500',
-    done: 'bg-green-500',
-    failed: 'bg-red-600',
-  };
-  return colors[workState] || 'bg-gray-400';
+function getStatusDotColor(status: TaskStatus, workState: WorkState) {
+  if (workState === 'working') return 'bg-blue-500';
+  if (workState === 'done') return 'bg-green-500';
+  if (status === 'review') return 'bg-orange-500';
+  if (status === 'in-progress') return 'bg-cyan-500';
+  return 'bg-gray-400';
 }
 
 function renderEventContent(eventInfo: EventContentArg) {
   const { event } = eventInfo;
-  const isTeamTask = event.title.startsWith('团队');
+  const isTeamTask = event.extendedProps.isTeamTask;
+  const status = event.extendedProps.status as TaskStatus;
   const workState = event.extendedProps.workState as WorkState || 'idle';
 
   return (
     <div
       className={cn(
-        'px-2 py-1 rounded-md text-xs font-medium truncate cursor-pointer transition-all hover:brightness-95',
+        'flex items-center gap-1.5 w-full overflow-hidden px-1.5 py-0.5 rounded-md text-xs border shadow-sm hover:shadow-md transition-shadow cursor-pointer font-medium',
         isTeamTask
-          ? 'bg-purple-100 border border-purple-300 text-purple-800'
-          : 'bg-cyan-100 border border-cyan-300 text-cyan-800'
+          ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+          : 'bg-slate-50 border-slate-200 text-slate-700'
       )}
     >
-      <div className="flex items-center gap-1">
-        {workState !== 'idle' && (
-          <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', getWorkStateDot(workState))} />
-        )}
-        <span className="truncate">{event.title}</span>
-      </div>
+      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', getStatusDotColor(status, workState))} />
+      <span className="truncate">{event.title}</span>
     </div>
   );
 }
 
 export function CalendarView({ onTaskClick }: CalendarViewProps) {
+  const calendarRef = useRef<FullCalendar>(null);
+  const [currentTitle, setCurrentTitle] = useState('');
+  const [currentView, setCurrentView] = useState<'timeGridWeek' | 'dayGridMonth' | 'dayGridYear'>('dayGridMonth');
+
   const tasks = useApprovalsStore((s) => s.tasks);
   const agents = useAgentsStore((s) => s.agents);
 
@@ -83,6 +81,46 @@ export function CalendarView({ onTaskClick }: CalendarViewProps) {
       });
   }, [tasks, agents]);
 
+  const handlePrev = () => {
+    const api = calendarRef.current?.getApi();
+    if (api) {
+      api.prev();
+      setCurrentTitle(api.view.title);
+    }
+  };
+
+  const handleNext = () => {
+    const api = calendarRef.current?.getApi();
+    if (api) {
+      api.next();
+      setCurrentTitle(api.view.title);
+    }
+  };
+
+  const handleToday = () => {
+    const api = calendarRef.current?.getApi();
+    if (api) {
+      api.today();
+      setCurrentTitle(api.view.title);
+    }
+  };
+
+  const handleViewChange = (view: 'timeGridWeek' | 'dayGridMonth' | 'dayGridYear') => {
+    const api = calendarRef.current?.getApi();
+    if (api) {
+      api.changeView(view);
+      setCurrentView(view);
+      setCurrentTitle(api.view.title);
+    }
+  };
+
+  const handleDatesSet = () => {
+    const api = calendarRef.current?.getApi();
+    if (api) {
+      setCurrentTitle(api.view.title);
+    }
+  };
+
   // Empty state
   if (events.length === 0) {
     return (
@@ -98,33 +136,56 @@ export function CalendarView({ onTaskClick }: CalendarViewProps) {
   }
 
   return (
-    <div className="h-full p-6 calendar-container">
-      <FullCalendar
-        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
-        headerToolbar={{
-          left: 'prev,next today',
-          center: 'title',
-          right: 'timeGridWeek,dayGridMonth,dayGridYear',
-        }}
-        events={events}
-        eventContent={renderEventContent}
-        eventClick={(info) => {
-          if (onTaskClick) {
-            onTaskClick(info.event.id);
-          }
-        }}
-        height="100%"
-        locale="zh-cn"
-        buttonText={{
-          today: '今天',
-          month: '月视图',
-          week: '周视图',
-          year: '年视图',
-        }}
-        dayMaxEvents={3}
-        moreLinkText="更多"
-      />
+    <div className="h-full flex flex-col p-6">
+      {/* Custom Header */}
+      <div className="flex items-center justify-between mb-6">
+        {/* Left: Navigation */}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={handlePrev}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={handleNext}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleToday} className="ml-2">
+            今天
+          </Button>
+        </div>
+
+        {/* Center: Title */}
+        <h2 className="text-lg font-semibold tracking-tight">{currentTitle}</h2>
+
+        {/* Right: View Switcher */}
+        <Tabs value={currentView} onValueChange={(v) => handleViewChange(v as any)}>
+          <TabsList>
+            <TabsTrigger value="timeGridWeek">周视图</TabsTrigger>
+            <TabsTrigger value="dayGridMonth">月视图</TabsTrigger>
+            <TabsTrigger value="dayGridYear">年视图</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* Calendar */}
+      <div className="flex-1 calendar-container">
+        <FullCalendar
+          ref={calendarRef}
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          headerToolbar={false}
+          events={events}
+          eventContent={renderEventContent}
+          eventClick={(info) => {
+            if (onTaskClick) {
+              onTaskClick(info.event.id);
+            }
+          }}
+          datesSet={handleDatesSet}
+          height="100%"
+          locale="zh-cn"
+          dayMaxEvents={3}
+          moreLinkText="更多"
+        />
+      </div>
     </div>
   );
 }
