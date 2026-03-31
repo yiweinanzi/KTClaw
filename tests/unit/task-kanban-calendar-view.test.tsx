@@ -11,8 +11,12 @@ import type { KanbanTask } from '@/types/task';
 import type { AgentSummary } from '@/types/agent';
 
 // Mock stores
-vi.mock('@/stores/approvals');
-vi.mock('@/stores/agents');
+vi.mock('@/stores/approvals', () => ({
+  useApprovalsStore: vi.fn(),
+}));
+vi.mock('@/stores/agents', () => ({
+  useAgentsStore: vi.fn(),
+}));
 
 describe('CalendarView', () => {
   beforeEach(() => {
@@ -21,26 +25,30 @@ describe('CalendarView', () => {
 
   it('renders FullCalendar component', () => {
     // Arrange
-    vi.mocked(useApprovalsStore).mockReturnValue({
-      tasks: [
-        {
-          id: '1',
-          title: 'Test Task',
-          description: 'Test',
-          status: 'todo',
-          priority: 'medium',
-          isTeamTask: false,
-          deadline: '2026-04-01T00:00:00Z',
-          createdAt: '2026-03-31T00:00:00Z',
-          updatedAt: '2026-03-31T00:00:00Z',
-          workState: 'idle',
-        } as KanbanTask,
-      ],
-    } as any);
+    vi.mocked(useApprovalsStore).mockImplementation((selector: any) =>
+      selector({
+        tasks: [
+          {
+            id: '1',
+            title: 'Test Task',
+            description: 'Test',
+            status: 'todo',
+            priority: 'medium',
+            isTeamTask: false,
+            deadline: '2026-04-01T00:00:00Z',
+            createdAt: '2026-03-31T00:00:00Z',
+            updatedAt: '2026-03-31T00:00:00Z',
+            workState: 'idle',
+          } as KanbanTask,
+        ],
+      })
+    );
 
-    vi.mocked(useAgentsStore).mockReturnValue({
-      agents: [] as AgentSummary[],
-    } as any);
+    vi.mocked(useAgentsStore).mockImplementation((selector: any) =>
+      selector({
+        agents: [] as AgentSummary[],
+      })
+    );
 
     // Act
     render(<CalendarView />);
@@ -79,13 +87,17 @@ describe('CalendarView', () => {
       },
     ];
 
-    vi.mocked(useApprovalsStore).mockReturnValue({
-      tasks: tasksWithAndWithoutDeadline,
-    } as any);
+    vi.mocked(useApprovalsStore).mockImplementation((selector: any) =>
+      selector({
+        tasks: tasksWithAndWithoutDeadline,
+      })
+    );
 
-    vi.mocked(useAgentsStore).mockReturnValue({
-      agents: [] as AgentSummary[],
-    } as any);
+    vi.mocked(useAgentsStore).mockImplementation((selector: any) =>
+      selector({
+        agents: [] as AgentSummary[],
+      })
+    );
 
     // Act
     render(<CalendarView />);
@@ -97,28 +109,32 @@ describe('CalendarView', () => {
 
   it('team tasks use primary color', () => {
     // Arrange
-    vi.mocked(useApprovalsStore).mockReturnValue({
-      tasks: [
-        {
-          id: '1',
-          title: 'Team Task',
-          description: 'Test',
-          status: 'todo',
-          priority: 'medium',
-          isTeamTask: true,
-          teamId: 'team1',
-          teamName: 'Alpha',
-          deadline: '2026-04-01T00:00:00Z',
-          createdAt: '2026-03-31T00:00:00Z',
-          updatedAt: '2026-03-31T00:00:00Z',
-          workState: 'idle',
-        } as KanbanTask,
-      ],
-    } as any);
+    vi.mocked(useApprovalsStore).mockImplementation((selector: any) =>
+      selector({
+        tasks: [
+          {
+            id: '1',
+            title: 'Team Task',
+            description: 'Test',
+            status: 'todo',
+            priority: 'medium',
+            isTeamTask: true,
+            teamId: 'team1',
+            teamName: 'Alpha',
+            deadline: '2026-04-01T00:00:00Z',
+            createdAt: '2026-03-31T00:00:00Z',
+            updatedAt: '2026-03-31T00:00:00Z',
+            workState: 'idle',
+          } as KanbanTask,
+        ],
+      })
+    );
 
-    vi.mocked(useAgentsStore).mockReturnValue({
-      agents: [] as AgentSummary[],
-    } as any);
+    vi.mocked(useAgentsStore).mockImplementation((selector: any) =>
+      selector({
+        agents: [] as AgentSummary[],
+      })
+    );
 
     // Act
     render(<CalendarView />);
@@ -133,26 +149,30 @@ describe('CalendarView', () => {
 
   it('supports dayGridMonth, dayGridYear, timeGridWeek views', () => {
     // Arrange
-    vi.mocked(useApprovalsStore).mockReturnValue({
-      tasks: [
-        {
-          id: '1',
-          title: 'Test Task',
-          description: 'Test',
-          status: 'todo',
-          priority: 'medium',
-          isTeamTask: false,
-          deadline: '2026-04-01T00:00:00Z',
-          createdAt: '2026-03-31T00:00:00Z',
-          updatedAt: '2026-03-31T00:00:00Z',
-          workState: 'idle',
-        } as KanbanTask,
-      ],
-    } as any);
+    vi.mocked(useApprovalsStore).mockImplementation((selector: any) =>
+      selector({
+        tasks: [
+          {
+            id: '1',
+            title: 'Test Task',
+            description: 'Test',
+            status: 'todo',
+            priority: 'medium',
+            isTeamTask: false,
+            deadline: '2026-04-01T00:00:00Z',
+            createdAt: '2026-03-31T00:00:00Z',
+            updatedAt: '2026-03-31T00:00:00Z',
+            workState: 'idle',
+          } as KanbanTask,
+        ],
+      })
+    );
 
-    vi.mocked(useAgentsStore).mockReturnValue({
-      agents: [] as AgentSummary[],
-    } as any);
+    vi.mocked(useAgentsStore).mockImplementation((selector: any) =>
+      selector({
+        agents: [] as AgentSummary[],
+      })
+    );
 
     // Act
     render(<CalendarView />);
@@ -167,26 +187,30 @@ describe('CalendarView', () => {
 
   it('shows empty state when no tasks have deadlines', () => {
     // Arrange
-    vi.mocked(useApprovalsStore).mockReturnValue({
-      tasks: [
-        {
-          id: '1',
-          title: 'Task without deadline',
-          description: 'Test',
-          status: 'todo',
-          priority: 'medium',
-          isTeamTask: false,
-          // No deadline
-          createdAt: '2026-03-31T00:00:00Z',
-          updatedAt: '2026-03-31T00:00:00Z',
-          workState: 'idle',
-        } as KanbanTask,
-      ],
-    } as any);
+    vi.mocked(useApprovalsStore).mockImplementation((selector: any) =>
+      selector({
+        tasks: [
+          {
+            id: '1',
+            title: 'Task without deadline',
+            description: 'Test',
+            status: 'todo',
+            priority: 'medium',
+            isTeamTask: false,
+            // No deadline
+            createdAt: '2026-03-31T00:00:00Z',
+            updatedAt: '2026-03-31T00:00:00Z',
+            workState: 'idle',
+          } as KanbanTask,
+        ],
+      })
+    );
 
-    vi.mocked(useAgentsStore).mockReturnValue({
-      agents: [] as AgentSummary[],
-    } as any);
+    vi.mocked(useAgentsStore).mockImplementation((selector: any) =>
+      selector({
+        agents: [] as AgentSummary[],
+      })
+    );
 
     // Act
     render(<CalendarView />);
