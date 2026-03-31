@@ -88,8 +88,8 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md — Team data structure & store (types, Zustand store, backend API)
-- [ ] 03-02-PLAN.md — Team card grid layout (TeamCard, TeamGrid, responsive layout)
-- [ ] 03-03-PLAN.md — Drag and drop infrastructure (AgentPanel, CreateTeamZone, @dnd-kit)
+- [x] 03-02-PLAN.md — Team card grid layout (TeamCard, TeamGrid, responsive layout)
+- [x] 03-03-PLAN.md — Drag and drop infrastructure (AgentPanel, CreateTeamZone, @dnd-kit)
 - [ ] 03-04-PLAN.md — Team creation flow (confirmation form, auto-naming, inline editing)
 **Depends on:** Phase 1
 **Canonical refs:**
