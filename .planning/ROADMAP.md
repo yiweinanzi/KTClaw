@@ -84,6 +84,13 @@ Plans:
 ### Phase 3: Team Overview Rebuild
 
 **Goal:** 重构团队总览为卡片列表，支持拖拽式创建团队。
+**Plans:** 4 plans
+
+Plans:
+- [x] 03-01-PLAN.md — Team data structure & store (types, Zustand store, backend API)
+- [ ] 03-02-PLAN.md — Team card grid layout (TeamCard, TeamGrid, responsive layout)
+- [ ] 03-03-PLAN.md — Drag and drop infrastructure (AgentPanel, CreateTeamZone, @dnd-kit)
+- [ ] 03-04-PLAN.md — Team creation flow (confirmation form, auto-naming, inline editing)
 **Depends on:** Phase 1
 **Canonical refs:**
 - `.planning/PRODUCT-RESTRUCTURE.md` §五（团队总览）
@@ -277,7 +284,7 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 
 |-------|-------|--------|
 | 1. Sidebar Restructure | 3/3 | Complete |
 | 2. Task Board Redesign | TBD | Not started |
-| 3. Team Overview Rebuild | TBD | Not started |
+| 3. Team Overview Rebuild | 4/4 | Not started |
 | 4. Team Map Evolution | TBD | Not started |
 | 5. Employee Square | TBD | Not started |
 | 6. Channel Redesign | TBD | Not started |
