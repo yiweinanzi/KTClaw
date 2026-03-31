@@ -6,9 +6,11 @@ import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useApprovalsStore } from '@/stores/approvals';
 import { useAgentsStore } from '@/stores/agents';
+import { useRightPanelStore } from '@/stores/rightPanelStore';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Trash2 } from 'lucide-react';
 import type { KanbanTask, WorkState } from '@/types/task';
 
 interface TaskDetailPanelProps {
@@ -46,11 +48,14 @@ function getWorkStateLabel(state: WorkState): string {
 export function TaskDetailPanel({ taskId }: TaskDetailPanelProps) {
   const tasks = useApprovalsStore((s) => s.tasks);
   const updateTask = useApprovalsStore((s) => s.updateTask);
+  const deleteTask = useApprovalsStore((s) => s.deleteTask);
   const agents = useAgentsStore((s) => s.agents);
+  const closePanel = useRightPanelStore((s) => s.closePanel);
 
   const task = useMemo(() => tasks.find((t) => t.id === taskId), [tasks, taskId]);
   const [isEditing, setIsEditing] = useState(false);
   const [editedDescription, setEditedDescription] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!task) {
     return (
@@ -65,6 +70,12 @@ export function TaskDetailPanel({ taskId }: TaskDetailPanelProps) {
   const handleSave = async () => {
     await updateTask(task.id, { description: editedDescription });
     setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    await deleteTask(task.id);
+    closePanel();
+    setShowDeleteConfirm(false);
   };
 
   return (
@@ -189,6 +200,43 @@ export function TaskDetailPanel({ taskId }: TaskDetailPanelProps) {
           </Button>
         </div>
       )}
+
+      {/* Delete button */}
+      <div className="mt-auto pt-4 border-t border-border">
+        {showDeleteConfirm ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">确定要删除这个任务吗？此操作无法撤销。</p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleDelete}
+                className="flex-1"
+              >
+                确认删除
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1"
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            删除任务
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
