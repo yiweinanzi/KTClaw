@@ -1,265 +1,288 @@
-# Roadmap: KTClaw Team Control Plane Evolution
+# Roadmap: KTClaw 产品重构
 
 ## Overview
 
-This roadmap takes KTClaw's existing Team Control Plane MVP and turns it into a more operational team experience. The sequence is deliberate: first make backend-only worker access rules real, then clarify who owns user-facing entry points, then translate runtime execution data into clearer team work visibility without introducing a new orchestration model.
+本 roadmap 实现产品全面重构：
+- **界面简化**：ChatGPT 网页版侧边栏布局，中文化，删除冗余
+- **任务看板重构**：统一看板 + 日程视图，按 Agent 分组，团队前缀区分
+- **团队系统升级**：团队总览卡片 + 团队地图动态路由 + 拖拽创建
+- **员工广场**：Agent 展示/创建/培养/管理入口
+- **频道与会话重构**：同步工作台 + 精细化会话管理
+- **设置中心收敛**：只保留 9 项真正有价值的设置
+
+执行顺序：Phase 1-9 推进，重构过程中已完成的飞书/微信同步工作台（Phase 10-11）保留，放后续执行。
 
 ## Phases
 
 **Phase Numbering:**
-- Integer phases (1, 2, 3): Planned milestone work
-- Decimal phases (2.1, 2.2): Urgent insertions if this stream needs them later
+- Integer phases (1-9): 本次重构核心工作
+- Decimal phases (11.1, 11.2): 后续插入项
 
-- [x] **Phase 1: Enforce Leader-only Access** - Turn `leader_only` from display metadata into real behavior across team and chat entry paths
-- [x] **Phase 2: Clarify Team Entry Ownership** - Show who owns user-facing entry points and preserve the boundary between members, channels, and work
-- [x] **Phase 3: Expose Team Work Visibility** - Translate existing runtime and kanban signals into clearer team-level work status and drill-down paths
-- [x] **Phase 4: Productize Leader Progress Briefing** - Turn the leader into a first-class progress-reporting surface across private chat and team views
-- [x] **Phase 5: Refine leader control plane UI to match product intent** - Turn the current team pages into a denser, leader-facing command center aligned to the product document
+- [x] **Phase 1: Sidebar Restructure** - ChatGPT 网页版侧边栏布局，3 固定 + 2 折叠，ChatGPT 风格
+- [ ] **Phase 2: Task Board Redesign** - 看板 4 列 + 日程视图双切换，Agent 分组，团队前缀，对话创建
+- [ ] **Phase 3: Team Overview Rebuild** - 团队卡片列表，拖拽创建团队，多团队支持
+- [ ] **Phase 4: Team Map Evolution** - 动态路由，Memory/Skills 管理与同步，成员管理，私聊
+- [ ] **Phase 5: Employee Square** - Agent 卡片展示，创建，私聊，Memory 管理，会话管理
+- [ ] **Phase 6: Channel Redesign** - 频道同步工作台，机器人一对一绑定，显式指定负责人
+- [ ] **Phase 7: Session Redesign** - 会话列表重构，搜索/置顶/分组/导出，团队/个人身份区分
+- [ ] **Phase 8: Settings Convergence** - 设置中心 9 项，移入移出，记忆知识库，迁移备份
+- [ ] **Phase 9: Deletions & Global Cleanup** - /activity 删除，ClawX→KTClaw 替换，冗余项清理
+- [ ] **Phase 10: Channel Feishu Sync Workbench** - 飞书双向同步工作台（已实现，保留）
+- [ ] **Phase 11: Channel WeChat Sync Workbench** - 微信双向同步工作台（已部分实现，保留）
+
+---
 
 ## Phase Details
 
-### Phase 1: Enforce Leader-only Access
-**Goal**: Make `leader_only` workers behave like backend-facing team members instead of ordinary direct-chat peers.
-**Depends on**: Nothing (first phase)
-**Requirements**: [TEAM-ACCESS-01, TEAM-ACCESS-02, TEAM-ACCESS-03, TEAM-LEAD-02]
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` - original leader/sub-agent product intent
-- `docs/superpowers/specs/2026-03-27-team-control-plane-mvp-design.md` - MVP scope and architecture decisions
-- `docs/superpowers/plans/2026-03-27-team-control-plane-mvp.md` - prior implementation boundaries
-- `Prompt.md` - continuity summary of completed team MVP work
-**Success Criteria** (what must be TRUE):
-  1. User cannot directly enter a blocked `leader_only` worker conversation from supported team-facing UI paths
-  2. When a direct worker chat is blocked, the UI explains the rule and shows the correct leader-facing alternative instead of failing silently
-  3. Host-side behavior no longer treats `leader_only` as a label only; invalid direct-entry attempts are guarded consistently
-  4. Team and agent detail surfaces explain access/reporting consequences in plain language
-**Plans**: 3 plans
+### Phase 1: Sidebar Restructure
+
+**Goal:** 将左侧边栏改造为 ChatGPT 网页版布局，确立全局导航结构。
+**Depends on:** Nothing
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §三（侧边栏结构）
+- `src/components/layout/Sidebar.tsx` — 现有侧边栏实现
+- `App.tsx` — 路由定义
+**Success Criteria (what must be TRUE):**
+  1. 侧边栏顺序固定为：任务看板 → 团队总览 → 员工广场 → 频道 → 会话
+  2. 频道默认折叠，点击展开，展开时向下挤压
+  3. 会话默认打开，点击折叠
+  4. 任务看板、团队总览、员工广场不折叠，点击直接进入
+  5. 左下角只保留文件/上传文件入口
+  6. 删除左侧加号按钮
+  7. 右上角点"文件"/"Agent"图标 → 右侧滑出 panel（不跳转路由）
+  8. 侧边栏支持滚动条
+  9. 参考 VS Code 折叠/展开逻辑
+  10. 初始化为 main 模型对话，默认进入与 main 的会话
+
+### Phase 2: Task Board Redesign
+
+**Goal:** 重构任务看板为统一看板，支持看板和日程双视图，按 Agent 分组，区分团队任务与个人任务。
+**Plans:** 4 plans
 
 Plans:
-- [ ] 01-01: Audit and harden `leader_only` entry points across renderer flows
-- [ ] 01-02: Add host/store enforcement for blocked direct-worker chat paths
-- [ ] 01-03: Refine messaging, tests, and edge-case coverage for restricted access
+- [x] 02-01-PLAN.md — Board structure: 4 columns, Agent swimlanes, team task styling
+- [x] 02-02-PLAN.md — Calendar view: FullCalendar integration, week/month/year views
+- [ ] 02-03-PLAN.md — Task interactions: detail panel, click/hover, drag-and-drop
+- [ ] 02-04-PLAN.md — Chat integration: task creation bubbles, anchor cards, manual entry
+**Depends on:** Phase 1
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §四（任务看板）
+- `src/pages/TaskKanban/index.tsx` — 现有看板实现
+**Success Criteria (what must be TRUE):**
+  1. 看板视图：4 列（待办 → 进行中 → 审查 → 完成），删除积压列
+  2. 日程视图：日历插件，支持周/月/年视图切换，历史事件保留
+  3. 看板按 Agent 分组，每行一个 Agent 下面挂其任务
+  4. 团队任务加"团队X："前缀，颜色区分
+  5. 任务卡片展示：标题 + 负责人 + 状态 + 截止时间 + 优先级
+  6. 点击卡片 → 右侧滑出详情 panel
+  7. 支持点击操作和拖拽双操作
+  8. 对话中创建任务为主要方式（Agent 识别 → 确认气泡 → 入看板）
+  9. 前台新建入口弱化保留
+  10. 任务标题由模型自动生成
+  11. 日程视图只显示有截止日期的任务，无安排任务仅在看板视图显示
 
-### Phase 2: Clarify Team Entry Ownership
-**Goal**: Make it obvious which leader owns each user-facing team entry point while preserving the separation between members, channels, and runtime work.
-**Depends on**: Phase 1
-**Requirements**: [TEAM-ENTRY-01, TEAM-ENTRY-02, TEAM-ENTRY-03, TEAM-LEAD-01]
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` - leader-owned channel and meeting-entry semantics
-- `docs/superpowers/specs/2026-03-27-team-control-plane-mvp-design.md` - team vs runtime object boundaries
-- `Prompt.md` - MVP completion state and deferred next-step candidates
-**Success Criteria** (what must be TRUE):
-  1. User can identify the leader that owns a user-facing channel or team entry point from team surfaces without reading raw config
-  2. Missing or ambiguous ownership states are surfaced clearly enough for the user to fix them
-  3. Team UI still distinguishes persistent members, channel ownership, and temporary work instead of blending them into one graph
-  4. Leader-vs-worker coordination roles are obvious at a glance in team-facing pages
-**Plans**: 3 plans
+### Phase 3: Team Overview Rebuild
+
+**Goal:** 重构团队总览为卡片列表，支持拖拽式创建团队。
+**Depends on:** Phase 1
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §五（团队总览）
+- `src/pages/TeamOverview/index.tsx` — 现有团队总览
+**Success Criteria (what must be TRUE):**
+  1. 团队以卡片方式展示（参考开源项目卡片式）
+  2. 卡片展示：名称 + Leader 头像/名称 + 成员数量/列表 + 状态 + 活跃时间 + 执行中任务数 + 职责描述
+  3. 点击卡片 → 进入团队地图（当前团队）
+  4. 新建团队：拖拽式，Leader 区限 1 人，建议 2-3 成员
+  5. 团队名称自动生成，用户可编辑
+  6. 支持多团队（Agent 可属于多个团队）
+  7. 创建后自动更新成员关系、Memory、Soul、Identity、引用关系
+
+### Phase 4: Team Map Evolution
+
+**Goal:** 将 TeamMap 改造为团队内部管理页面，每个团队有独立的团队地图，支持 Memory/Skills 管理与同步。
+**Depends on:** Phase 3
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §六（团队地图）
+- `src/pages/TeamMap/index.tsx` — 现有团队地图
+- `.planning/PRODUCT-RESTRUCTURE.md` §十二.3（团队地图 ↔ 记忆知识库联动）
+**Success Criteria (what must be TRUE):**
+  1. TeamMap 变为动态路由：当前在哪个团队的地图里
+  2. 查看所有团队成员信息及详情
+  3. 管理员工 Skills（查看/编辑，实时同步到设置页"记忆知识库"）
+  4. 增加员工（点击后出现 Agent 列表选择）
+  5. 删除员工（需二次确认）
+  6. 私聊：可和下属员工聊，也可和 Leader 聊
+  7. 修改 Memory（实时同步到设置页"记忆知识库"，双向同步）
+  8. 查看下属工作状态详情（Agent 当前任务、阻塞状态等）
+  9. 展示员工待命/活跃状态
+
+### Phase 5: Employee Square
+
+**Goal:** 将现有 Agents 页面升级为员工广场，作为 Agent 的展示、创建、培养、管理入口。
+**Depends on:** Phase 4
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §七（员工广场）
+- `src/pages/Agents/index.tsx` — 现有 Agents 页面
+- `src/pages/AgentDetail/index.tsx` — 现有 Agent 详情页
+**Success Criteria (what must be TRUE):**
+  1. Agent 以卡片方式展示（参考开源项目卡片式，不做成案例广场）
+  2. 卡片展示：头像/名称 + 角色(Leader/员工) + 状态 + 所属团队 + 活跃时间 + 待办数 + Chat 入口
+  3. 创建 Agent：名称 + 角色(Leader/员工) + 模型，Leader 可选配置团队
+  4. 员工广场内可管理 Agent Memory（同步到设置页"记忆知识库"）
+  5. 可查看 Agent Skills（编辑在团队地图）
+  6. 和 Agent 私聊（右键或 Chat 按钮）
+  7. 聊天记录沉淀到左侧会话列表
+  8. 会话管理：改名/删除/重命名/设置
+
+### Phase 6: Channel Redesign
+
+**Goal:** 重构频道为独立的同步工作台，支持机器人一对一绑定，显式指定负责人。
+**Depends on:** Phase 1
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §八（频道）
+- `.planning/PRODUCT-RESTRUCTURE.md` §十二.6（外部接入绑定规则）
+- `src/pages/Channels/index.tsx` — 现有频道页面
+**Success Criteria (what must be TRUE):**
+  1. 频道为独立的同步工作台（session list + message panel + composer）
+  2. 消息不进入主会话列表
+  3. 接入状态管理（在线/离线）
+  4. 支持飞书/钉钉/企微/QQ/微信机器人接入
+  5. 仅接机器人，不接群聊
+  6. 每个 bot 对应一个 Agent/团队（一对一绑定）
+  7. 配置频道时必须显式指定负责人，不允许默认绑定
+  8. 频道默认折叠，点击展开
+
+### Phase 7: Session Redesign
+
+**Goal:** 重构会话列表，支持搜索/置顶/分组/导出，区分团队身份与个人身份。
+**Depends on:** Phase 1
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §九（会话）
+- `.planning/PRODUCT-RESTRUCTURE.md` §七.4（员工广场会话管理）
+**Success Criteria (what must be TRUE):**
+  1. 所有 Agent 对话（个人 + 团队 Leader + 下属 Agent）全出现在会话列表
+  2. 和 Leader 聊 = 团队身份；和下属聊 = 个人身份
+  3. 同一 Agent 既在团队里又和用户私聊过 → 出现两个会话项
+  4. 支持搜索
+  5. 支持置顶（常用会话固定顶部）
+  6. 支持分组（团队会话 / 个人会话分开显示）
+  7. 支持导出（聊天记录导出）
+  8. 基础管理：改名/删除/重命名/设置
+
+### Phase 8: Settings Convergence
+
+**Goal:** 重构设置中心，收敛为 9 项真正有价值的设置，整合记忆知识库和费用用量。
+**Depends on:** Phase 5
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §十（设置中心）
+- `.planning/PRODUCT-RESTRUCTURE.md` §十二.3（记忆知识库双向同步）
+- `src/pages/Settings/index.tsx` — 现有设置页面
+**Success Criteria (what must be TRUE):**
+  1. 无分组，平铺顺序排列 9 项
+  2. 费用与用量（第 1 位）：实时用量 + 大盘监控 + 用量分析 + 告警策略，真实数据，删除模拟数据组件
+  3. 模型与提供能力：全局默认模型 + fallback 模型 + AI 模型提供商 + Gateway，删占位自定义模型
+  4. 常规设置：账号安全(占位) + 外观行为(主题/自启/托盘) + 品牌身份 + 通知开关(默认开) + 语言(默认中文)
+  5. Skills 与 MCP：内置模板 + 预设 MCP 服务器配置，/skills 路由收敛
+  6. 工具权限：全局开关，界面保持现状，按现有分类组织
+  7. 记忆知识库（第 6 位）：概览 + 文件浏览(workspace文件) + Memory编辑器，与团队地图双向同步
+  8. 迁移与备份：保留并实现
+  9. 应用更新：版本/检查更新/更新日志
+  10. 关于：反馈入口 + 产品介绍 + 团队介绍 + 开源说明 + 二维码 + 备案号
+
+### Phase 9: Deletions & Global Cleanup
+
+**Goal:** 删除废弃路由和页面，全局替换品牌名，清理冗余配置。
+**Depends on:** Phase 8
+**Canonical refs:**
+- `.planning/PRODUCT-RESTRUCTURE.md` §十一（其他调整）
+- `src/pages/Activity/index.tsx` — /activity 路由
+- `src/components/settings-center/settings-monitoring-panel.tsx` — 模拟数据组件
+**Success Criteria (what must be TRUE):**
+  1. /activity 路由删除
+  2. 代码中所有 "ClawX" 替换为 "KTClaw"
+  3. 删除 settings-monitoring-panel.tsx（模拟数据）
+  4. 删除 Bandwidth Assessment
+  5. 删除知识库额外来源 Tab
+  6. 删除实验室/实验页面
+  7. 删除 Brand assets
+  8. 删除 @提及能力
+  9. 全局界面中文化（Pages 名称/概览文案/费用文案等）
+  10. 验证所有删除项不影响现有功能
+
+### Phase 10: Channel Feishu Sync Workbench
+
+**Goal:** 飞书双向同步工作台（已完成，保留）。
+**Depends on:** Phase 6
+**Canonical refs:**
+- `.planning/phases/10-channel-feishu-sync-workbench/10-CONTEXT.md` — 锁定决策（执行产物沿用原 09-xx 编号）
+- `src/pages/Channels/index.tsx` — 现有频道页面
+**Success Criteria (what must be TRUE):**
+  1. 频道页面显示所有飞书会话（群聊 + 私聊），支持完整消息历史
+  2. 消息角色着色：自己(右对齐蓝)、bot(左对齐品牌色)、他人(左对齐灰)
+  3. 用户可通过 per-session 切换以 bot 或自己身份发送
+  4. 滚动至顶部触发分页历史加载（向上无限滚动）
+  5. 图片内联显示，点击打开 lightbox；文件显示信息卡片 + 下载按钮
+  6. 搜索按标题优先过滤，再过滤消息内容
+  7. 被 bot 移除的会话标记为 invalid 但保留；token 过期降级为 bot-only 模式
+  8. 布局自适应：宽屏 3 列，窄屏 2 列（合并 rail + 会话列表）
+**Plans:** 2/4 plans executed
 
 Plans:
-- [ ] 02-01: Derive and surface ownership signals from existing channel/binding data
-- [ ] 02-02: Integrate ownership semantics into Team Overview, Team Map, and relevant detail surfaces
-- [ ] 02-03: Add edge-state warnings, copy, and regression coverage
+- [x] 09-01: Message display layer
+- [x] 09-02: Composer upgrade
+- [ ] 09-03: Session list upgrade
+- [ ] 09-04: Backend sync endpoints
 
-### Phase 3: Expose Team Work Visibility
-**Goal**: Translate existing runtime, child-runtime, and kanban data into higher-level team work visibility without inventing a new runtime backend.
-**Depends on**: Phase 2
-**Requirements**: [TEAM-RUNTIME-01, TEAM-RUNTIME-02, TEAM-RUNTIME-03]
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` - progress reporting and leader/sub-agent coordination expectations
-- `docs/superpowers/specs/2026-03-27-team-control-plane-mvp-design.md` - runtime visibility decisions
-- `Prompt.md` - recent runtime/kanban groundwork already completed in the repo
-**Success Criteria** (what must be TRUE):
-  1. Team Overview expresses member state in team language using existing runtime and kanban signals
-  2. Team pages show recent work or workload cues without duplicating the entire kanban/runtime UI
-  3. Team Map visually separates long-lived members from temporary execution work and routes users toward the correct detailed page for deeper inspection
-**Plans**: 3 plans
+### Phase 11: Channel WeChat Sync Workbench
+
+**Goal:** 微信双向同步工作台，镜像 Phase 10。
+**Depends on:** Phase 10
+**Canonical refs:**
+- `.planning/phases/11-channel-wechat-sync-workbench/11-CONTEXT.md` — 锁定决策（执行产物沿用原 10-xx 编号）
+- `src/types/channel.ts` — ChannelType union
+- `electron/utils/whatsapp-login.ts` — QR login EventEmitter pattern
+**Success Criteria (what must be TRUE):**
+  1. `wechat` 出现在 domestic channels 列表（飞书/钉钉/企微/QQ/微信）
+  2. Onboarding wizard: install plugin → scan QR (30s refresh) → ready
+  3. 工作台显示群聊/私聊会话，分页消息历史
+  4. 消息角色着色：自己(右对齐蓝)、bot(左对齐品牌色)、他人(左对齐灰)
+  5. 图片内联 + lightbox，文件信息卡片，语音播放按钮 + 时长
+  6. Composer 有 bot/self 身份切换；用户认证不可用时降级为 bot-only + 警告
+  7. Media proxy 验证域名：`*.qpic.cn`, `*.weixin.qq.com`, `*.wx.qq.com`
+  8. 单账号（`accountId: 'default'`）
+**Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 03-01: Define derived member work-state logic from current runtime and kanban data
-- [ ] 03-02: Upgrade Team Overview and Team Map with clearer work visibility and drill-down affordances
-- [ ] 03-03: Validate runtime-to-team language, docs, and regression coverage
+- [x] 10-01: Channel type registration + onboarding wizard (WeChatOnboardingWizard)
+- [ ] 10-02: WeChat workbench UI — session list, message panel, composer with identity toggle
+- [ ] 10-03: Backend sync endpoints — QR login, paginated messages, media proxy, member list, identity-aware send
+
+---
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9
+Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8 → Phase 9 → Phase 10 → Phase 11
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Enforce Leader-only Access | 3/3 | Complete | 2026-03-27 |
-| 2. Clarify Team Entry Ownership | 3/3 | Complete | 2026-03-27 |
-| 3. Expose Team Work Visibility | 3/3 | Complete | 2026-03-27 |
-| 4. Productize Leader Progress Briefing | 4/4 | Complete | 2026-03-27 |
-| 5. Refine leader control plane UI to match product intent | 3/3 | Complete | 2026-03-28 |
-| 6. Polish team pages to SaaS command-center visual standard | 3/3 | Complete | 2026-03-28 |
-| 7. Wire team runtime signals to frontend | 3/3 | Complete   | 2026-03-29 |
-| 8. Team Grouping, Broadcast Chat, and Workspace Edit | 3/3 | Complete | 2026-03-29 |
-| 9. Channel Feishu Sync Workbench | 0/? | Not started | — |
+**Parallel execution:**
+- Phase 2, 3, 6, 7 可并行（各自独立，不冲突）
+- Phase 4 depends on Phase 3
+- Phase 5 depends on Phase 4
+- Phase 8 depends on Phase 5
+- Phase 9 depends on Phase 8
+- Phase 10 depends on Phase 6
+- Phase 11 depends on Phase 10
 
-### Phase 7: Wire team runtime signals to frontend
-
-**Goal:** Connect the existing `sessionRuntimeManager` and session runtime APIs to the team-facing UI so TeamOverview, TeamMap, and OperationsRail show real live Sub-Agent execution data instead of hardcoded mocks. Add workspace file read endpoint so the Workspace tab loads actual AGENTS.md/SOUL.md content.
-**Depends on:** Phase 6
-**Requirements**: [TEAM-RUNTIME-01, TEAM-RUNTIME-02, TEAM-RUNTIME-03]
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` - Section 6.2 (progress reporting), Section 6.3 (workspace micro-operations), Section 7.1 (sessions_spawn workflow)
-- `.planning/phases/07-wire-team-runtime-signals-to-frontend/07-CONTEXT.md` - locked implementation decisions
-- `electron/services/session-runtime-manager.ts` - existing runtime data source
-- `electron/api/routes/sessions.ts` - existing session routes
-**Success Criteria** (what must be TRUE):
-  1. TeamOverview and TeamMap member status dots reflect real Sub-Agent `RuntimeSessionStatus` (running/blocked/waiting_approval) updated within 3 seconds of state change
-  2. TeamMap Workspace tab loads real AGENTS.md and SOUL.md file content from the agent's workspace directory (read-only)
-  3. TeamMap Live Log tab shows the actual message history from the agent's most recent runtime session
-  4. When an agent has an active running session, the OperationsRail shows a Kill button that terminates it via the existing `/api/sessions/subagents/:id/kill` route
-**Plans:** 3/3 plans complete
-
-Plans:
-- [x] 07-01: Add workspace file read endpoint and verify session runtime response shape
-- [x] 07-02: Add useTeamRuntime polling hook and update team-work-visibility and team-progress-brief
-- [x] 07-03: Wire TeamMap Workspace tab, Live Log tab, and OperationsRail kill button to real data
-
-**Goal**: Turn the leader into a first-class progress-reporting surface across private chat and team views.
-**Depends on**: Phase 3
-**Requirements**: [TEAM-BRIEF-01, TEAM-BRIEF-02, TEAM-BRIEF-03, TEAM-BRIEF-04, TEAM-BRIEF-05]
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` - original leader progress-reporting intent and private-chat examples
-- `.planning/PROJECT.md` - current product boundary and core value
-- `.planning/REQUIREMENTS.md` - leader briefing requirement IDs
-- `Prompt.md` - continuity summary for the completed team control plane evolution stream
-**Success Criteria** (what must be TRUE):
-  1. User can open a Leader progress brief in private leader chat and in Team Overview
-  2. Both entry points reflect the same aggregated member-level team state
-  3. The brief reports overall status, blockers, current work, next steps, and ETA-oriented cues
-  4. The brief keeps long-lived members as the primary reporting layer, with child runtime detail secondary
-  5. The brief offers lightweight navigation into existing member or task surfaces
-**Plans**: 4 plans
-
-Plans:
-- [x] 04-01: Build shared leader progress aggregation logic, Team Overview summary surface, and leader chat brief panel
-- [x] 04-02: Redesign Team Overview into a leader-first control-plane layout
-- [x] 04-03: Rework Team Map into a collaboration-aware structure view with richer nodes and a split detail panel
-- [x] 04-04: Align Team Brief, wording, and lightweight actions across all team-facing surfaces
-
-### Phase 5: Refine leader control plane UI to match product intent
-
-**Goal:** Turn the current team pages into a leader-facing command center that better matches the product document's orchestration intent, without changing the existing derived-team backend model.
-**Requirements**: [TEAM-UX-01, TEAM-UX-02, TEAM-UX-03, TEAM-UX-04, TEAM-UX-05]
-**Depends on:** Phase 4
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` - original Team Leader + Sub-Agent control-plane intent, progress-reporting examples, and permission boundaries
-- `.planning/phases/05-refine-leader-control-plane-ui-to-match-product-intent/05-CONTEXT.md` - locked visual and interaction decisions from discuss-phase
-- `.planning/PROJECT.md` - architecture constraints and current product boundaries
-- `.planning/phases/04-productize-leader-progress-briefing/04-VERIFICATION.md` - current shipped baseline that Phase 5 must refine rather than replace
-**Success Criteria** (what must be TRUE):
-  1. Team Overview reads as a leader command center, with progress, blockers, active work, and next-step guidance ahead of member profile information
-  2. Team Map reads as an operations topology with node-level task state and a persistent task/member detail surface
-  3. Team-facing pages use medium-high operational density in leader language while de-emphasizing raw engineering metadata
-  4. The visual system feels like a warm, premium command center instead of a generic admin screen
-  5. Team-facing pages stay in observe+navigate scope and do not introduce direct orchestration controls in this phase
-**Plans:** 3 plans
-
-Plans:
-- [x] 05-01: Rebuild Team Overview into a leader command-center dashboard
-- [x] 05-02: Rework Team Map into a dense operations topology surface
-- [x] 05-03: Align shared control-plane wording, polish, and final verification across team surfaces
-
-### Phase 6: Polish team pages to SaaS command-center visual standard
-
-**Goal:** Elevate the visual quality of TeamOverview, TeamMap, and AgentDetail to a refined SaaS command-center standard — stronger metric display, clearer status language, denser information layout, and consistent visual tokens across all three pages — without altering data models, routes, or backend behavior.
-**Depends on:** Phase 5
-**Requirements**: [TEAM-VIS-01, TEAM-VIS-02, TEAM-VIS-03]
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` - leader/sub-agent product intent and progress reporting reference
-- `.planning/phases/05-refine-leader-control-plane-ui-to-match-product-intent/05-CONTEXT.md` - Phase 5 visual decisions that this phase must stay compatible with
-**Success Criteria** (what must be TRUE):
-  1. TeamOverview metric cards display status-colored indicators alongside numbers, and the member list uses tighter, denser cards with clear status badges
-  2. TeamMap AgentNode cards distinguish root/leader nodes visually, and OperationsRail panel matches the same visual language as TeamOverview
-  3. AgentDetail replaces legacy iOS color tokens with project-standard Tailwind tokens and aligns section card styling with TeamOverview/TeamMap
-**Plans:** 3/3 plans complete
-
-Plans:
-- [x] 06-01: Upgrade TeamOverview metric cards, hero section, and member card visual system
-- [x] 06-02: Polish TeamMap AgentNode, root node treatment, and OperationsRail visual language
-- [x] 06-03: Modernize AgentDetail styling and enforce cross-page visual token consistency
-
-### Phase 8: Team Grouping, Broadcast Chat, and Workspace Edit
-
-**Goal:** Deliver three parallel user-facing features aligned to the product document's core principles: (1) TeamOverview grouped by Leader → Sub-Agent hierarchy using existing `reportsTo` field; (2) KTClaw-internal broadcast chat where one message is sent to multiple Team Leaders simultaneously; (3) Workspace file write (AGENTS.md/SOUL.md) and Skills management UI in TeamMap/AgentDetail.
-**Depends on:** Phase 7
-**Requirements**: [TEAM-ACCESS-01, TEAM-ENTRY-01, TEAM-RUNTIME-03]
-**UI hint**: yes
-**Canonical refs**:
-- `team-项目文档.md` §1-3 (architecture intent), §6.1 (group chat/multi-leader), §6.3 (workspace micro-ops)
-- `.planning/phases/08-team-grouping-broadcast-chat-workspace-edit/08-CONTEXT.md` — locked decisions
-**Success Criteria** (what must be TRUE):
-  1. TeamOverview groups agents under their Leader with collapsible sections; standalone agents fall into an "Independent" group
-  2. User can select multiple Team Leaders and send a broadcast message; each Leader responds independently in the same view
-  3. AGENTS.md and SOUL.md content is editable in TeamMap OperationsRail with a Save button that writes to disk
-  4. AgentDetail shows a Skills tab listing the agent's configured skill directories with SKILL.md content
-**Plans:** 2/3 plans executed
-
-Plans:
-- [x] 08-01: TeamOverview Leader-grouped layout
-- [x] 08-02: KTClaw internal broadcast chat view
-- [x] 08-03: Workspace write endpoint + Save UI, Skills read endpoint + Skills tab
-
-### Phase 9: Channel Feishu Sync Workbench
-
-**Goal:** Upgrade the Channel page into a full bidirectional sync workbench for Feishu. Users can view all group/private conversations the bot participates in (full message history, paginated), send messages as bot or as themselves, and see messages role-colored by self/bot/others. Layout is adaptive (3-col wide, 2-col narrow). Config flow is wizard-based; token expiry degrades gracefully to bot-only mode.
-**Depends on:** Phase 8
-**Requirements**: [CHANNEL-SYNC-01]
-**UI hint**: yes
-**Canonical refs**:
-- `OpenClaw 飞书官方插件使用指南（公开版）.md` — Feishu bot setup, plugin install, auth flow
-- `src/pages/Channels/index.tsx` — existing channel page with sync session/conversation/message types
-- `src/types/channel-sync.ts` — ChannelSyncSession, ChannelSyncConversation, ChannelSyncMessage
-- `.planning/phases/09-channel-feishu-sync-workbench/09-CONTEXT.md` — locked decisions
-**Success Criteria** (what must be TRUE):
-  1. Channel page shows all Feishu conversations (groups the bot is in + private chats) with full message history
-  2. Messages are role-colored: self (right-aligned blue), bot (left-aligned brand), others (left-aligned grey)
-  3. User can send as bot or as self via a per-session toggle next to the composer
-  4. Scrolling to top triggers paginated history load (infinite scroll upward)
-  5. Images show inline with lightbox on click; files show info card + download button
-  6. Search filters sessions by title first, then message content
-  7. Bot-removed sessions are marked invalid but preserved; token expiry degrades to bot-only
-  8. Layout is adaptive: 3-col on wide screens, 2-col (merged rail+session list) on narrow
-**Plans:** 4 plans written, ready for execution
-
-Plans:
-- [x] 09-01: Message display layer — role-colored messages, image lightbox, file cards, paginated history
-- [x] 09-02: Composer upgrade — identity toggle (bot/self), send failure handling, @mention picker
-- [x] 09-03: Session list upgrade — adaptive layout, search (title + content), invalid session state
-- [x] 09-04: Backend sync endpoints — paginated message fetch, send-as-user, session state tracking
-
-### Phase 10: WeChat Channel Sync Workbench
-
-**Goal:** Add WeChat (`wechat`) as a new channel type and deliver a full bidirectional sync workbench mirroring Phase 09 (Feishu). Users can view group/private conversations, send as bot or self, see role-colored messages with image/file/voice support, and onboard via a QR-scan wizard.
-**Depends on:** Phase 9
-**Requirements**: [CHANNEL-SYNC-02]
-**UI hint**: yes
-**Canonical refs**:
-- `.planning/phases/10-wechat-channel-sync-workbench/10-CONTEXT.md` — locked decisions
-- `src/types/channel.ts` — ChannelType union and CHANNEL_META registry
-- `electron/utils/whatsapp-login.ts` — QR login EventEmitter pattern to mirror
-- `src/components/channels/FeishuOnboardingWizard.tsx` — wizard structure to mirror
-**Success Criteria** (what must be TRUE):
-  1. `wechat` appears in the channel rail under domestic channels alongside feishu/dingtalk/wecom/qqbot
-  2. Onboarding wizard: install plugin → scan QR (30s refresh) → ready; no version-check step
-  3. Workbench shows group/private conversations with paginated message history (infinite scroll upward)
-  4. Messages role-colored: self right-aligned blue, bot left-aligned brand, others left-aligned grey
-  5. Image inline + lightbox, file info card, voice play-button + duration
-  6. Composer has bot/self identity toggle; falls back to bot with warning when user auth unavailable
-  7. Media proxy validates hostname against `*.qpic.cn`, `*.weixin.qq.com`, `*.wx.qq.com`; rejects others with 400
-  8. Single account (`accountId: 'default'`); @mention popover fetches group member list
-**Plans:** TBD — to be written after research phase
-
-Plans:
-- [ ] 10-01: Channel type registration + onboarding wizard (WeChatOnboardingWizard)
-- [ ] 10-02: WeChat workbench UI — session list, message panel, composer with identity toggle
-- [ ] 10-03: Backend sync endpoints — QR login, paginated messages, media proxy, member list, identity-aware send
+| Phase | Plans | Status |
+|-------|-------|--------|
+| 1. Sidebar Restructure | 3/3 | Complete |
+| 2. Task Board Redesign | TBD | Not started |
+| 3. Team Overview Rebuild | TBD | Not started |
+| 4. Team Map Evolution | TBD | Not started |
+| 5. Employee Square | TBD | Not started |
+| 6. Channel Redesign | TBD | Not started |
+| 7. Session Redesign | TBD | Not started |
+| 8. Settings Convergence | TBD | Not started |
+| 9. Deletions & Global Cleanup | TBD | Not started |
+| 10. Channel Feishu Sync Workbench | 2/4 | In progress |
+| 11. Channel WeChat Sync Workbench | 1/3 | In progress |

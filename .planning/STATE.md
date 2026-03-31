@@ -3,108 +3,72 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 10-03-PLAN.md planning
-last_updated: "2026-04-05T12:00:00.000Z"
-last_activity: 2026-04-05
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-31T14:41:48.044Z"
+last_activity: 2026-03-31
 progress:
-  total_phases: 10
-  completed_phases: 9
-  total_plans: 22
-  completed_plans: 19
-  percent: 86
+  total_phases: 11
+  completed_phases: 1
+  total_plans: 14
+  completed_plans: 8
+  percent: 18
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-27)
+See: .planning/PROJECT.md (updated 2026-03-31)
 
-**Core value:** Users can manage an AI team through clear leader-centric workflows without dropping to the CLI or directly micromanaging backend-only workers.
-**Current focus:** Phase 10 — wechat-channel-sync-workbench
+**Core value:** 前台更简、中台更清、团队更强、Agent 更可培养、任务更可看、接入更明确、设置更聚焦
+**Current focus:** Phase 02 — task-board-redesign
 
 ## Current Position
 
-Phase: 10 (wechat-channel-sync-workbench) — READY TO EXECUTE
-Plan: 1 of 3
-Status: All plans written, ready to execute
-Last activity: 2026-04-05
+Phase: 02 (task-board-redesign) — EXECUTING
+Plan: 3 of 4
+Status: Ready to execute
+Last activity: 2026-03-31
 
-Progress: [#####] 100%
+Progress: [██░░░░░░░░░░░░░░░░░░░] 18%
+
+- Phase 10 (飞书同步): 2/4 in progress
+- Phase 11 (微信同步): 1/3 in progress
+- Phase 1-9 (重构): Not started
 
 ## Performance Metrics
 
-**Velocity:**
-
-- Total plans completed: 16
-- Average duration: session-local
-- Total execution time: session-local
-
 **By Phase:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 1 | 3 | session-local | session-local |
-| 2 | 3 | session-local | session-local |
-| 3 | 3 | session-local | session-local |
-| 4 | 4 | session-local | session-local |
-| 5 | 3 | session-local | session-local |
+| Phase | Plans | Status |
+|-------|-------|--------|
+| 10. Channel Feishu Sync | 2/4 | In progress |
+| 11. Channel WeChat Sync | 1/3 | In progress |
+| 1-9. Product Restructure | TBD | Not started |
+| Phase 02 P01 | 775 | 3 tasks | 7 files |
+| Phase 02 P02 | 866 | 3 tasks | 9 files |
 
-**Recent Trend:**
+## Key Decisions
 
-- Last 5 plans: session-local
-- Trend: Stable
+### 产品形态（2026-03-31 讨论确认）
 
-| Phase 06 P01 | 8 | 4 tasks | 1 files |
-| Phase 06 P02 | 8 | 5 tasks | 1 files |
-| Phase 06 P03 | 416 | 8 tasks | 1 files |
-| Phase 07 P02 | 15 | 4 tasks | 4 files |
-| Phase 07 P01 | 12 | 3 tasks | 1 files |
-| Phase 07 P03 | 12 | 5 tasks | 1 files |
-| Phase 08 P02 | 15 | 2 tasks | 5 files |
-| Phase 08 P01 | 20m | 2 tasks | 2 files |
-| Phase 08 P03 | 25 | 3 tasks | 5 files |
+- 侧边栏：ChatGPT 网页版，3固定 + 频道折叠 + 会话默认打开
+- 初始化：main 模型对话
+- 右上角：文件/Agent → 右侧滑出 panel，不跳转
+- 任务看板：双视图，Agent 分组，团队前缀，颜色区分
+- 团队：拖拽创建，多团队，Leader 自动分配
+- 频道：独立同步工作台，机器人一对一绑定
+- 会话：团队/个人身份区分，搜索/置顶/分组/导出
+- 设置：9 项平铺（费用用量第一）
+- 删除：/activity, ClawX→KTClaw, 冗余项
 
-## Accumulated Context
+### 讨论文件
 
-### Decisions
-
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- 2026-03-27: Keep the planning scope focused on team-control-plane evolution, not the whole KTClaw product surface
-- 2026-03-27: Preserve the derived-team architecture; do not introduce a new persisted `Team` entity in this stream
-- 2026-03-27: Keep `.planning/` local-only in this worktree
-- 2026-03-27: `leader_only` now blocks ordinary direct-chat entry paths across Chat, Sidebar, Search, store routing, and the host send route
-- 2026-03-27: Team pages now surface channel ownership and kanban-derived work visibility without introducing a new Team entity
-- 2026-03-27: Leader progress briefing is now available in Team Overview and private leader chat using shared aggregation logic
-- 2026-03-27: Team Overview now leads with a briefing hero, Team Map exposes collaboration-aware nodes, and Team Brief uses shared product language across team surfaces
-- 2026-03-28: Team Overview now behaves as a leader command-center dashboard, and Team Map now behaves as a topology-plus-operations-rail surface
-- [Phase 06]: StatusDot helper component placed before CreateAgentModal for clean file organization
-- [Phase 06]: TeamMap worker nodes use border-l-4 status-colored left border instead of ring-2 for clearer visual scanning
-- [Phase 06]: AgentDetail: All iOS hex color tokens replaced with standard Tailwind slate/blue tokens to match TeamOverview/TeamMap visual standard
-- [Phase 07]: Runtime session status takes priority over Kanban ticket workState when active sessions exist for an agent
-- [Phase 07]: runtimeByAgent optional param ensures all existing callers remain backward-compatible without changes
-- [Phase 07]: File not found returns empty content (not 404) so frontend can handle missing workspace files gracefully
-- [Phase 07]: expandPath and fs/promises loaded via dynamic import inside workspace handler to avoid circular imports
-- [Phase 07]: Workspace textareas use readOnly (not disabled) so content remains selectable by user
-- [Phase 07]: KillSessionButton two-step confirm guards against accidental sub-agent termination
-- [Phase 08]: Sidebar staticTeams uses name-based matching; broadcast entry added as Chinese name 集体会议 to match existing pattern
-- [Phase 08]: Flat grid fallback when single leader + no ungrouped to avoid unnecessary chrome (D-06)
-- [Phase 08]: Skills routes placed before workspaceFileMatch to prevent /workspace/skills matching generic pattern
-- [Phase 08]: WRITABLE_FILES whitelist limited to AGENTS.md and SOUL.md only
-
-### Pending Todos
-
-None yet.
-
-### Blockers/Concerns
-
-- `.planning/codebase/` does not exist yet, so future GSD flows may still suggest `gsd-map-codebase`
-- Future team work should treat analytics / cross-team routing / persisted Team entities as new phases, not extensions of this completed stream
+- `.planning/PRODUCT-RESTRUCTURE.md` — 完整规格文档
+- `.planning/PRODUCT-RESTRUCTURE-DISCUSSION.md` — 逐轮讨论记录
 
 ## Session Continuity
 
-Last session: 2026-03-29T04:49:36.692Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-03-31T14:41:48.039Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
