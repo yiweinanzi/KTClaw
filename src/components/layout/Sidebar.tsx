@@ -99,7 +99,7 @@ function NavItem({
         collapsed && 'justify-center px-2',
       )}
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
       {!collapsed ? <span className="truncate">{item.label}</span> : null}
     </button>
   );
@@ -336,9 +336,9 @@ export function Sidebar() {
                         type="button"
                         className={cn(
                           'flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm transition-colors',
-                          'text-[#000000] hover:bg-[#e5e5ea]',
-                          currentSessionKey === session.key &&
-                            'bg-white font-medium shadow-[0_1px_2px_rgba(0,0,0,0.04),0_0_0_0.5px_rgba(0,0,0,0.04)]',
+                          currentSessionKey === session.key
+                            ? 'bg-accent text-accent-foreground font-medium border-l-4 border-primary'
+                            : 'text-[#000000] hover:bg-[#e5e5ea]',
                         )}
                         onClick={() => {
                           switchSession(session.key);
