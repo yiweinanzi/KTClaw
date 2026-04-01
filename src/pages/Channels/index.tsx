@@ -561,12 +561,17 @@ export function Channels() {
         activeChannelId={activeChannelId}
         onBotSelect={(botId) => {
           setActiveChannelId(botId);
+          setSelectedConversationId(null);
+          setConversation(null);
+          setMessages([]);
         }}
         onBotSettings={(botId) => {
           setActiveChannelId(botId);
           setBindingBotId(botId);
           setBindingModalOpen(true);
         }}
+        connectChannel={connectChannel}
+        disconnectChannel={disconnectChannel}
       />
 
       {/* Session list column */}

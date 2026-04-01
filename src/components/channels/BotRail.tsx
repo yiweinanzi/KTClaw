@@ -15,6 +15,8 @@ export interface BotRailProps {
   activeChannelId: string | null;
   onBotSelect: (botId: string) => void;
   onBotSettings: (botId: string) => void;
+  connectChannel: (channelId: string) => Promise<void>;
+  disconnectChannel: (channelId: string) => Promise<void>;
 }
 
 interface BotRailEntryProps {
@@ -24,9 +26,11 @@ interface BotRailEntryProps {
   teams: TeamSummary[];
   onClick: () => void;
   onSettings: () => void;
+  connectChannel: (channelId: string) => Promise<void>;
+  disconnectChannel: (channelId: string) => Promise<void>;
 }
 
-function BotRailEntry({ bot, isActive, agents, teams, onClick, onSettings }: BotRailEntryProps) {
+function BotRailEntry({ bot, isActive, agents, teams, onClick, onSettings, connectChannel, disconnectChannel }: BotRailEntryProps) {
   // Resolve bound label from agents or teams store
   const boundLabel = useMemo(() => {
     if (bot.boundAgentId) {
@@ -95,12 +99,25 @@ function BotRailEntry({ bot, isActive, agents, teams, onClick, onSettings }: Bot
         {bot.responsiblePerson && (
           <span className="truncate text-[11px] text-[#94a3b8]">负责人: {bot.responsiblePerson}</span>
         )}
+        <button
+          type="button"
+          onClick={() => {
+            if (bot.status === 'connected' || bot.status === 'connecting') {
+              void disconnectChannel(bot.id);
+            } else {
+              void connectChannel(bot.id);
+            }
+          }}
+          className="w-fit text-[11px] text-[#6366f1] hover:underline"
+        >
+          {bot.status === 'connected' || bot.status === 'connecting' ? '断开' : '连接'}
+        </button>
       </div>
     </button>
   );
 }
 
-export function BotRail({ activeChannelId, onBotSelect, onBotSettings }: BotRailProps) {
+export function BotRail({ activeChannelId, onBotSelect, onBotSettings, connectChannel, disconnectChannel }: BotRailProps) {
   const agents = useAgentsStore((s) => s.agents);
   const teams = useTeamsStore((s) => s.teams);
   const fetchAgents = useAgentsStore((s) => s.fetchAgents);
@@ -155,6 +172,8 @@ export function BotRail({ activeChannelId, onBotSelect, onBotSettings }: BotRail
             teams={teams}
             onClick={() => onBotSelect(bot.id)}
             onSettings={() => onBotSettings(bot.id)}
+            connectChannel={connectChannel}
+            disconnectChannel={disconnectChannel}
           />
         ))}
       </div>
