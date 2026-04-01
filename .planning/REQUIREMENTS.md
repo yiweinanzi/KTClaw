@@ -39,7 +39,7 @@
 
 - [ ] **CHANNEL-01**: 频道页重构为独立同步工作台，外部消息不混入主会话列表
 - [ ] **CHANNEL-02**: 每个机器人接入必须显式绑定到单一 Agent 或团队，并标明负责人
-- [ ] **SESSION-01**: 会话中心支持搜索、置顶、分组、导出，并区分团队身份与个人身份
+- [x] **SESSION-01**: 会话中心支持搜索、置顶、分组、导出，并区分团队身份与个人身份
 
 ### Settings & Cleanup
 
@@ -78,7 +78,7 @@
 | AGENT-03 | Phase 5 / Phase 8 | Pending |
 | CHANNEL-01 | Phase 6 | Pending |
 | CHANNEL-02 | Phase 6 | Pending |
-| SESSION-01 | Phase 7 | Pending |
+| SESSION-01 | Phase 7 | Complete |
 | SETTINGS-01 | Phase 8 | Pending |
 | SETTINGS-02 | Phase 8 | Pending |
 | CLEANUP-01 | Phase 9 | Pending |
