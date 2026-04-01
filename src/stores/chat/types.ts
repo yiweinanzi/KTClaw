@@ -45,6 +45,12 @@ export interface ChatSession {
   thinkingLevel?: string;
   model?: string;
   updatedAt?: number;
+  isTeamSession?: boolean;
+  teamId?: string;
+  teamName?: string;
+  agentId?: string;
+  agentStatus?: 'online' | 'offline' | 'busy';
+  unreadCount?: number;
 }
 
 export interface ToolStatus {

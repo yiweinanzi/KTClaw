@@ -82,6 +82,12 @@ export interface ChatSession {
   thinkingLevel?: string;
   model?: string;
   updatedAt?: number;
+  isTeamSession?: boolean;
+  teamId?: string;
+  teamName?: string;
+  agentId?: string;
+  agentStatus?: 'online' | 'offline' | 'busy';
+  unreadCount?: number;
 }
 
 export interface ToolStatus {
@@ -144,6 +150,7 @@ interface ChatState {
   toggleThinking: () => void;
   refresh: () => Promise<void>;
   clearError: () => void;
+  markSessionAsRead: (key: string) => void;
 }
 
 // Module-level timestamp tracking the last chat event received.
@@ -2107,4 +2114,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  markSessionAsRead: (key: string) => {
+    set((state) => ({
+      sessions: state.sessions.map((session) =>
+        session.key === key ? { ...session, unreadCount: 0 } : session
+      ),
+    }));
+  },
 }));

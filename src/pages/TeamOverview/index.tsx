@@ -1,14 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTeamsStore } from '@/stores/teams';
 import { useAgentsStore } from '@/stores/agents';
 import { TeamGrid } from '@/components/team/TeamGrid';
-import { DndContext, DragOverlay, useDroppable, type DragStartEvent, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, useDroppable, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core';
 import { AgentPanel } from '@/components/team/AgentPanel';
 import { CreateTeamZone } from '@/components/team/CreateTeamZone';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Network } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// 定义 drop handler 类型
+interface CreateTeamZoneHandlers {
+  handleLeaderDrop: (agentId: string) => void;
+  handleMemberDrop: (agentId: string) => void;
+}
 
 export function TeamOverview() {
   const { t } = useTranslation('common');
@@ -17,6 +22,7 @@ export function TeamOverview() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [firstAgent, setFirstAgent] = useState<{ id: string; name: string; avatar?: string | null } | null>(null);
+  const createZoneRef = useRef<CreateTeamZoneHandlers | null>(null);
 
   useEffect(() => {
     void fetchTeams();
@@ -32,13 +38,21 @@ export function TeamOverview() {
 
     if (!over) return;
 
+    const agentId = active.id as string;
+    const agent = agents.find(a => a.id === agentId);
+    if (!agent) return;
+
     // 如果拖到空状态区域，触发创建模式
     if (over.id === 'empty-state-dropzone' && !isCreating) {
-      const agentId = active.id as string;
-      const agent = agents.find(a => a.id === agentId);
-      if (agent) {
-        setIsCreating(true);
-        setFirstAgent({ id: agent.id, name: agent.name, avatar: agent.avatar });
+      setIsCreating(true);
+      setFirstAgent({ id: agent.id, name: agent.name, avatar: agent.avatar });
+    }
+    // 如果在创建模式中，调用 CreateZone 的 handler
+    else if (isCreating && createZoneRef.current) {
+      if (over.id === 'leader-zone') {
+        createZoneRef.current.handleLeaderDrop(agentId);
+      } else if (over.id === 'member-zone') {
+        createZoneRef.current.handleMemberDrop(agentId);
       }
     }
   };
@@ -59,6 +73,7 @@ export function TeamOverview() {
             <div className="flex-1 flex items-center justify-center">
               <div className="w-[480px]">
                 <CreateTeamZone
+                  ref={createZoneRef}
                   initialLeader={firstAgent}
                   onCancel={() => {
                     setIsCreating(false);
