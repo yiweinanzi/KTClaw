@@ -176,6 +176,8 @@ export function Channels() {
   const setActiveChannelId = useRightPanelStore((state) => state.setActiveChannelId);
   const pendingBotSettings = useRightPanelStore((state) => state.pendingBotSettings);
   const setPendingBotSettings = useRightPanelStore((state) => state.setPendingBotSettings);
+  const pendingAddChannel = useRightPanelStore((state) => state.pendingAddChannel);
+  const setPendingAddChannel = useRightPanelStore((state) => state.setPendingAddChannel);
   // Derived from activeChannelId for Phase 10/11 API calls
   const activeChannelType: ChannelType = activeChannelId
     ? (activeChannelId.split('-').slice(0, -1).join('-') as ChannelType)
@@ -497,6 +499,35 @@ export function Channels() {
     }
   };
 
+  const handleQuickAddCurrentType = () => {
+    // Quick add for current channel type - skip type selection modal
+    if (activeChannelType === 'feishu') {
+      setFeishuWizardOpen(true);
+      return;
+    }
+    if (activeChannelType === 'wechat') {
+      setWechatWizardOpen(true);
+      return;
+    }
+    if (activeChannelType === 'dingtalk') {
+      setConfigPageType('dingtalk');
+      setConfigPageOpen(true);
+      return;
+    }
+    if (activeChannelType === 'wecom') {
+      setConfigPageType('wecom');
+      setConfigPageOpen(true);
+      return;
+    }
+    if (activeChannelType === 'qqbot') {
+      setConfigPageType('qqbot');
+      setConfigPageOpen(true);
+      return;
+    }
+    // Fallback: open type selection modal
+    setAddOpen(true);
+  };
+
   const handleSend = async (retryText?: string) => {
     const text = (retryText ?? composerValue).trim();
     if (!text || !selectedChannel || !selectedConversationId) return;
@@ -573,6 +604,14 @@ export function Channels() {
     }
   }, [pendingBotSettings, setPendingBotSettings]);
 
+  // Handle pendingAddChannel from Sidebar
+  useEffect(() => {
+    if (pendingAddChannel) {
+      setAddOpen(true);
+      setPendingAddChannel(false);
+    }
+  }, [pendingAddChannel, setPendingAddChannel]);
+
   return (
     <div className="flex h-full flex-row overflow-hidden bg-[#f2f2f7]">
       {/* Session list column */}
@@ -582,12 +621,14 @@ export function Channels() {
       )}>
         <div className="flex h-[56px] items-center justify-between px-5">
           <div>
-            <h1 className="text-[15px] font-semibold text-[#111827]">{CHANNEL_FAMILY_UI[activeChannelType].panelTitle}</h1>
+            <h1 className="text-[15px] font-semibold text-[#111827]">
+              {selectedChannel?.name || activeChannelType.charAt(0).toUpperCase() + activeChannelType.slice(1)}
+            </h1>
             <p className="text-[12px] text-[#8e8e93]">{t('syncWorkbench.sessionsTitle', { defaultValue: '同步会话' })}</p>
           </div>
           <button
             type="button"
-            onClick={() => setAddOpen(true)}
+            onClick={handleQuickAddCurrentType}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-black/10 text-[16px] text-[#3c3c43] hover:bg-[#f8fafc]"
           >
             +

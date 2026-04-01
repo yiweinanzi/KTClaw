@@ -135,6 +135,7 @@ export function Sidebar() {
   const activeChannelId = useRightPanelStore((state) => state.activeChannelId);
   const setActiveChannelId = useRightPanelStore((state) => state.setActiveChannelId);
   const setPendingBotSettings = useRightPanelStore((state) => state.setPendingBotSettings);
+  const setPendingAddChannel = useRightPanelStore((state) => state.setPendingAddChannel);
 
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(true);
@@ -376,7 +377,10 @@ export function Sidebar() {
                     })}
                     <button
                       type="button"
-                      onClick={() => navigate('/channels')}
+                      onClick={() => {
+                        setPendingAddChannel(true);
+                        navigate('/channels');
+                      }}
                       className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-[#8e8e93] transition-colors hover:bg-[#e5e5ea] hover:text-[#3c3c43]"
                     >
                       <Plus className="h-3.5 w-3.5" />
