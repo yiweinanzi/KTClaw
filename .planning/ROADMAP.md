@@ -149,6 +149,12 @@ Plans:
 - `.planning/PRODUCT-RESTRUCTURE.md` §八（频道）
 - `.planning/PRODUCT-RESTRUCTURE.md` §十二.6（外部接入绑定规则）
 - `src/pages/Channels/index.tsx` — 现有频道页面
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Channel type extension + Bot rail refactor
+- [ ] 06-02-PLAN.md — BotBindingModal + simplified config pages (DingTalk/WeCom/QQ)
+- [ ] 06-03-PLAN.md — End-to-end integration + Phase 10/11 compatibility verification
 **Success Criteria (what must be TRUE):**
   1. 频道为独立的同步工作台（session list + message panel + composer）
   2. 消息不进入主会话列表
@@ -162,20 +168,12 @@ Plans:
 ### Phase 7: Session Redesign
 
 **Goal:** 重构会话列表，支持搜索/置顶/分组/导出，区分团队身份与个人身份。
-**Depends on:** Phase 1
-**Canonical refs:**
-- `.planning/PRODUCT-RESTRUCTURE.md` §九（会话）
-- `.planning/PRODUCT-RESTRUCTURE.md` §七.4（员工广场会话管理）
-**Success Criteria (what must be TRUE):**
-  1. 所有 Agent 对话（个人 + 团队 Leader + 下属 Agent）全出现在会话列表
-  2. 和 Leader 聊 = 团队身份；和下属聊 = 个人身份
-  3. 同一 Agent 既在团队里又和用户私聊过 → 出现两个会话项
-  4. 支持搜索
-  5. 支持置顶（常用会话固定顶部）
-  6. 支持分组（团队会话 / 个人会话分开显示）
-  7. 支持导出（聊天记录导出）
-  8. 基础管理：改名/删除/重命名/设置
+**Plans:** 3 plans
 
+Plans:
+- [ ] 07-01-PLAN.md — Data model extension + collapsible groups UI
+- [ ] 07-02-PLAN.md — Search functionality + session item redesign
+- [ ] 07-03-PLAN.md — Unread count & Agent status integration
 ### Phase 8: Settings Convergence
 
 **Goal:** 重构设置中心，收敛为 9 项真正有价值的设置，整合记忆知识库和费用用量。
@@ -288,7 +286,7 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 
 | 4. Team Map Evolution | TBD | Not started |
 | 5. Employee Square | TBD | Not started |
 | 6. Channel Redesign | TBD | Not started |
-| 7. Session Redesign | TBD | Not started |
+| 7. Session Redesign | 3 plans | Not started |
 | 8. Settings Convergence | TBD | Not started |
 | 9. Deletions & Global Cleanup | TBD | Not started |
 | 10. Channel Feishu Sync Workbench | 2/4 | In progress |
