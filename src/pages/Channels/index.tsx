@@ -8,6 +8,7 @@ import { useChannelsStore } from '@/stores/channels';
 import { useSettingsStore } from '@/stores/settings';
 import { FeishuOnboardingWizard } from '@/components/channels/FeishuOnboardingWizard';
 import { WeChatOnboardingWizard } from '@/components/channels/WeChatOnboardingWizard';
+import { BotRail } from '@/components/channels/BotRail';
 import MarkdownContent from '@/pages/Chat/MarkdownContent';
 import {
   CHANNEL_ICONS,
@@ -167,7 +168,11 @@ export function Channels() {
   const location = useLocation();
   const { t } = useTranslation(['channels', 'common']);
   const requestedChannel = resolveRequestedChannel(location.search);
-  const [activeChannel, setActiveChannel] = useState<ChannelType>(() => requestedChannel);
+  const [activeChannelId, setActiveChannelId] = useState<string | null>(null);
+  // Derived from activeChannelId for Phase 10/11 API calls
+  const activeChannelType: ChannelType = activeChannelId
+    ? (activeChannelId.split('-').slice(0, -1).join('-') as ChannelType)
+    : requestedChannel;
   const [composerValue, setComposerValue] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [addType, setAddType] = useState<ChannelType>('feishu');
@@ -218,14 +223,16 @@ export function Channels() {
   }, [fetchChannels]);
 
   useEffect(() => {
-    if (requestedChannel !== activeChannel) {
-      setActiveChannel(requestedChannel);
+    if (!activeChannelId) {
+      // Map requestedChannel to a bot id from the store
+      const bot = channels.find((c) => c.type === requestedChannel);
+      if (bot) setActiveChannelId(bot.id);
     }
-  }, [requestedChannel, activeChannel]);
+  }, [requestedChannel, activeChannelId, channels]);
 
   // Fetch feishu user auth status to decide whether to show identity toggle
   useEffect(() => {
-    if (activeChannel !== 'feishu') {
+    if (activeChannelType !== 'feishu') {
       setUserAuthStatus('unauthorized');
       return;
     }
@@ -241,12 +248,12 @@ export function Channels() {
         }
       })
       .catch(() => setUserAuthStatus('unknown'));
-  }, [activeChannel]);
+  }, [activeChannelType]);
 
   // Fetch group members when mention popover opens
   const fetchMembers = useCallback(() => {
     if (!selectedConversationId) return;
-    const membersPath = activeChannel === 'wechat'
+    const membersPath = activeChannelType === 'wechat'
       ? '/api/channels/workbench/wechat/members'
       : '/api/channels/workbench/members';
     hostApiFetch<{ members?: Array<{ openId: string; name: string }> }>(
@@ -254,7 +261,7 @@ export function Channels() {
     )
       .then((resp) => setWorkbenchMembers(resp.members ?? []))
       .catch(() => setWorkbenchMembers([]));
-  }, [activeChannel, selectedConversationId]);
+  }, [activeChannelType, selectedConversationId]);
 
   useEffect(() => {
     if (mentionOpen) fetchMembers();
@@ -279,9 +286,11 @@ export function Channels() {
     };
   }, [channels]);
 
-  const filteredChannels = channels.filter((channel) => channel.type === activeChannel);
+  const filteredChannels = activeChannelId
+    ? channels.filter((channel) => channel.id === activeChannelId)
+    : [];
   const selectedChannel = filteredChannels[0] ?? null;
-  const selectedMeta = CHANNEL_META[activeChannel];
+  const selectedMeta = CHANNEL_META[activeChannelType];
   const selectedRuntimeCapability = selectedChannel
     ? runtimeCapabilities[selectedChannel.id] ?? runtimeCapabilities[`${selectedChannel.type}-${selectedChannel.accountId || 'default'}`] ?? null
     : null;
@@ -341,7 +350,7 @@ export function Channels() {
     setSelectedConversationId(null);
 
     void hostApiFetch<{ sessions?: ChannelSyncSession[] }>(
-      `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannel)}`,
+      `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannelType)}`,
     )
       .then(async (response) => {
         if (!active) return;
@@ -366,7 +375,7 @@ export function Channels() {
     return () => {
       active = false;
     };
-  }, [activeChannel]);
+  }, [activeChannelType]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -390,7 +399,7 @@ export function Channels() {
     if (!selectedConversationId) return undefined;
     const timer = window.setInterval(() => {
       void hostApiFetch<{ sessions?: ChannelSyncSession[] }>(
-        `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannel)}`,
+        `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannelType)}`,
       ).then((response) => {
         const sortedSessions = [...(response.sessions ?? [])].sort((left, right) => {
           if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
@@ -404,14 +413,14 @@ export function Channels() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [activeChannel, selectedConversationId]);
+  }, [activeChannelType, selectedConversationId]);
 
   useEffect(() => {
     if (!selectedConversationId) return undefined;
 
     return subscribeHostEvent('gateway:notification', () => {
       void hostApiFetch<{ sessions?: ChannelSyncSession[] }>(
-        `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannel)}`,
+        `/api/channels/workbench/sessions?channelType=${encodeURIComponent(activeChannelType)}`,
       ).then((response) => {
         const sortedSessions = [...(response.sessions ?? [])].sort((left, right) => {
           if (left.pinned !== right.pinned) return left.pinned ? -1 : 1;
@@ -422,7 +431,7 @@ export function Channels() {
 
       void loadConversation(selectedConversationId).catch(() => undefined);
     });
-  }, [activeChannel, selectedConversationId]);
+  }, [activeChannelType, selectedConversationId]);
 
   const handleAdd = async () => {
     if (!addName.trim()) return;
@@ -471,7 +480,7 @@ export function Channels() {
       return [...filtered, optimisticMsg];
     });
     try {
-      const sendIdentity = activeChannel === 'feishu' ? identityMode : 'bot';
+      const sendIdentity = activeChannelType === 'feishu' ? identityMode : 'bot';
       await hostApiFetch(`/api/channels/${encodeURIComponent(selectedChannel.id)}/send`, {
         method: 'POST',
         body: JSON.stringify({ text, conversationId: convId, identity: sendIdentity }),
@@ -518,13 +527,26 @@ export function Channels() {
 
   return (
     <div className="flex h-full flex-row overflow-hidden bg-[#f2f2f7]">
+      {/* Phase 6: Bot-list rail - replaces old channel-type rail */}
+      <BotRail
+        activeChannelId={activeChannelId}
+        onBotSelect={(botId) => {
+          setActiveChannelId(botId);
+        }}
+        onBotSettings={(botId) => {
+          setActiveChannelId(botId);
+          setSettingsOpen(true);
+        }}
+      />
+
+      {/* Session list column */}
       <section className={cn(
         'flex w-[290px] shrink-0 flex-col border-r border-black/[0.06] bg-white',
         selectedConversationId ? 'hidden xl:flex' : 'flex',
       )}>
         <div className="flex h-[56px] items-center justify-between px-5">
           <div>
-            <h1 className="text-[15px] font-semibold text-[#111827]">{CHANNEL_FAMILY_UI[activeChannel].panelTitle}</h1>
+            <h1 className="text-[15px] font-semibold text-[#111827]">{CHANNEL_FAMILY_UI[activeChannelType].panelTitle}</h1>
             <p className="text-[12px] text-[#8e8e93]">{t('syncWorkbench.sessionsTitle', { defaultValue: '同步会话' })}</p>
           </div>
           <button
@@ -619,7 +641,7 @@ export function Channels() {
       <main className="flex min-w-0 flex-1 flex-col bg-white">
         {!conversation || !selectedChannel ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-            <span className="text-[40px]">{CHANNEL_ICONS[activeChannel]}</span>
+            <span className="text-[40px]">{CHANNEL_ICONS[activeChannelType]}</span>
             <p className="text-[14px] text-[#8e8e93]">{t('syncWorkbench.emptyConversation', { defaultValue: '选择一个同步会话开始查看' })}</p>
           </div>
         ) : (
@@ -823,7 +845,7 @@ export function Channels() {
                 <span className="inline-flex items-center gap-2 rounded-full bg-[#ecfeff] px-3 py-1 text-[12px] font-medium text-[#0f766e]">
                   当前发言身份：{conversation.visibleAgentId || 'KTClaw'}
                 </span>
-                {activeChannel === 'feishu' && userAuthStatus === 'authorized' && (
+                {activeChannelType === 'feishu' && userAuthStatus === 'authorized' && (
                   <div
                     data-testid="identity-toggle"
                     aria-label="切换发言身份"
@@ -1078,15 +1100,18 @@ export function Channels() {
             setFeishuWizardInitialName('');
           }}
           onConfigured={async ({ channelName }) => {
-            const hasFeishuChannel = channels.some((channel) => channel.type === 'feishu');
-            if (!hasFeishuChannel) {
+            const hadFeishuChannel = channels.some((channel) => channel.type === 'feishu');
+            if (!hadFeishuChannel) {
               await addChannel({
                 type: 'feishu',
                 name: channelName.trim() || CHANNEL_NAMES.feishu,
               });
             }
             await fetchChannels();
-            setActiveChannel('feishu');
+            // Use fresh channels from store
+            const { channels: freshChannels } = useChannelsStore.getState();
+            const feishuChannel = freshChannels.find((c) => c.type === 'feishu');
+            setActiveChannelId(feishuChannel?.id ?? 'feishu-default');
           }}
         />
       )}
@@ -1095,12 +1120,15 @@ export function Channels() {
         <WeChatOnboardingWizard
           onClose={() => setWechatWizardOpen(false)}
           onComplete={async () => {
-            const hasWeChatChannel = channels.some((channel) => channel.type === 'wechat');
-            if (!hasWeChatChannel) {
+            const hadWeChatChannel = channels.some((channel) => channel.type === 'wechat');
+            if (!hadWeChatChannel) {
               await addChannel({ type: 'wechat', name: CHANNEL_NAMES.wechat });
             }
             await fetchChannels();
-            setActiveChannel('wechat');
+            // Use fresh channels from store
+            const { channels: freshChannels } = useChannelsStore.getState();
+            const wechatChannel = freshChannels.find((c) => c.type === 'wechat');
+            setActiveChannelId(wechatChannel?.id ?? 'wechat-default');
           }}
         />
       )}
