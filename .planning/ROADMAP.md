@@ -171,7 +171,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Data model extension + collapsible groups UI
+- [x] 07-01-PLAN.md — Data model extension + collapsible groups UI
 - [x] 07-02-PLAN.md — Search functionality + session item redesign
 - [ ] 07-03-PLAN.md — Unread count & Agent status integration
 ### Phase 8: Settings Convergence
