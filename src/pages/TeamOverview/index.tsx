@@ -3,17 +3,20 @@ import { useTranslation } from 'react-i18next';
 import { useTeamsStore } from '@/stores/teams';
 import { useAgentsStore } from '@/stores/agents';
 import { TeamGrid } from '@/components/team/TeamGrid';
-import { DndContext, DragOverlay, type DragStartEvent, type DragEndEvent } from '@dnd-kit/core';
+import { DndContext, DragOverlay, useDroppable, type DragStartEvent, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core';
 import { AgentPanel } from '@/components/team/AgentPanel';
 import { CreateTeamZone } from '@/components/team/CreateTeamZone';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Network } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function TeamOverview() {
   const { t } = useTranslation('common');
   const { teams, loading, error, fetchTeams, deleteTeam } = useTeamsStore();
   const { agents } = useAgentsStore();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [firstAgent, setFirstAgent] = useState<{ id: string; name: string; avatar?: string | null } | null>(null);
 
   useEffect(() => {
     void fetchTeams();
@@ -29,16 +32,19 @@ export function TeamOverview() {
 
     if (!over) return;
 
-    // 将拖拽事件传递给 CreateTeamZone 处理
-    const agentId = active.id as string;
-    const agent = agents.find(a => a.id === agentId);
-    if (!agent) return;
-
-    // CreateTeamZone 会通过 useDroppable 监听这些事件
+    // 如果拖到空状态区域，触发创建模式
+    if (over.id === 'empty-state-dropzone' && !isCreating) {
+      const agentId = active.id as string;
+      const agent = agents.find(a => a.id === agentId);
+      if (agent) {
+        setIsCreating(true);
+        setFirstAgent({ id: agent.id, name: agent.name, avatar: agent.avatar });
+      }
+    }
   };
 
   // 空状态：显示大型引导卡片 (per D-19)
-  const showEmptyState = !loading && !error && teams.length === 0;
+  const showEmptyState = !loading && !error && teams.length === 0 && !isCreating;
 
   return (
     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -47,39 +53,23 @@ export function TeamOverview() {
         <div className="flex-1 flex flex-col p-8 overflow-y-auto">
           {/* 空状态：大型引导卡片 */}
           {showEmptyState ? (
+            <EmptyStateDropzone activeId={activeId} />
+          ) : isCreating ? (
+            /* 创建模式 */
             <div className="flex-1 flex items-center justify-center">
-              <div className="max-w-md w-full text-center">
-                <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm p-12">
-                  {/* 空状态图标 */}
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
-                    <Network className="w-10 h-10 text-blue-500" strokeWidth={1.5} />
-                  </div>
-
-                  {/* 标题 */}
-                  <h2 className="text-2xl font-semibold text-slate-900 mb-3">
-                    还没有团队
-                  </h2>
-
-                  {/* 描述 */}
-                  <p className="text-slate-500 leading-relaxed mb-8">
-                    从右侧拖拽 Agent 到左侧创建区来创建第一个团队
-                  </p>
-
-                  {/* 动画演示占位 */}
-                  <div className="flex items-center justify-center gap-4 text-sm text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                        <span className="text-xs">👤</span>
-                      </div>
-                      <span>Agent</span>
-                    </div>
-                    <div className="text-2xl">→</div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg border-2 border-dashed border-slate-300"></div>
-                      <span>创建区</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="w-[480px]">
+                <CreateTeamZone
+                  initialLeader={firstAgent}
+                  onCancel={() => {
+                    setIsCreating(false);
+                    setFirstAgent(null);
+                  }}
+                  onSuccess={() => {
+                    setIsCreating(false);
+                    setFirstAgent(null);
+                    void fetchTeams();
+                  }}
+                />
               </div>
             </div>
           ) : (
@@ -98,6 +88,124 @@ export function TeamOverview() {
                     {t('teamOverview.title')}
                   </h1>
                   <p className="mt-2 text-sm text-slate-500">
+                    {loading
+                      ? t('status.loading')
+                      : error
+                        ? t('status.loadFailed')
+                        : t('teamOverview.summary', { count: teams.length })}
+                  </p>
+                </div>
+
+                {/* Loading State */}
+                {loading && (
+                  <div className="flex items-center justify-center py-20 text-sm text-slate-400">
+                    {t('status.loading')}
+                  </div>
+                )}
+
+                {/* Error State */}
+                {!loading && error && (
+                  <div className="flex items-center justify-center py-20 text-sm text-rose-500">
+                    {error}
+                  </div>
+                )}
+
+                {/* Team Grid */}
+                {!loading && !error && (
+                  <TeamGrid
+                    teams={teams}
+                    loading={loading}
+                    onDeleteTeam={deleteTeam}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Agent 面板（右侧固定，带清晰边界） */}
+        <AgentPanel />
+
+        {/* 拖拽预览 (per D-13) */}
+        <DragOverlay>
+          {activeId ? (
+            <div className="p-4 rounded-xl border border-slate-200 bg-white shadow-lg opacity-60">
+              <AgentPreview agentId={activeId} agents={agents} />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </div>
+    </DndContext>
+  );
+}
+
+// 空状态 Dropzone 组件
+function EmptyStateDropzone({ activeId }: { activeId: string | null }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'empty-state-dropzone',
+  });
+
+  return (
+    <div ref={setNodeRef} className="flex-1 flex items-center justify-center">
+      <div className={cn(
+        "max-w-md w-full text-center transition-all duration-300",
+        isOver && "scale-105"
+      )}>
+        <div className={cn(
+          "bg-white rounded-3xl border shadow-sm p-12 transition-all duration-300",
+          isOver
+            ? "border-blue-400 bg-blue-50/30 shadow-lg shadow-blue-100"
+            : "border-slate-200/60"
+        )}>
+          {/* 空状态图标 */}
+          <div className={cn(
+            "w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center transition-all duration-300",
+            isOver
+              ? "bg-gradient-to-br from-blue-100 to-indigo-100"
+              : "bg-gradient-to-br from-blue-50 to-indigo-50"
+          )}>
+            <Network className={cn(
+              "w-10 h-10 transition-all duration-300",
+              isOver ? "text-blue-600" : "text-blue-500"
+            )} strokeWidth={1.5} />
+          </div>
+
+          {/* 标题 */}
+          <h2 className="text-2xl font-semibold text-slate-900 mb-3">
+            {isOver ? "松手创建团队" : "还没有团队"}
+          </h2>
+
+          {/* 描述 */}
+          <p className={cn(
+            "leading-relaxed mb-8 transition-colors duration-300",
+            isOver ? "text-blue-600 font-medium" : "text-slate-500"
+          )}>
+            {isOver
+              ? "将 Agent 放在这里开始创建"
+              : "从右侧拖拽 Agent 到这里来创建第一个团队"}
+          </p>
+
+          {/* 动画演示占位 */}
+          {!isOver && (
+            <div className="flex items-center justify-center gap-4 text-sm text-slate-400">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+                  <span className="text-xs">👤</span>
+                </div>
+                <span>Agent</span>
+              </div>
+              <div className="text-2xl">→</div>
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg border-2 border-dashed border-slate-300"></div>
+                <span>创建区</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
                     {loading
                       ? t('status.loading')
                       : error

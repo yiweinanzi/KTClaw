@@ -15,16 +15,30 @@ interface DroppedAgent {
   avatar?: string | null;
 }
 
-export function CreateTeamZone() {
-  const [leader, setLeader] = useState<DroppedAgent | null>(null);
+interface CreateTeamZoneProps {
+  initialLeader?: DroppedAgent | null;
+  onCancel?: () => void;
+  onSuccess?: () => void;
+}
+
+export function CreateTeamZone({ initialLeader, onCancel, onSuccess }: CreateTeamZoneProps = {}) {
+  const [leader, setLeader] = useState<DroppedAgent | null>(initialLeader || null);
   const [members, setMembers] = useState<DroppedAgent[]>([]);
-  const [showConfirmForm, setShowConfirmForm] = useState(false);
+  const [showConfirmForm, setShowConfirmForm] = useState(!!initialLeader);
   const [teamName, setTeamName] = useState('');
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
 
   const createTeam = useTeamsStore(state => state.createTeam);
   const agents = useAgentsStore(state => state.agents);
+
+  // 当 initialLeader 改变时更新 leader
+  useEffect(() => {
+    if (initialLeader) {
+      setLeader(initialLeader);
+      setShowConfirmForm(true);
+    }
+  }, [initialLeader]);
 
   const { setNodeRef: setLeaderRef, isOver: isOverLeader, active: activeLeader } = useDroppable({
     id: 'leader-zone',
@@ -68,7 +82,7 @@ export function CreateTeamZone() {
   }, [leader, agents, teamName]);
 
   const handleConfirm = async () => {
-    if (!leader || members.length === 0 || !teamName.trim()) return;
+    if (!leader || !teamName.trim()) return;
 
     setCreating(true);
     try {
@@ -85,6 +99,9 @@ export function CreateTeamZone() {
       setTeamName('');
       setDescription('');
       setShowConfirmForm(false);
+
+      // 调用成功回调
+      onSuccess?.();
     } catch (error) {
       console.error('Failed to create team:', error);
     } finally {
@@ -96,11 +113,20 @@ export function CreateTeamZone() {
     setShowConfirmForm(false);
     setTeamName('');
     setDescription('');
+    setLeader(null);
+    setMembers([]);
+
+    // 调用取消回调
+    onCancel?.();
   };
 
   // 创建区域 - 固定在左侧的专属 Dropzone (per D-11, D-12)
   return (
-    <div className="sticky top-0 h-fit">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="sticky top-0 h-fit"
+    >
       <div className="bg-gradient-to-br from-blue-50/50 to-indigo-50/30 rounded-2xl border-2 border-dashed border-blue-200/60 p-6 shadow-sm">
         {/* 标题 */}
         <div className="mb-6">
@@ -108,7 +134,7 @@ export function CreateTeamZone() {
             创建新团队
           </h3>
           <p className="text-sm text-slate-500">
-            拖拽 Agent 到下方区域
+            {leader ? "继续添加成员" : "拖拽 Agent 到下方区域"}
           </p>
         </div>
         {/* Leader 区 */}
@@ -210,10 +236,10 @@ export function CreateTeamZone() {
         {!showConfirmForm && (
           <button
             onClick={() => setShowConfirmForm(true)}
-            disabled={!leader || members.length === 0}
+            disabled={!leader}
             className={cn(
               "w-full py-3.5 rounded-xl font-semibold transition-all",
-              leader && members.length > 0
+              leader
                 ? "bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow"
                 : "bg-slate-100 text-slate-400 cursor-not-allowed"
             )}
@@ -286,7 +312,7 @@ export function CreateTeamZone() {
           )}
         </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
