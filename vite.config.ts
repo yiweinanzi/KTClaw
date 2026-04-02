@@ -24,7 +24,10 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron/main',
             rollupOptions: {
-              external: ['electron-store', 'electron-updater', 'ws'],
+              // Keep only Electron itself external. Runtime dependencies used by
+              // the main process are bundled into dist-electron so packaging
+              // does not need to traverse the workspace node_modules tree.
+              external: ['electron'],
             },
           },
         },

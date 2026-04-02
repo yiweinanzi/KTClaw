@@ -33,6 +33,7 @@ extraResources:
   # afterPack hook (after-pack.cjs) directly from node_modules, so they
   # don't need an extraResources entry here.
 
+beforePack: ./scripts/before-pack.cjs
 afterPack: ./scripts/after-pack.cjs
 
 asar: true
