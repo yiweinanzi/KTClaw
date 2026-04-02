@@ -419,6 +419,7 @@ exports.default = async function afterPack(context) {
   console.log(`[after-pack] Target: ${platform}/${arch}`);
 
   const src = join(__dirname, '..', 'build', 'openclaw', 'node_modules');
+  const preinstalledSkillsSrc = join(__dirname, '..', 'build', 'preinstalled-skills');
 
   let resourcesDir;
   if (platform === 'darwin') {
@@ -432,6 +433,7 @@ exports.default = async function afterPack(context) {
   const dest = join(openclawRoot, 'node_modules');
   const nodeModulesRoot = join(__dirname, '..', 'node_modules');
   const pluginsDestRoot = join(resourcesDir, 'openclaw-plugins');
+  const preinstalledSkillsDestRoot = join(resourcesDir, 'preinstalled-skills');
 
   if (!existsSync(src)) {
     console.warn('[after-pack] ⚠️  build/openclaw/node_modules not found. Run bundle-openclaw first.');
@@ -445,6 +447,14 @@ exports.default = async function afterPack(context) {
 
   console.log(`[after-pack] Copying ${depCount} openclaw dependencies to ${dest} ...`);
   cpSync(src, dest, { recursive: true });
+
+  if (!existsSync(preinstalledSkillsSrc)) {
+    console.warn('[after-pack] build/preinstalled-skills not found. Run bundle-preinstalled-skills first.');
+  } else {
+    rmSync(preinstalledSkillsDestRoot, { recursive: true, force: true });
+    cpSync(preinstalledSkillsSrc, preinstalledSkillsDestRoot, { recursive: true, dereference: true });
+    console.log('[after-pack] preinstalled skills copied.');
+  }
   console.log('[after-pack] ✅ openclaw node_modules copied.');
 
   // Patch broken modules whose CJS transpiled output sets module.exports = undefined,
