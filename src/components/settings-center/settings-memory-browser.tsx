@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { hostApiFetch } from '@/lib/host-api';
 import { RefreshCw, FileText, Save, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import {
+  getMemoryFile,
+  getMemoryOverview,
+  normalizeMemoryFiles,
+  reindexMemory,
+  saveMemoryFile,
+  type MemoryClientFile,
+} from '@/lib/memory-client';
 
-interface MemoryFile {
-  name: string;
-  path: string;
-  size: number;
-  mtime: number;
-}
+type MemoryFile = MemoryClientFile;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
@@ -44,8 +46,8 @@ export function SettingsMemoryBrowser() {
     setLoading(true);
     setError(null);
     try {
-      const data = await hostApiFetch<{ files: MemoryFile[] }>('/api/memory');
-      setFiles(data.files.sort((a, b) => b.mtime - a.mtime));
+      const data = await getMemoryOverview();
+      setFiles(normalizeMemoryFiles(data).sort((a, b) => b.mtime - a.mtime));
     } catch (e) {
       setError(String(e));
     } finally {
@@ -61,9 +63,7 @@ export function SettingsMemoryBrowser() {
     setSaveMsg('');
     setFileLoading(true);
     try {
-      const data = await hostApiFetch<{ content: string }>(
-        `/api/memory/file?name=${encodeURIComponent(file.path)}`,
-      );
+      const data = await getMemoryFile(file.path);
       setFileContent(data.content);
       setDraft(data.content);
     } catch (e) {
@@ -78,11 +78,11 @@ export function SettingsMemoryBrowser() {
     setSaving(true);
     setSaveMsg('');
     try {
-      await hostApiFetch('/api/memory/file', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ relativePath: selectedFile.path, content: draft }),
+      await saveMemoryFile({
+        relativePath: selectedFile.relativePath,
+        content: draft,
       });
+      await reindexMemory();
       setFileContent(draft);
       setEditing(false);
       setSaveMsg(t('memoryBrowser.saved'));

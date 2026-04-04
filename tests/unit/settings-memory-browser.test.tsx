@@ -42,6 +42,10 @@ describe('SettingsMemoryBrowser', () => {
         return { success: true };
       }
 
+      if (path === '/api/memory/reindex' && init?.method === 'POST') {
+        return { ok: true };
+      }
+
       throw new Error(`Unexpected hostApiFetch call: ${String(path)}`);
     });
   });
@@ -105,6 +109,10 @@ describe('SettingsMemoryBrowser', () => {
         return { success: true };
       }
 
+      if (path === '/api/memory/reindex' && init?.method === 'POST') {
+        return { ok: true };
+      }
+
       throw new Error(`Unexpected hostApiFetch call: ${String(path)}`);
     });
 
@@ -152,6 +160,10 @@ describe('SettingsMemoryBrowser', () => {
         return { success: true };
       }
 
+      if (path === '/api/memory/reindex' && init?.method === 'POST') {
+        return { ok: true };
+      }
+
       throw new Error(`Unexpected hostApiFetch call: ${String(path)}`);
     });
 
@@ -182,5 +194,9 @@ describe('SettingsMemoryBrowser', () => {
       relativePath: 'memory/personal/notes.md',
       content: 'updated-notes',
     });
+    expect(hostApiFetch).toHaveBeenCalledWith(
+      '/api/memory/reindex',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 });

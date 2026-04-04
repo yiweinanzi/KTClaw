@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { hostApiFetch } from '@/lib/host-api';
 import { SkeletonCard, SkeletonText } from '@/components/ui/Skeleton';
+import { getMemoryOverview, reindexMemory, saveMemoryFile } from '@/lib/memory-client';
 
 type MemoryFileCategory = 'evergreen' | 'daily' | 'other';
 type HealthSeverity = 'critical' | 'warning' | 'info' | 'ok';
@@ -375,7 +376,7 @@ function BrowserTab({
   // Config files: evergreen category (MEMORY.md, SOUL.md, AGENTS.md, etc.)
   const configFiles = useMemo(() => {
     return files
-      .filter((f) => f.category === 'evergreen')
+      .filter((f) => f.category === 'evergreen' || (f.category === 'other' && f.writable === false))
       .sort((a, b) => {
         // MEMORY.md always first
         if (a.relativePath === 'MEMORY.md') return -1;
@@ -769,11 +770,10 @@ export function Memory() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (nextScope) params.set('scope', nextScope);
-      if (nextQuery.trim()) params.set('q', nextQuery.trim());
-      const path = params.size > 0 ? `/api/memory?${params.toString()}` : '/api/memory';
-      const json = await hostApiFetch<MemoryApiResponse>(path);
+      const json = await getMemoryOverview({
+        scope: nextScope || undefined,
+        query: nextQuery.trim() || undefined,
+      }) as unknown as MemoryApiResponse;
       setData(json);
       if (!scopeId && json.activeScope) {
         setScopeId(json.activeScope);
@@ -790,24 +790,20 @@ export function Memory() {
   }, [load]);
 
   const handleSave = useCallback(async (relativePath: string, content: string, expectedMtime?: string) => {
-    await hostApiFetch<{ ok: boolean }>('/api/memory/file', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        relativePath,
-        content,
-        expectedMtime,
-        scope: scopeId || data?.activeScope || undefined,
-      }),
+    await saveMemoryFile({
+      relativePath,
+      content,
+      expectedMtime,
+      scope: scopeId || data?.activeScope || undefined,
     });
-    await hostApiFetch<{ ok: boolean }>('/api/memory/reindex', { method: 'POST' });
+    await reindexMemory();
     await load(scopeId, searchQuery);
   }, [scopeId, data?.activeScope, load, searchQuery]);
 
   const handleReindex = useCallback(async () => {
     setReindexing(true);
     try {
-      await hostApiFetch<{ ok: boolean }>('/api/memory/reindex', { method: 'POST' });
+      await reindexMemory();
       await load();
     } finally {
       setReindexing(false);
