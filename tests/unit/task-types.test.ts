@@ -67,6 +67,61 @@ describe('Task Type Definitions', () => {
     expect(taskWithRuntime.runtimeHistory).toHaveLength(1);
   });
 
+  it('KanbanTask includes canonical execution, related sessions, and blocker rollups', () => {
+    const task: KanbanTask = {
+      id: 'task-3',
+      title: 'Canonical execution task',
+      description: 'Task with execution metadata',
+      status: 'in-progress',
+      priority: 'high',
+      workState: 'blocked',
+      isTeamTask: true,
+      teamId: 'team-1',
+      teamName: 'Engineering',
+      canonicalExecution: {
+        sessionId: 'runtime-1',
+        sessionKey: 'agent:main:main:subagent:runtime-1',
+        status: 'active',
+        startedAt: '2026-04-07T00:00:00.000Z',
+      },
+      borrowedExecutions: [
+        {
+          teamId: 'team-support',
+          sessionKey: 'agent:support:main:subagent:runtime-7',
+          agentIds: ['support-agent'],
+        },
+      ],
+      relatedSessionKeys: ['agent:main:main', 'agent:main:main:subagent:runtime-1'],
+      executionEvents: [
+        {
+          type: 'assistant_excerpt',
+          status: 'blocked',
+          content: 'Waiting on leader approval',
+          createdAt: '2026-04-07T00:05:00.000Z',
+        },
+      ],
+      latestInternalExcerpt: {
+        content: 'Waiting on leader approval',
+        createdAt: '2026-04-07T00:05:00.000Z',
+      },
+      blocker: {
+        state: 'blocked',
+        summary: 'Waiting on leader approval',
+      },
+      approvalState: {
+        state: 'waiting_leader',
+      },
+      createdAt: '2026-04-07T00:00:00.000Z',
+      updatedAt: '2026-04-07T00:05:00.000Z',
+    };
+
+    expect(task.canonicalExecution?.sessionKey).toBe('agent:main:main:subagent:runtime-1');
+    expect(task.borrowedExecutions?.[0]?.teamId).toBe('team-support');
+    expect(task.relatedSessionKeys).toContain('agent:main:main');
+    expect(task.blocker?.state).toBe('blocked');
+    expect(task.approvalState?.state).toBe('waiting_leader');
+  });
+
   it('Type exports are available for import', () => {
     // This test verifies that all types can be imported
     const status: TaskStatus = 'todo';

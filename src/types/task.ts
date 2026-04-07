@@ -26,6 +26,58 @@ export type WorkState =
   | 'done'
   | 'failed';
 
+export type TaskExecutionStatus = 'active' | 'blocked' | 'waiting_approval' | 'done' | 'failed';
+
+export interface CanonicalTaskExecution {
+  sessionId: string;
+  sessionKey: string;
+  status: TaskExecutionStatus;
+  startedAt: string;
+  updatedAt?: string;
+  agentId?: string;
+  parentSessionId?: string;
+  rootSessionId?: string;
+  parentSessionKey?: string;
+  depth?: number;
+  entrySessionKey?: string;
+}
+
+export interface BorrowedTaskExecution {
+  teamId: string;
+  sessionKey: string;
+  agentIds: string[];
+}
+
+export interface TaskExecutionEvent {
+  type: string;
+  createdAt: string;
+  status?: WorkState;
+  content?: string;
+  sessionKey?: string;
+  actorId?: string;
+}
+
+export interface TaskLatestInternalExcerpt {
+  content: string;
+  createdAt: string;
+  sessionKey?: string;
+  role?: string;
+}
+
+export interface TaskBlockerRollup {
+  state: 'blocked' | 'waiting_approval';
+  summary: string;
+  detail?: string;
+  updatedAt?: string;
+  source?: string;
+}
+
+export interface TaskApprovalRollup {
+  state: 'idle' | 'waiting_leader' | 'waiting_user' | 'approved' | 'rejected';
+  updatedAt?: string;
+  approverId?: string;
+}
+
 /**
  * Kanban task with team metadata and runtime fields
  */
@@ -44,6 +96,13 @@ export interface KanbanTask {
   teamId?: string;
   teamName?: string;
   isTeamTask: boolean;
+  canonicalExecution?: CanonicalTaskExecution | null;
+  borrowedExecutions?: BorrowedTaskExecution[];
+  executionEvents?: TaskExecutionEvent[];
+  latestInternalExcerpt?: TaskLatestInternalExcerpt;
+  blocker?: TaskBlockerRollup;
+  approvalState?: TaskApprovalRollup;
+  relatedSessionKeys?: string[];
 
   // Runtime fields (preserve from existing KanbanTicket)
   workStartedAt?: string;
@@ -71,4 +130,41 @@ export interface KanbanTask {
   createdAt: string;
   updatedAt: string;
   deadline?: string;
+}
+
+export interface CreateTaskRequest {
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  assigneeId?: string;
+  assigneeRole?: string;
+  teamId?: string;
+  teamName?: string;
+  deadline?: string;
+}
+
+export interface StartTaskExecutionRequest {
+  sessionId: string;
+  sessionKey: string;
+  entrySessionKey?: string;
+  agentId?: string;
+  startedAt?: string;
+  parentSessionId?: string;
+  rootSessionId?: string;
+  parentSessionKey?: string;
+  depth?: number;
+}
+
+export interface TaskExecutionEventInput {
+  type: string;
+  status?: WorkState;
+  content?: string;
+  sessionKey?: string;
+  createdAt?: string;
+  actorId?: string;
+}
+
+export interface TasksSnapshot {
+  tasks: KanbanTask[];
+  task?: KanbanTask;
 }

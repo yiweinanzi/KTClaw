@@ -14,6 +14,8 @@ const nodeTestInclude = [
   'tests/unit/openclaw-*.test.ts',
   'tests/unit/preinstalled-skills-script.test.ts',
   'tests/unit/ralph-codex-*.test.ts',
+  'tests/unit/task-runtime-linkage.test.ts',
+  'tests/unit/task-store.test.ts',
   'tests/unit/token-usage*.test.ts',
   'tests/unit/uv-download-script.test.ts',
 ];
