@@ -5,6 +5,7 @@
  */
 import { create } from 'zustand';
 import { hostApiFetch } from '@/lib/host-api';
+import type { TaskLatestInternalExcerpt } from '@/types/task';
 import {
   buildLeaderOnlyBlockedMessage,
   findAgentBySessionKey,
@@ -61,6 +62,10 @@ export interface RawMessage {
   _taskAnchor?: {
     taskId: string;
     title: string;
+    deepLink?: string;
+    executionStatus?: string;
+    owningTeamLabel?: string;
+    latestInternalExcerpt?: TaskLatestInternalExcerpt;
   };
 }
 

@@ -62,6 +62,7 @@ export const ChatMessage = memo(function ChatMessage({
   const attachedFiles = message._attachedFiles || [];
   const [lightboxImg, setLightboxImg] = useState<{ src: string; fileName: string; filePath?: string; base64?: string; mimeType?: string } | null>(null);
   const [showTaskBubble, setShowTaskBubble] = useState(true);
+  const [showTaskExcerpt, setShowTaskExcerpt] = useState(false);
 
   // Never render tool result messages in chat UI
   if (isToolResult) return null;
@@ -83,10 +84,6 @@ export const ChatMessage = memo(function ChatMessage({
           teamId={message._taskProposal.teamId}
           teamName={message._taskProposal.teamName}
           deadline={message._taskProposal.deadline}
-          onConfirm={() => {
-            // Update message to show anchor instead of bubble
-            setShowTaskBubble(false);
-          }}
           onCancel={() => {
             setShowTaskBubble(false);
           }}
@@ -97,17 +94,40 @@ export const ChatMessage = memo(function ChatMessage({
 
   // Render task anchor card (per D-24)
   if (message._taskAnchor) {
+    const deepLink = message._taskAnchor.deepLink ?? `/kanban?taskId=${message._taskAnchor.taskId}`;
     return (
       <div className="flex justify-start mb-4">
-        <Card className="inline-block max-w-md p-3 bg-accent/10 border-accent">
+        <Card data-testid="task-anchor-card" className="inline-block max-w-md p-3 bg-accent/10 border-accent">
           <p className="text-sm font-medium text-accent-foreground">✓ 任务已创建</p>
           <p className="text-xs text-muted-foreground mt-1">{message._taskAnchor.title}</p>
+          {message._taskAnchor.owningTeamLabel ? (
+            <p className="text-xs text-muted-foreground mt-1">{message._taskAnchor.owningTeamLabel}</p>
+          ) : null}
+          {message._taskAnchor.executionStatus ? (
+            <p className="text-xs text-muted-foreground mt-1">{message._taskAnchor.executionStatus}</p>
+          ) : null}
+          {message._taskAnchor.latestInternalExcerpt ? (
+            <button
+              data-testid="task-anchor-toggle"
+              type="button"
+              className="mt-2 text-xs text-accent-foreground underline underline-offset-2"
+              onClick={() => setShowTaskExcerpt((value) => !value)}
+            >
+              {showTaskExcerpt ? '隐藏最新内部摘录' : '查看最新内部摘录'}
+            </button>
+          ) : null}
+          {showTaskExcerpt && message._taskAnchor.latestInternalExcerpt ? (
+            <div data-testid="task-anchor-excerpt" className="mt-2 rounded-md bg-background/70 px-2 py-2 text-xs text-muted-foreground">
+              {message._taskAnchor.latestInternalExcerpt.content}
+            </div>
+          ) : null}
           <Button
+            data-testid="task-anchor-link"
             size="sm"
             variant="link"
             className="mt-2 p-0 h-auto text-xs"
             onClick={() => {
-              window.location.href = '/kanban';
+              window.location.href = deepLink;
             }}
           >
             查看看板 →

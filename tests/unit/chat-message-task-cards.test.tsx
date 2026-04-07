@@ -1,13 +1,8 @@
-/**
- * ChatMessage Task Cards Tests
- * Phase 02-04: Task proposal and anchor rendering in chat
- */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { ChatMessage } from '@/pages/Chat/ChatMessage';
 import type { RawMessage } from '@/stores/chat';
 
-// Mock dependencies
 vi.mock('@/pages/Chat/MarkdownContent', () => ({
   default: ({ content }: { content: string }) => <div>{content}</div>,
 }));
@@ -22,16 +17,15 @@ vi.mock('@/pages/Chat/message-utils', () => ({
 }));
 
 vi.mock('@/pages/Chat/TaskCreationBubble', () => ({
-  TaskCreationBubble: ({ title, onConfirm, onCancel }: any) => (
+  TaskCreationBubble: ({ title, onCancel }: any) => (
     <div data-testid="task-creation-bubble">
       <div>{title}</div>
-      <button onClick={onConfirm}>确认</button>
-      <button onClick={onCancel}>取消</button>
+      <button data-testid="task-proposal-cancel" onClick={onCancel}>cancel</button>
     </div>
   ),
 }));
 
-describe('ChatMessage - Task Cards', () => {
+describe('ChatMessage task cards', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -39,7 +33,7 @@ describe('ChatMessage - Task Cards', () => {
   it('renders TaskCreationBubble for messages with _taskProposal', () => {
     const message: RawMessage = {
       role: 'assistant',
-      content: '我建议创建以下任务',
+      content: 'I recommend turning this into a task.',
       _taskProposal: {
         title: 'Implement login feature',
         description: 'Add OAuth login',
@@ -54,24 +48,31 @@ describe('ChatMessage - Task Cards', () => {
     expect(screen.getByText('Implement login feature')).toBeInTheDocument();
   });
 
-  it('renders task anchor card for messages with _taskAnchor', () => {
+  it('renders a summary-first task anchor card with deep link and latest excerpt', () => {
     const message: RawMessage = {
       role: 'assistant',
       content: '',
       _taskAnchor: {
         taskId: 'task-123',
         title: 'Implement login feature',
+        executionStatus: 'working',
+        owningTeamLabel: 'Frontend',
+        latestInternalExcerpt: {
+          content: 'Research is validating the OAuth callback flow.',
+        },
       },
     };
 
     render(<ChatMessage message={message} showThinking={false} />);
 
-    expect(screen.getByText('✓ 任务已创建')).toBeInTheDocument();
+    expect(screen.getByTestId('task-anchor-card')).toBeInTheDocument();
     expect(screen.getByText('Implement login feature')).toBeInTheDocument();
-    expect(screen.getByText('查看看板 →')).toBeInTheDocument();
+    expect(screen.getByText('Frontend')).toBeInTheDocument();
+    expect(screen.getByTestId('task-anchor-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('task-anchor-link')).toBeInTheDocument();
   });
 
-  it('anchor card has link to kanban board', () => {
+  it('task anchor deep links to the task detail surface in kanban', () => {
     const message: RawMessage = {
       role: 'assistant',
       content: '',
@@ -81,55 +82,28 @@ describe('ChatMessage - Task Cards', () => {
       },
     };
 
-    // Mock window.location
-    delete (window as any).location;
-    window.location = { href: '' } as any;
+    delete (window as Window & { location: Location }).location;
+    window.location = { href: '' } as Location;
 
     render(<ChatMessage message={message} showThinking={false} />);
+    fireEvent.click(screen.getByTestId('task-anchor-link'));
 
-    const link = screen.getByText('查看看板 →');
-    fireEvent.click(link);
-
-    expect(window.location.href).toBe('/kanban');
-  });
-
-  it('hides task bubble after confirmation', () => {
-    const message: RawMessage = {
-      role: 'assistant',
-      content: '我建议创建以下任务',
-      _taskProposal: {
-        title: 'Implement login feature',
-        description: 'Add OAuth login',
-      },
-    };
-
-    const { rerender } = render(<ChatMessage message={message} showThinking={false} />);
-
-    const confirmButton = screen.getByText('确认');
-    fireEvent.click(confirmButton);
-
-    // After confirmation, bubble should be hidden
-    rerender(<ChatMessage message={message} showThinking={false} />);
-    expect(screen.queryByTestId('task-creation-bubble')).not.toBeInTheDocument();
+    expect(window.location.href).toBe('/kanban?taskId=task-123');
   });
 
   it('hides task bubble after cancellation', () => {
     const message: RawMessage = {
       role: 'assistant',
-      content: '我建议创建以下任务',
+      content: 'I recommend turning this into a task.',
       _taskProposal: {
         title: 'Implement login feature',
         description: 'Add OAuth login',
       },
     };
 
-    const { rerender } = render(<ChatMessage message={message} showThinking={false} />);
+    render(<ChatMessage message={message} showThinking={false} />);
+    fireEvent.click(screen.getByTestId('task-proposal-cancel'));
 
-    const cancelButton = screen.getByText('取消');
-    fireEvent.click(cancelButton);
-
-    // After cancellation, bubble should be hidden
-    rerender(<ChatMessage message={message} showThinking={false} />);
     expect(screen.queryByTestId('task-creation-bubble')).not.toBeInTheDocument();
   });
 });

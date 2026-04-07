@@ -1,14 +1,17 @@
 /**
  * TaskCreationBubble Component
- * Phase 02-04: Inline task confirmation bubble for conversational task creation
+ * Phase 12-02: chat task creation with create-only vs create-and-start paths
  */
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { hostApiFetch } from '@/lib/host-api';
 import { useApprovalsStore } from '@/stores/approvals';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
-import type { TaskPriority } from '@/types/task';
+import type { KanbanTask, TaskPriority } from '@/types/task';
+
+type TaskCreationMode = 'create_only' | 'create_and_start';
 
 interface TaskCreationBubbleProps {
   title: string;
@@ -33,20 +36,22 @@ export function TaskCreationBubble({
   onConfirm,
   onCancel,
 }: TaskCreationBubbleProps) {
-  const [confirmed, setConfirmed] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const createTask = useApprovalsStore((s) => s.createTask);
-  const agents = useAgentsStore((s) => s.agents);
-  const currentAgentId = useChatStore((s) => s.currentAgentId);
+  const [createdTask, setCreatedTask] = useState<KanbanTask | null>(null);
+  const [createdMode, setCreatedMode] = useState<TaskCreationMode | null>(null);
+  const [loadingMode, setLoadingMode] = useState<TaskCreationMode | null>(null);
+  const createTask = useApprovalsStore((state) => state.createTask);
+  const startTaskExecution = useApprovalsStore((state) => state.startTaskExecution);
+  const agents = useAgentsStore((state) => state.agents);
+  const currentAgentId = useChatStore((state) => state.currentAgentId);
+  const currentSessionKey = useChatStore((state) => state.currentSessionKey);
 
-  // Per D-25: If no assignee specified, default to current agent
   const finalAssigneeId = assigneeId ?? currentAgentId;
-  const assignee = agents.find((a) => a.id === finalAssigneeId);
+  const assignee = agents.find((agent) => agent.id === finalAssigneeId);
 
-  const handleConfirm = async () => {
-    setLoading(true);
+  const handleCreate = async (mode: TaskCreationMode) => {
+    setLoadingMode(mode);
     try {
-      await createTask({
+      const task = await createTask({
         title,
         description,
         priority,
@@ -56,70 +61,117 @@ export function TaskCreationBubble({
         teamName,
         deadline,
       });
-      setConfirmed(true);
+
+      let nextTask = task;
+      if (mode === 'create_and_start') {
+        const runtimeResponse = await hostApiFetch<{ session?: { id?: string; sessionKey?: string } }>('/api/sessions/spawn', {
+          method: 'POST',
+          body: JSON.stringify({
+            parentSessionKey: currentSessionKey,
+            prompt: `Start task execution: ${title}\n\n${description}`,
+          }),
+        });
+        const sessionId = runtimeResponse?.session?.id;
+        const sessionKey = runtimeResponse?.session?.sessionKey;
+
+        if (!sessionId || !sessionKey) {
+          throw new Error('Failed to create a task execution session');
+        }
+
+        nextTask = await startTaskExecution(task.id, {
+          sessionId,
+          sessionKey,
+          entrySessionKey: currentSessionKey,
+          agentId: finalAssigneeId,
+        });
+      }
+
+      setCreatedTask(nextTask);
+      setCreatedMode(mode);
       onConfirm?.();
     } catch (error) {
       console.error('Failed to create task:', error);
     } finally {
-      setLoading(false);
+      setLoadingMode(null);
     }
   };
 
-  const handleCancel = () => {
-    onCancel?.();
-  };
-
-  // After confirmation, show anchor card (per D-24)
-  if (confirmed) {
+  if (createdTask && createdMode) {
     return (
-      <Card className="inline-block max-w-md p-3 bg-accent/10 border-accent">
-        <p className="text-sm font-medium text-accent-foreground">✓ 任务已创建</p>
-        <p className="text-xs text-muted-foreground mt-1">{title}</p>
+      <Card data-testid="task-anchor-card" className="inline-block max-w-md border-accent bg-accent/10 p-3">
+        <p className="text-sm font-medium text-accent-foreground">
+          {createdMode === 'create_and_start' ? '✓ 任务已创建并启动' : '✓ 任务已创建'}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">{createdTask.title}</p>
+        {createdTask.teamName ? (
+          <p className="mt-1 text-xs text-muted-foreground">{createdTask.teamName}</p>
+        ) : null}
+        <Button
+          data-testid="task-anchor-link"
+          size="sm"
+          variant="link"
+          className="mt-2 h-auto p-0 text-xs"
+          onClick={() => {
+            window.location.href = `/kanban?taskId=${createdTask.id}`;
+          }}
+        >
+          查看任务 →
+        </Button>
       </Card>
     );
   }
 
-  // Confirmation bubble (per D-21, D-22, UI-SPEC)
   return (
-    <Card className="inline-block max-w-md p-4 bg-accent/10 border-accent">
-      <h4 className="text-sm font-semibold mb-3">创建任务</h4>
-      <div className="space-y-2 text-sm mb-4">
-        <div className="flex justify-between">
+    <Card className="inline-block max-w-md border-accent bg-accent/10 p-4">
+      <h4 className="mb-3 text-sm font-semibold">创建任务</h4>
+      <div className="mb-4 space-y-2 text-sm">
+        <div className="flex justify-between gap-3">
           <span className="text-muted-foreground">任务标题:</span>
           <span className="font-medium">{title}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-3">
           <span className="text-muted-foreground">负责人:</span>
           <span className="font-medium">{assignee?.name ?? '未分配'}</span>
         </div>
-        {teamName && (
-          <div className="flex justify-between">
+        {teamName ? (
+          <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">团队:</span>
             <span className="font-medium">{teamName}</span>
           </div>
-        )}
-        {deadline && (
-          <div className="flex justify-between">
+        ) : null}
+        {deadline ? (
+          <div className="flex justify-between gap-3">
             <span className="text-muted-foreground">截止时间:</span>
             <span className="font-medium">{new Date(deadline).toLocaleDateString('zh-CN')}</span>
           </div>
-        )}
+        ) : null}
       </div>
       <div className="flex gap-2">
         <Button
-          size="sm"
-          onClick={handleConfirm}
-          disabled={loading}
-          className="flex-1"
-        >
-          {loading ? '创建中...' : '确认'}
-        </Button>
-        <Button
+          data-testid="task-create-only"
           size="sm"
           variant="outline"
-          onClick={handleCancel}
-          disabled={loading}
+          disabled={loadingMode !== null}
+          onClick={() => handleCreate('create_only')}
           className="flex-1"
+        >
+          {loadingMode === 'create_only' ? '创建中...' : '仅创建任务'}
+        </Button>
+        <Button
+          data-testid="task-create-start"
+          size="sm"
+          disabled={loadingMode !== null}
+          onClick={() => handleCreate('create_and_start')}
+          className="flex-1"
+        >
+          {loadingMode === 'create_and_start' ? '启动中...' : '创建并启动'}
+        </Button>
+        <Button
+          data-testid="task-cancel"
+          size="sm"
+          variant="ghost"
+          disabled={loadingMode !== null}
+          onClick={onCancel}
         >
           取消
         </Button>
