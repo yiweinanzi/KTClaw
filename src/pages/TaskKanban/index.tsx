@@ -214,11 +214,18 @@ export function TaskKanban() {
   const [manualFormOpen, setManualFormOpen] = useState(false);
 
   const currentView = searchParams.get('view') || 'board';
+  const selectedTaskId = searchParams.get('taskId');
 
   useEffect(() => {
     if (fetchAgents) fetchAgents();
     if (fetchTasks) fetchTasks();
   }, [fetchAgents, fetchTasks]);
+
+  useEffect(() => {
+    if (selectedTaskId) {
+      openPanel('task', selectedTaskId);
+    }
+  }, [openPanel, selectedTaskId]);
 
   const tasksByAgent = useMemo(() => {
     const map = new Map<string, KanbanTask[]>();
@@ -238,11 +245,17 @@ export function TaskKanban() {
   const inProgressCount = Array.isArray(tasks) ? tasks.filter((t) => t.status === 'in-progress').length : 0;
 
   const handleTaskClick = (task: KanbanTask) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('taskId', task.id);
+    nextParams.set('view', currentView);
+    setSearchParams(nextParams);
     openPanel('task', task.id);
   };
 
   const handleViewChange = (view: string) => {
-    setSearchParams({ view });
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('view', view);
+    setSearchParams(nextParams);
   };
 
   return (
@@ -309,7 +322,14 @@ export function TaskKanban() {
 
         {/* Calendar View */}
         <TabsContent value="calendar" className="flex-1 overflow-auto m-0">
-          <CalendarView onTaskClick={(taskId) => openPanel('task', taskId)} />
+          <CalendarView onTaskClick={(taskId) => {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.set('taskId', taskId);
+            nextParams.set('view', 'calendar');
+            setSearchParams(nextParams);
+            openPanel('task', taskId);
+          }}
+          />
         </TabsContent>
       </Tabs>
 

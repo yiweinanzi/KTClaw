@@ -13,6 +13,11 @@ import type { AgentSummary } from '@/types/agent';
 // Mock stores
 vi.mock('@/stores/approvals');
 vi.mock('@/stores/agents');
+vi.mock('@/lib/host-api', () => ({
+  hostApiFetch: vi.fn(),
+}));
+
+import { hostApiFetch } from '@/lib/host-api';
 
 const mockTask: KanbanTask = {
   id: 'task-123',
@@ -50,6 +55,7 @@ describe('TaskDetailPanel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(hostApiFetch).mockResolvedValue({ tree: null });
 
     vi.mocked(useApprovalsStore).mockImplementation((selector: any) => {
       const state = {
@@ -70,7 +76,7 @@ describe('TaskDetailPanel', () => {
   it('should render task title, description, status, and priority', () => {
     render(<TaskDetailPanel taskId="task-123" />);
 
-    expect(screen.getByText(/Test Task/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Test Task/).length).toBeGreaterThan(0);
     expect(screen.getByText(/This is a test task description/)).toBeInTheDocument();
     expect(screen.getByText(/高优先级/)).toBeInTheDocument();
     expect(screen.getByText(/进行中/)).toBeInTheDocument();
@@ -86,7 +92,7 @@ describe('TaskDetailPanel', () => {
     render(<TaskDetailPanel taskId="task-123" />);
 
     expect(screen.getByText(/执行记录/)).toBeInTheDocument();
-    expect(screen.getByText(/session-abc123/)).toBeInTheDocument();
+    expect(screen.getAllByText(/session-abc123/).length).toBeGreaterThan(0);
   });
 
   it('should display status change history with timestamps', () => {

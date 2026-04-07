@@ -2,9 +2,10 @@
  * TaskDetailPanel - Task detail view in right panel
  * Phase 02-03: Task card interactions
  */
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { hostApiFetch } from '@/lib/host-api';
 import { cn } from '@/lib/utils';
-import { useApprovalsStore } from '@/stores/approvals';
+import { useApprovalsStore, type ApprovalItem } from '@/stores/approvals';
 import { useAgentsStore } from '@/stores/agents';
 import { useRightPanelStore } from '@/stores/rightPanelStore';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Trash2 } from 'lucide-react';
 import type { WorkState } from '@/types/task';
+import { TaskExecutionLineageSection } from './task-detail/TaskExecutionLineageSection';
+import { TaskExecutionGateSection } from './task-detail/TaskExecutionGateSection';
+import { TaskRelatedSessionsSection } from './task-detail/TaskRelatedSessionsSection';
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -45,8 +49,25 @@ function getWorkStateLabel(state: WorkState): string {
   return labels[state] || state;
 }
 
+interface RuntimeTreeResponse {
+  root?: {
+    id: string;
+    sessionKey?: string;
+    status?: string;
+  };
+  descendants?: Array<{
+    id: string;
+    sessionKey?: string;
+    status?: string;
+  }>;
+}
+
 export function TaskDetailPanel({ taskId }: TaskDetailPanelProps) {
   const tasks = useApprovalsStore((s) => s.tasks);
+  const approvals = useApprovalsStore((s) => s.approvals ?? []);
+  const fetchApprovals = useApprovalsStore((s) => s.fetchApprovals);
+  const approveItem = useApprovalsStore((s) => s.approveItem ?? (async () => {}));
+  const rejectItem = useApprovalsStore((s) => s.rejectItem ?? (async () => {}));
   const updateTask = useApprovalsStore((s) => s.updateTask);
   const deleteTask = useApprovalsStore((s) => s.deleteTask);
   const agents = useAgentsStore((s) => s.agents);
@@ -56,6 +77,7 @@ export function TaskDetailPanel({ taskId }: TaskDetailPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedDescription, setEditedDescription] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [runtimeTree, setRuntimeTree] = useState<RuntimeTreeResponse | null>(null);
 
   if (!task) {
     return (
@@ -77,6 +99,48 @@ export function TaskDetailPanel({ taskId }: TaskDetailPanelProps) {
     closePanel();
     setShowDeleteConfirm(false);
   };
+
+  useEffect(() => {
+    if (!fetchApprovals) return;
+    void fetchApprovals();
+  }, [fetchApprovals]);
+
+  useEffect(() => {
+    if (!task?.runtimeSessionId) {
+      setRuntimeTree(null);
+      return;
+    }
+
+    let cancelled = false;
+    void hostApiFetch<{ tree?: RuntimeTreeResponse }>(`/api/sessions/subagents/${encodeURIComponent(task.runtimeSessionId)}/tree`)
+      .then((response) => {
+        if (!cancelled) {
+          setRuntimeTree(response?.tree ?? null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeTree(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [task?.runtimeSessionId]);
+
+  const relatedSessionKeys = [
+    ...new Set([
+      ...(task.relatedSessionKeys ?? []),
+      ...(task.runtimeSessionKey ? [task.runtimeSessionKey] : []),
+    ]),
+  ];
+  const taskApprovalItems = approvals.filter((approval: ApprovalItem) => {
+    if (approval.sessionKey) {
+      return relatedSessionKeys.includes(approval.sessionKey);
+    }
+    return Boolean(task.assigneeId && approval.agentId === task.assigneeId);
+  });
 
   return (
     <div className="flex h-full flex-col gap-6 p-6">
@@ -163,6 +227,20 @@ export function TaskDetailPanel({ taskId }: TaskDetailPanelProps) {
           <span className="font-medium">{new Date(task.updatedAt).toLocaleString('zh-CN')}</span>
         </div>
       </div>
+
+      <TaskExecutionLineageSection task={task} runtimeTree={runtimeTree} />
+      <TaskExecutionGateSection
+        task={task}
+        approvals={taskApprovalItems}
+        onApprove={(approvalId) => void approveItem(approvalId)}
+        onReject={(approvalId) => void rejectItem(approvalId, 'Rejected from task detail')}
+      />
+      <TaskRelatedSessionsSection
+        sessionKeys={relatedSessionKeys}
+        onOpenSession={(sessionKey) => {
+          window.location.href = `/chat?session=${encodeURIComponent(sessionKey)}`;
+        }}
+      />
 
       {/* Runtime execution records */}
       {task.runtimeSessionId && (

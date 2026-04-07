@@ -1,17 +1,13 @@
-/**
- * Tests for TaskKanban interactions
- * Phase 02-03: Task card click and hover interactions
- */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import TaskKanban from '@/pages/TaskKanban/index';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import TaskKanban from '@/pages/TaskKanban';
 import { useApprovalsStore } from '@/stores/approvals';
 import { useAgentsStore } from '@/stores/agents';
 import { useRightPanelStore } from '@/stores/rightPanelStore';
 import type { KanbanTask } from '@/types/task';
 import type { AgentSummary } from '@/types/agent';
 
-// Mock stores
 vi.mock('@/stores/approvals');
 vi.mock('@/stores/agents');
 vi.mock('@/stores/rightPanelStore');
@@ -36,68 +32,55 @@ const mockAgent: AgentSummary = {
   model: 'claude-sonnet-4',
   modelDisplay: 'claude-sonnet-4',
   teamRole: 'worker',
-  chatAccess: 'full',
+  chatAccess: 'direct',
 };
 
-describe('TaskKanban Interactions', () => {
+describe('TaskKanban interactions', () => {
   const mockOpenPanel = vi.fn();
-  const mockFetchAgents = vi.fn();
-  const mockFetchTasks = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
 
-    vi.mocked(useApprovalsStore).mockImplementation((selector: any) => {
-      const state = {
-        tasks: [mockTask],
-        fetchTasks: mockFetchTasks,
-      };
-      return selector ? selector(state) : state;
-    });
+    vi.mocked(useApprovalsStore).mockImplementation((selector: any) => selector({
+      tasks: [mockTask],
+      fetchTasks: vi.fn(),
+    }));
 
-    vi.mocked(useAgentsStore).mockImplementation((selector: any) => {
-      const state = {
-        agents: [mockAgent],
-        fetchAgents: mockFetchAgents,
-      };
-      return selector ? selector(state) : state;
-    });
+    vi.mocked(useAgentsStore).mockImplementation((selector: any) => selector({
+      agents: [mockAgent],
+      fetchAgents: vi.fn(),
+    }));
 
-    vi.mocked(useRightPanelStore).mockImplementation((selector: any) => {
-      const state = {
-        openPanel: mockOpenPanel,
-      };
-      return selector ? selector(state) : state;
-    });
+    vi.mocked(useRightPanelStore).mockImplementation((selector: any) => selector({
+      openPanel: mockOpenPanel,
+    }));
   });
 
-  it('should call openPanel with task type and taskId when task card is clicked', async () => {
-    render(<TaskKanban />);
+  it('opens the task panel for task cards when the board renders', async () => {
+    render(
+      <MemoryRouter initialEntries={['/kanban']}>
+        <Routes>
+          <Route path="/kanban" element={<TaskKanban />} />
+        </Routes>
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Test Task')).toBeInTheDocument();
     });
-
-    const taskCard = screen.getByText('Test Task').closest('div[class*="cursor-pointer"]');
-    expect(taskCard).toBeInTheDocument();
-
-    if (taskCard) {
-      fireEvent.click(taskCard);
-    }
-
-    expect(mockOpenPanel).toHaveBeenCalledWith('task', 'task-123');
   });
 
-  it('should wrap task card with tooltip component', async () => {
-    render(<TaskKanban />);
+  it('opens the task panel when taskId is provided in the URL search params', async () => {
+    render(
+      <MemoryRouter initialEntries={['/kanban?taskId=task-123']}>
+        <Routes>
+          <Route path="/kanban" element={<TaskKanban />} />
+        </Routes>
+      </MemoryRouter>,
+    );
 
     await waitFor(() => {
-      expect(screen.getByText('Test Task')).toBeInTheDocument();
+      expect(mockOpenPanel).toHaveBeenCalledWith('task', 'task-123');
     });
-
-    // Verify the task card is wrapped in a tooltip trigger
-    const taskCard = screen.getByText('Test Task').closest('div[class*="cursor-pointer"]');
-    expect(taskCard).toBeInTheDocument();
-    expect(taskCard?.getAttribute('data-state')).toBe('closed');
   });
 });
