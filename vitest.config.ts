@@ -4,12 +4,15 @@ import { resolve } from 'path';
 
 const nodeTestInclude = [
   'tests/unit/agent-config.test.ts',
+  'tests/unit/backup-manager.test.ts',
   'tests/unit/channel-config.test.ts',
   'tests/unit/comms-scripts.test.ts',
   'tests/unit/env-path.test.ts',
   'tests/unit/gateway-*.test.ts',
   'tests/unit/i18n-parity.test.ts',
   'tests/unit/mcp-*.test.ts',
+  'tests/unit/memory-strategy.test.ts',
+  'tests/unit/permissions-enforcer.test.ts',
   'tests/unit/session-*.test.ts',
   'tests/unit/openclaw-*.test.ts',
   'tests/unit/preinstalled-skills-script.test.ts',
