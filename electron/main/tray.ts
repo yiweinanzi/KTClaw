@@ -2,7 +2,7 @@
  * System Tray Management
  * Creates and manages the system tray icon and menu
  */
-import { Tray, Menu, BrowserWindow, app, nativeImage } from 'electron';
+import { Tray, Menu, BrowserWindow, app, nativeImage, Notification } from 'electron';
 import { join } from 'path';
 
 let tray: Tray | null = null;
@@ -177,4 +177,14 @@ export function destroyTray(): void {
     tray.destroy();
     tray = null;
   }
+}
+
+/**
+ * Send a desktop notification if supported by the platform.
+ * Used for task-completed, sync-failed, and human-intervention-required events.
+ */
+export function sendDesktopNotification(title: string, body: string): void {
+  if (!Notification.isSupported()) return;
+  const notification = new Notification({ title, body });
+  notification.show();
 }

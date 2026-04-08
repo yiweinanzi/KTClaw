@@ -131,6 +131,10 @@ const hostApiSessionToken = randomBytes(24).toString('hex');
 const mainWindowFocusState = createMainWindowFocusState();
 const quitLifecycleState = createQuitLifecycleState();
 
+// Runtime-mutable desktop behavior settings (read at startup, updated via IPC events)
+let _minimizeToTray = true;
+let _suppressInitialShow = false;
+
 /**
  * Resolve the icons directory path (works in both dev and packaged mode)
  */
@@ -265,11 +269,16 @@ function createMainWindow(): BrowserWindow {
       return;
     }
 
+    if (_suppressInitialShow) {
+      return;
+    }
+
     win.show();
   });
 
   win.on('close', (event) => {
-    if (!isQuitting()) {
+    if (isQuitting()) return;
+    if (_minimizeToTray) {
       event.preventDefault();
       win.hide();
     }
@@ -306,11 +315,28 @@ async function initialize(): Promise<void> {
   await applyProxySettings();
   await syncLaunchAtStartupSettingFromStore();
 
+  // Read desktop behavior settings before creating the window
+  const startMinimized = await getSetting('startMinimized');
+  const minimizeToTray = await getSetting('minimizeToTray');
+  const brandSubtitle = await getSetting('brandSubtitle');
+  const isAutostart = process.argv.includes('--autostart');
+  _minimizeToTray = minimizeToTray;
+  _suppressInitialShow = isAutostart && startMinimized;
+
+  const configuredGatewayPort = await getSetting('gatewayPort');
+  if (typeof configuredGatewayPort === 'number') {
+    gatewayManager.setConfiguredPort(configuredGatewayPort);
+  }
+
   // Set application menu
   createMenu();
 
   // Create the main window
   const window = createMainWindow();
+
+  // Apply window title with brandSubtitle
+  const windowTitle = brandSubtitle ? `KTClaw — ${brandSubtitle}` : 'KTClaw';
+  window.setTitle(windowTitle);
 
   // Create system tray
   createTray(window);
@@ -319,8 +345,17 @@ async function initialize(): Promise<void> {
   // The URL filter ensures this callback only fires for gateway requests,
   // avoiding unnecessary overhead on every other HTTP response.
   session.defaultSession.webRequest.onHeadersReceived(
-    { urls: ['http://127.0.0.1:18789/*', 'http://localhost:18789/*'] },
+    { urls: ['http://127.0.0.1:*/*', 'http://localhost:*/*'] },
     (details, callback) => {
+      const requestUrl = new URL(details.url);
+      const currentPort = String(gatewayManager.getStatus().port);
+      if (
+        !((requestUrl.hostname === '127.0.0.1' || requestUrl.hostname === 'localhost')
+          && requestUrl.port === currentPort)
+      ) {
+        callback({ responseHeaders: details.responseHeaders });
+        return;
+      }
       const headers = { ...details.responseHeaders };
       delete headers['X-Frame-Options'];
       delete headers['x-frame-options'];

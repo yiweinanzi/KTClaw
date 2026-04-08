@@ -80,6 +80,11 @@ export interface AppSettings {
   devModeUnlocked: boolean;
   setupComplete: boolean;
 
+  // Desktop Behavior
+  minimizeToTray: boolean;
+  brandSubtitle: string;
+  myName: string;
+
   // Presets
   selectedBundles: string[];
   enabledSkills: string[];
@@ -143,6 +148,11 @@ function createDefaultSettings(): AppSettings {
     sidebarCollapsed: false,
     devModeUnlocked: false,
     setupComplete: false,
+
+    // Desktop Behavior
+    minimizeToTray: true,
+    brandSubtitle: '',
+    myName: '',
 
     // Presets
     selectedBundles: ['productivity', 'developer'],
