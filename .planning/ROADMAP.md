@@ -317,7 +317,7 @@ Plans:
 - `.planning/phases/08-settings-convergence/08-CONTEXT.md`
 - `src/pages/Settings/index.tsx`
 - `src/stores/settings.ts`
-**Plans:** 0 plans
+**Plans:** 4 plans
 
 **Success Criteria (what must be TRUE):**
   1. Tool Permissions become real runtime controls for KTClaw-initiated execution entrypoints instead of decorative settings
@@ -329,7 +329,10 @@ Plans:
   7. Existing single-instance desktop behavior must not regress
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 13 to break down)
+- [ ] 13-01-PLAN.md — Settings persistence spine (AppSettings schema + renderer store wiring)
+- [ ] 13-02-PLAN.md — Desktop behavior + identity (startMinimized, close-to-tray, notifications, brandSubtitle, myName)
+- [ ] 13-03-PLAN.md — Tool permissions enforcement (runtime enforcement layer + audit log)
+- [ ] 13-04-PLAN.md — Migration & backup + memory strategy (.ktclaw archive, preview restore, watched-dir reindex)
 
 ---
 
