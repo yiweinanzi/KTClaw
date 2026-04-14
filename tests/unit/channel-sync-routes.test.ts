@@ -899,7 +899,63 @@ describe('channel sync workbench routes', () => {
     }));
   });
 
+  it('searches feishu workbench sessions through the backend fallback route', async () => {
+    const { handleChannelRoutes } = await import('@electron/api/routes/channels');
+    (globalThis as Record<string, unknown>)[TEST_FEISHU_SNAPSHOT_KEY] = {
+      sessions: [
+        {
+          id: 'feishu:default:oc_owner',
+          channelId: 'feishu-default',
+          channelType: 'feishu',
+          sessionType: 'group',
+          title: 'Owner Search Result',
+          pinned: false,
+          syncState: 'synced',
+          participantSummary: 'owner escalation desk',
+        },
+      ],
+      messagesByConversationId: new Map([
+        ['feishu:default:oc_owner', [
+          { id: 'msg-owner-1', role: 'human', content: 'owner escalation thread' },
+        ]],
+      ]),
+    };
+    const ctx = {
+      gatewayManager: {
+        getStatus: () => ({ state: 'running', port: 18789 }),
+        rpc: vi.fn(),
+        debouncedRestart: vi.fn(),
+        debouncedReload: vi.fn(),
+      },
+    } as never;
+
+    const handled = await handleChannelRoutes(
+      createRequest('GET'),
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/channels/workbench/search?channelType=feishu&query=owner'),
+      ctx,
+    );
+
+    expect(handled).toBe(true);
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, expect.objectContaining({
+      success: true,
+      sessions: [
+        expect.objectContaining({
+          id: 'feishu:default:oc_owner',
+          title: 'Owner Search Result',
+        }),
+      ],
+    }));
+  });
+
   it('send with identity=self falls back to bot send with warning when feishu user auth unavailable', async () => {
+    mocks.sendFeishuViaPreferredPath
+      .mockRejectedValueOnce(new Error('need_user_authorization'))
+      .mockResolvedValueOnce({
+        transport: 'runtime',
+        sessionKey: 'agent:main:feishu:group:oc_test',
+        runId: 'run-fallback-1',
+      });
     const { handleChannelRoutes } = await import('@electron/api/routes/channels');
     mocks.parseJsonBody.mockResolvedValue({ text: '你好', conversationId: 'feishu:default:oc_test', identity: 'self' });
     const gatewayRpc = vi.fn(async (method: string) => {
@@ -924,7 +980,14 @@ describe('channel sync workbench routes', () => {
     );
 
     expect(handled).toBe(true);
-    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, expect.objectContaining({ success: true }));
+    expect(mocks.sendJson).toHaveBeenLastCalledWith(expect.anything(), 200, expect.objectContaining({
+      success: true,
+      requestedIdentity: 'self',
+      effectiveIdentity: 'bot',
+      warning: expect.any(String),
+      sessionKey: 'agent:main:feishu:group:oc_test',
+      runId: 'run-fallback-1',
+    }));
   });
   it('renames a workbench conversation by persisting displayTitle metadata', async () => {
     const { handleChannelRoutes } = await import('@electron/api/routes/channels');

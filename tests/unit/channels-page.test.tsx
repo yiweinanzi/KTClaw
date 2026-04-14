@@ -261,12 +261,72 @@ describe('Channels sync workbench', () => {
     expect(screen.getByRole('button', { name: '设置' })).toBeInTheDocument();
   });
 
-  it('shows a development placeholder in the feishu workbench pane', async () => {
+  it.skip('legacy placeholder expectation', async () => {
     render(<Channels />);
 
     expect(await screen.findByText('飞书同步工作台开发中')).toBeInTheDocument();
     expect(screen.getByText('功能尚未开发完毕')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '打开频道设置' })).toBeInTheDocument();
+  });
+
+  it('does not show a blocking placeholder over the feishu workbench pane', async () => {
+    render(<Channels />);
+
+    expect(await screen.findByText('query_k8s_logs')).toBeInTheDocument();
+    expect(screen.queryByTestId('feishu-workbench-placeholder')).not.toBeInTheDocument();
+  });
+
+  it('shows a non-blocking feishu banner when only bot send is available', async () => {
+    const fixtures = buildWorkbenchFixtures();
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return fixtures.capabilities;
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      if (path === '/api/feishu/status') {
+        return {
+          status: 'bot-only',
+          channel: { configured: true, pluginEnabled: true },
+          nextAction: 'ready',
+          warning: 'self-send unavailable',
+        };
+      }
+      return { success: true };
+    });
+
+    render(<Channels />);
+
+    expect(await screen.findByTestId('feishu-status-banner')).toBeInTheDocument();
+    expect(screen.getByText('query_k8s_logs')).toBeInTheDocument();
+    expect(screen.queryByTestId('identity-toggle')).not.toBeInTheDocument();
+  });
+
+  it('shows a setup CTA instead of blocking the feishu workbench when channel setup is incomplete', async () => {
+    const fixtures = buildWorkbenchFixtures();
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return fixtures.capabilities;
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      if (path === '/api/feishu/status') {
+        return {
+          status: 'unconfigured',
+          channel: { configured: false, pluginEnabled: false, accountIds: [] },
+          nextAction: 'configure-channel',
+        };
+      }
+      return { success: true };
+    });
+
+    render(<Channels />);
+
+    const action = await screen.findByTestId('feishu-status-action');
+    fireEvent.click(action);
+
+    await waitFor(() => {
+      const statusCalls = hostApiFetchMock.mock.calls.filter(([path]) => path === '/api/feishu/status');
+      expect(statusCalls.length).toBeGreaterThan(1);
+    });
+    expect(screen.queryByTestId('feishu-workbench-placeholder')).not.toBeInTheDocument();
+    expect(screen.getByText('query_k8s_logs')).toBeInTheDocument();
   });
 
   it('no longer renders a duplicate channel family rail inside the page body', async () => {
@@ -330,7 +390,7 @@ describe('Channels sync workbench', () => {
     expect(input).toHaveValue('');
     // Error state shown on optimistic bubble
     await waitFor(() => {
-      expect(screen.getByText('重试')).toBeInTheDocument();
+      expect(document.querySelector('[data-testid^="retry-btn-"]')).not.toBeNull();
     });
   });
 
@@ -733,6 +793,43 @@ describe('Channels sync workbench', () => {
     resolveLoadMore?.();
   });
 
+  it('matches wechat behavior: feishu does not expose identity toggle and sends as bot', async () => {
+    const fixtures = buildWorkbenchFixtures();
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return fixtures.capabilities;
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      if (path === '/api/feishu/status') return { status: 'authorized', channel: { configured: true }, nextAction: 'ready' };
+      if (path === '/api/channels/feishu-default/send') return { success: true };
+      return { success: true };
+    });
+
+    render(<Channels />);
+
+    await waitFor(() => {
+      expect(document.querySelector('textarea')).not.toBeNull();
+    });
+    expect(screen.queryByTestId('identity-toggle')).not.toBeInTheDocument();
+    // no identity toggle in feishu workbench (matches wechat behavior)
+
+    const input = document.querySelector('textarea') as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: 'hello from channel' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(hostApiFetchMock).toHaveBeenCalledWith(
+        '/api/channels/feishu-default/send',
+        expect.objectContaining({
+          body: JSON.stringify({
+            text: 'hello from channel',
+            conversationId: 'feishu-conv-devops',
+            identity: 'bot',
+          }),
+        }),
+      );
+    });
+  });
+
   /*
   it.skip('hides identity toggle when userAuthStatus is not authorized', async () => {
     const fixtures = buildWorkbenchFixtures();
@@ -759,7 +856,7 @@ describe('Channels sync workbench', () => {
       if (path === '/api/channels/capabilities') return fixtures.capabilities;
       if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
       if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
-      if (path === '/api/feishu/status') return { status: 'authorized', channel: { configured: true }, nextAction: 'none' };
+      if (path === '/api/feishu/status') return { channel: { configured: true }, nextAction: 'ready' };
       return { success: true };
     });
 
@@ -814,7 +911,7 @@ describe('Channels sync workbench', () => {
     });
   });
 
-  it('removes the identity toggle and always sends channel messages as bot identity', async () => {
+  it('keeps feishu in bot-only mode when self-send is unavailable', async () => {
     const fixtures = buildWorkbenchFixtures();
     hostApiFetchMock.mockImplementation(async (path: string) => {
       if (path === '/api/channels/capabilities') return fixtures.capabilities;
@@ -842,13 +939,19 @@ describe('Channels sync workbench', () => {
   });
   */
 
-  it('removes the identity toggle and always sends channel messages as bot identity', async () => {
+  it('keeps feishu in bot-only mode when self-send is unavailable', async () => {
     const fixtures = buildWorkbenchFixtures();
     hostApiFetchMock.mockImplementation(async (path: string) => {
       if (path === '/api/channels/capabilities') return fixtures.capabilities;
       if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
       if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
-      if (path === '/api/feishu/status') return { status: 'authorized', channel: { configured: true }, nextAction: 'none' };
+      if (path === '/api/feishu/status') {
+        return {
+          status: 'bot-only',
+          channel: { configured: true, pluginEnabled: true },
+          nextAction: 'ready',
+        };
+      }
       return { success: true };
     });
 
@@ -1000,6 +1103,44 @@ describe('Channels sync workbench', () => {
     await waitFor(() => {
       expect(within(list).getByText('研发中心 DevOps 总群')).toBeInTheDocument();
       expect(within(list).queryByText('数据分析项目组')).not.toBeInTheDocument();
+    });
+  });
+
+  it('falls back to feishu remote search when local filtering has no match', async () => {
+    const fixtures = buildWorkbenchFixtures();
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      if (path === '/api/channels/capabilities') return fixtures.capabilities;
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      if (path === '/api/channels/workbench/search?channelType=feishu&query=owner') {
+        return {
+          success: true,
+          sessions: [
+            {
+              id: 'feishu-conv-owner-search',
+              channelId: 'feishu-default',
+              channelType: 'feishu',
+              sessionType: 'private',
+              title: 'Owner Search Result',
+              pinned: false,
+              syncState: 'synced',
+              latestActivityAt: '2026-03-26T09:03:00.000Z',
+              participantSummary: 'found via fallback search',
+            },
+          ],
+        };
+      }
+      return { success: true };
+    });
+
+    render(<Channels />);
+    const list = await screen.findByTestId('channels-conversation-list');
+
+    fireEvent.change(screen.getByTestId('session-search-input'), { target: { value: 'owner' } });
+
+    await waitFor(() => {
+      expect(hostApiFetchMock).toHaveBeenCalledWith('/api/channels/workbench/search?channelType=feishu&query=owner');
+      expect(within(list).getByText('Owner Search Result')).toBeInTheDocument();
     });
   });
 
@@ -1587,7 +1728,104 @@ describe('WeChat workbench', () => {
     expect(hostApiFetchMock).not.toHaveBeenCalledWith('/api/feishu/status');
   });
 
-  it('rerenders cleanly when switching from feishu placeholder to wechat workbench', async () => {
+  it('rerenders cleanly when switching from feishu workbench to wechat workbench', async () => {
+    locationState.search = '';
+    useRightPanelStore.setState({ activeChannelId: 'feishu-default' });
+    channelsStoreState.channels = [
+      {
+        id: 'feishu-default',
+        type: 'feishu',
+        name: 'feishu',
+        status: 'connected',
+        accountId: 'default',
+      },
+      {
+        id: 'wechat-default',
+        type: 'wechat',
+        name: 'wechat',
+        status: 'connected',
+        accountId: 'default',
+      },
+    ] as typeof channelsStoreState.channels;
+
+    hostApiFetchMock.mockImplementation(async (path: string) => {
+      const fixtures = buildWorkbenchFixtures();
+      if (path === '/api/channels/capabilities') {
+        return {
+          success: true,
+          capabilities: [
+            ...fixtures.capabilities.capabilities,
+            {
+              channelId: 'wechat-default',
+              channelType: 'wechat',
+              accountId: 'default',
+              status: 'connected',
+              availableActions: ['send'],
+              capabilityFlags: {
+                supportsConnect: true,
+                supportsDisconnect: true,
+                supportsTest: true,
+                supportsSend: true,
+                supportsSchemaSummary: false,
+                supportsCredentialValidation: false,
+              },
+              configSchemaSummary: {
+                totalFieldCount: 0,
+                requiredFieldCount: 0,
+                optionalFieldCount: 0,
+                sensitiveFieldCount: 0,
+                fieldKeys: [],
+              },
+            },
+          ],
+        };
+      }
+      if (path === '/api/channels/workbench/sessions?channelType=feishu') return fixtures.sessions;
+      if (path.startsWith('/api/channels/workbench/conversations/feishu-conv-devops/messages')) return fixtures.messages;
+      if (path === '/api/channels/workbench/sessions?channelType=wechat') {
+        return {
+          success: true,
+          sessions: [
+            {
+              id: 'wechat:default:gc_001',
+              channelId: 'wechat-default',
+              channelType: 'wechat',
+              sessionType: 'group',
+              title: '技术交流群',
+              pinned: true,
+              syncState: 'synced',
+              latestActivityAt: new Date().toISOString(),
+              previewText: '最新消息',
+            },
+          ],
+        };
+      }
+      if (path.startsWith('/api/channels/workbench/conversations/wechat%3Adefault%3Agc_001/messages')) {
+        return {
+          success: true,
+          conversation: { id: 'wechat:default:gc_001', title: '技术交流群', syncState: 'synced' },
+          messages: [],
+          hasMore: false,
+        };
+      }
+      return { success: true };
+    });
+
+    const { rerender } = render(<Channels />);
+    expect(await screen.findByText('query_k8s_logs')).toBeInTheDocument();
+    expect(screen.queryByTestId('feishu-workbench-placeholder')).not.toBeInTheDocument();
+
+    await act(async () => {
+      locationState.search = '?channel=wechat';
+      useRightPanelStore.setState({ activeChannelId: 'wechat-default' });
+      rerender(<Channels />);
+    });
+
+    expect(await screen.findByPlaceholderText('在微信发送消息（将同步至微信）...')).toBeInTheDocument();
+    expect(screen.queryByTestId('feishu-workbench-placeholder')).not.toBeInTheDocument();
+  });
+
+  it.skip('legacy rerender expectation from the feishu placeholder era', async () => {
     locationState.search = '';
     useRightPanelStore.setState({ activeChannelId: 'feishu-default' });
     channelsStoreState.channels = [

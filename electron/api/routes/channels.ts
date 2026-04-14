@@ -36,7 +36,7 @@ import { parseJsonBody, sendJson } from '../route-utils';
 import { getOpenClawConfigDir } from '../../utils/paths';
 import { OPENCLAW_WECHAT_CHANNEL_TYPE, toOpenClawChannelType, toUiChannelType } from '../../utils/channel-alias';
 import { proxyAwareFetch } from '../../utils/proxy-fetch';
-import { sendFeishuViaPreferredPath } from '../../utils/feishu-send-path';
+import { sendFeishuViaPreferredPath, type FeishuSendPathResult } from '../../utils/feishu-send-path';
 import {
   listDiscordDirectoryGroupsFromConfig,
   listDiscordDirectoryPeersFromConfig,
@@ -1740,6 +1740,99 @@ function mergeWorkbenchSessionLists(...groups: WorkbenchSession[][]): WorkbenchS
   });
 }
 
+function matchesWorkbenchSessionSearch(
+  session: WorkbenchSession,
+  query: string,
+  messagesByConversationId?: Map<string, WorkbenchConversationMessage[]>,
+): boolean {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return true;
+  if (session.title.toLowerCase().includes(normalizedQuery)) return true;
+  if (session.previewText?.toLowerCase().includes(normalizedQuery)) return true;
+  if (session.participantSummary?.toLowerCase().includes(normalizedQuery)) return true;
+  if (session.visibleAgentId?.toLowerCase().includes(normalizedQuery)) return true;
+  const messages = messagesByConversationId?.get(session.id) ?? [];
+  return messages.some((message) =>
+    message.content?.toLowerCase().includes(normalizedQuery)
+    || message.authorName?.toLowerCase().includes(normalizedQuery)
+    || message.summary?.toLowerCase().includes(normalizedQuery),
+  );
+}
+
+async function buildFeishuWorkbenchSessions(accountId?: string): Promise<{
+  sessions: WorkbenchSession[];
+  liveSnapshot: {
+    sessions: WorkbenchSession[];
+    messagesByConversationId: Map<string, WorkbenchConversationMessage[]>;
+  };
+}> {
+  const [liveSnapshot, derivedRecords] = await Promise.all([
+    fetchFeishuWorkbenchSnapshot().catch(() => ({ sessions: [], messagesByConversationId: new Map() })),
+    listSessionDerivedWorkbenchRecords({ channelType: 'feishu', accountId }),
+  ]);
+  const filteredFeishuSessions = liveSnapshot.sessions
+    .filter((session) => !accountId || session.channelId === `feishu-${accountId}`);
+  const liveSessions = (
+    await Promise.all(
+      filteredFeishuSessions.map(async (session) => {
+        const target = parseWorkbenchConversationTarget(session.id);
+        if (!target) return session;
+        const binding = await getConversationBinding(
+          target.channelType,
+          target.accountId,
+          target.externalConversationId,
+        );
+        return applyWorkbenchBindingMetadata(session, binding);
+      }),
+    )
+  ).filter((session): session is WorkbenchSession => session != null);
+  const derivedSessions = (
+    await Promise.all(
+      derivedRecords.map(async (record) => {
+        const binding = await getConversationBinding(
+          record.channelType,
+          record.accountId,
+          record.target,
+        );
+        return applyWorkbenchBindingMetadata(buildWorkbenchSessionFromDerivedRecord(record), binding);
+      }),
+    )
+  ).filter((session): session is WorkbenchSession => session != null);
+  return {
+    sessions: mergeWorkbenchSessionLists(liveSessions, derivedSessions),
+    liveSnapshot,
+  };
+}
+
+function buildFeishuSendSuccessPayload(
+  sendResult: FeishuSendPathResult,
+  options: {
+    requestedIdentity: 'bot' | 'self';
+    effectiveIdentity: 'bot' | 'self';
+    warning?: string;
+  },
+): Record<string, unknown> {
+  return sendResult.transport === 'runtime'
+    ? {
+      success: true,
+      message: 'Message sent',
+      sessionKey: sendResult.sessionKey,
+      ...(sendResult.runId ? { runId: sendResult.runId } : {}),
+      requestedIdentity: options.requestedIdentity,
+      effectiveIdentity: options.effectiveIdentity,
+      ...(options.warning ? { warning: options.warning } : {}),
+    }
+    : {
+      success: true,
+      message: 'Message sent',
+      messageId: sendResult.messageId,
+      chatId: sendResult.chatId,
+      requestedIdentity: options.requestedIdentity,
+      effectiveIdentity: options.effectiveIdentity,
+      ...(options.warning ? { warning: options.warning } : {}),
+    };
+}
+
 async function findDerivedWorkbenchRecordForConversation(
   conversationId: string,
   channelType: 'feishu' | 'wechat',
@@ -2307,6 +2400,39 @@ export async function handleChannelRoutes(
     return true;
   }
 
+  if (url.pathname === '/api/channels/workbench/search' && req.method === 'GET') {
+    try {
+      const channelType = url.searchParams.get('channelType')?.trim() || '';
+      const accountId = url.searchParams.get('accountId')?.trim() || undefined;
+      const query = url.searchParams.get('query')?.trim() || '';
+      if (!channelType) {
+        sendJson(res, 400, { success: false, error: 'channelType is required', sessions: [] });
+        return true;
+      }
+      if (!query) {
+        sendJson(res, 200, { success: true, sessions: [] });
+        return true;
+      }
+      if (channelType === 'feishu') {
+        const { sessions, liveSnapshot } = await buildFeishuWorkbenchSessions(accountId);
+        sendJson(res, 200, {
+          success: true,
+          sessions: sessions.filter((session) =>
+            matchesWorkbenchSessionSearch(session, query, liveSnapshot.messagesByConversationId),
+          ),
+        });
+        return true;
+      }
+      const statusSnapshot = await ctx.gatewayManager.rpc<ChannelsStatusSnapshot>('channels.status', { probe: true }).catch(() => null);
+      const sessions = buildWorkbenchSessions(channelType, statusSnapshot, accountId)
+        .filter((session) => matchesWorkbenchSessionSearch(session, query));
+      sendJson(res, 200, { success: true, sessions });
+    } catch (error) {
+      sendJson(res, 500, { success: false, error: String(error), sessions: [] });
+    }
+    return true;
+  }
+
   if (url.pathname === '/api/channels/workbench/sessions' && req.method === 'GET') {
     try {
       const channelType = url.searchParams.get('channelType')?.trim() || '';
@@ -2316,39 +2442,7 @@ export async function handleChannelRoutes(
         return true;
       }
       if (channelType === 'feishu') {
-        const [liveSnapshot, derivedRecords] = await Promise.all([
-          fetchFeishuWorkbenchSnapshot().catch(() => ({ sessions: [], messagesByConversationId: new Map() })),
-          listSessionDerivedWorkbenchRecords({ channelType, accountId }),
-        ]);
-        const filteredFeishuSessions = liveSnapshot.sessions
-          .filter((session) => !accountId || session.channelId === `feishu-${accountId}`);
-        const liveSessions = (
-          await Promise.all(
-            filteredFeishuSessions.map(async (session) => {
-              const target = parseWorkbenchConversationTarget(session.id);
-              if (!target) return session;
-              const binding = await getConversationBinding(
-                target.channelType,
-                target.accountId,
-                target.externalConversationId,
-              );
-              return applyWorkbenchBindingMetadata(session, binding);
-            }),
-          )
-        ).filter((session): session is WorkbenchSession => session != null);
-        const derivedSessions = (
-          await Promise.all(
-            derivedRecords.map(async (record) => {
-              const binding = await getConversationBinding(
-                record.channelType,
-                record.accountId,
-                record.target,
-              );
-              return applyWorkbenchBindingMetadata(buildWorkbenchSessionFromDerivedRecord(record), binding);
-            }),
-          )
-        ).filter((session): session is WorkbenchSession => session != null);
-        const sessions = mergeWorkbenchSessionLists(liveSessions, derivedSessions);
+        const { sessions } = await buildFeishuWorkbenchSessions(accountId);
         if (sessions.length > 0) {
           sendJson(res, 200, {
             success: true,
@@ -3177,6 +3271,57 @@ export async function handleChannelRoutes(
       const rateResult = checkChannelRateLimit(rateKey, CHANNEL_RATE_LIMITS.send);
       if (!rateResult.allowed) {
         sendRateLimitError(res, rateResult.retryAfterSeconds);
+        return true;
+      }
+      if (body.conversationId?.startsWith('feishu:') && sendIdentity === 'self') {
+        const runFeishuRuntimeSend = async () => {
+          const binding = await resolveFeishuBindingForConversation(
+            body.conversationId,
+            undefined,
+            { createIfMissing: true, sessionType: 'group' },
+          ).catch(() => null);
+          const sendSessionKey = binding?.sessionKey;
+          if (!sendSessionKey) {
+            throw new Error('Feishu runtime session binding not found');
+          }
+          const result = await ctx.gatewayManager.rpc<Record<string, unknown>>('chat.send', {
+            sessionKey: sendSessionKey,
+            message: body.text.trim(),
+            idempotencyKey: randomUUID(),
+          });
+          return {
+            sessionKey: sendSessionKey,
+            runId: extractFirstStringValue(result, ['runId', 'run_id']),
+          };
+        };
+
+        try {
+          const selfSendResult = await sendFeishuViaPreferredPath({
+            directSend: async () => sendFeishuConversationMessage({
+              conversationId: body.conversationId,
+              text: body.text.trim(),
+              identity: 'self',
+            }),
+          });
+          sendJson(res, 200, buildFeishuSendSuccessPayload(selfSendResult, {
+            requestedIdentity: 'self',
+            effectiveIdentity: 'self',
+          }));
+        } catch {
+          const fallbackResult = await sendFeishuViaPreferredPath({
+            directSend: async () => sendFeishuConversationMessage({
+              conversationId: body.conversationId,
+              text: body.text.trim(),
+              identity: 'bot',
+            }),
+            runtimeSend: runFeishuRuntimeSend,
+          });
+          sendJson(res, 200, buildFeishuSendSuccessPayload(fallbackResult, {
+            requestedIdentity: 'self',
+            effectiveIdentity: 'bot',
+            warning: 'Feishu personal authorization is unavailable, sent as bot instead.',
+          }));
+        }
         return true;
       }
       if (body.conversationId?.startsWith('feishu:')) {

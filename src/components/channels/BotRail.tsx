@@ -1,10 +1,10 @@
 import { useEffect, useMemo } from 'react';
+import { ChannelIcon } from '@/components/channels/ChannelIcon';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
 import { useTeamsStore } from '@/stores/teams';
 import { useChannelsStore } from '@/stores/channels';
 import {
-  CHANNEL_ICONS,
   CHANNEL_WORKBENCH_TYPES,
   type Channel,
 } from '@/types/channel';
@@ -54,8 +54,6 @@ function BotRailEntry({ bot, isActive, agents, teams, onClick, onSettings, conne
     }
   }, [bot.status]);
 
-  const icon = CHANNEL_ICONS[bot.type] ?? '🔌';
-
   return (
     <button
       type="button"
@@ -70,7 +68,7 @@ function BotRailEntry({ bot, isActive, agents, teams, onClick, onSettings, conne
       {/* Row 1: icon + name + status dot + settings */}
       <div className="mb-1 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 text-[18px]">{icon}</span>
+          <ChannelIcon type={bot.type} className="h-[18px] w-[18px] shrink-0" />
           <span className={cn(
             'truncate text-[14px] font-medium text-[#111827]',
             isActive && 'text-[#4F46E5]',

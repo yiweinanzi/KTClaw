@@ -126,6 +126,9 @@ describe('feishu integration service', () => {
         message: 'pending',
       })),
       setStoredToken: vi.fn(async () => undefined),
+      getStoredToken: vi.fn(async () => null),
+      getAppOwnerFallback: vi.fn(async () => undefined),
+      getTokenStatus: vi.fn(() => 'expired'),
       requiredAppScopes: ['application:application:self_manage', 'im:message:readonly'],
       filterSensitiveScopes: vi.fn((scopes: string[]) => scopes),
     });
@@ -182,6 +185,215 @@ describe('feishu integration service', () => {
     expect(result.channel.configured).toBe(true);
     expect(result.channel.accountIds).toEqual(['default', 'agent_a']);
     expect(result.nextAction).toBe('update-plugin');
+  });
+
+  it('reports authorized status when the feishu app owner has a valid stored user token', async () => {
+    mockExistsSync.mockImplementation((filePath: string) => {
+      if (filePath.includes('build\\openclaw-plugins\\feishu-openclaw-plugin') || filePath.includes('build/openclaw-plugins/feishu-openclaw-plugin')) {
+        return true;
+      }
+      if (filePath.includes('.openclaw') && filePath.includes('extensions') && filePath.includes('feishu-openclaw-plugin')) {
+        return true;
+      }
+      return false;
+    });
+    mockReadFile.mockImplementation(async (filePath: string) => {
+      if (String(filePath).includes('package.json')) {
+        return JSON.stringify({ version: '2026.3.25' });
+      }
+      if (String(filePath).includes('openclaw.json')) {
+        return JSON.stringify({
+          channels: {
+            feishu: {
+              enabled: true,
+              accounts: {
+                default: { appId: 'cli_default', appSecret: 'secret' },
+              },
+            },
+          },
+          plugins: {
+            allow: ['openclaw-lark'],
+            entries: {
+              'openclaw-lark': { enabled: true },
+            },
+          },
+        });
+      }
+      return '{}';
+    });
+    mockLoadFeishuAuthRuntime.mockResolvedValue({
+      getLarkAccount: vi.fn(() => ({
+        configured: true,
+        appId: 'cli_default',
+        appSecret: 'secret',
+        brand: 'feishu',
+        accountId: 'default',
+      })),
+      createSdk: vi.fn(() => ({ sdk: true })),
+      getAppGrantedScopes: vi.fn(async () => ['application:application:self_manage', 'im:message:readonly']),
+      requestDeviceAuthorization: vi.fn(),
+      pollDeviceToken: vi.fn(),
+      setStoredToken: vi.fn(),
+      getStoredToken: vi.fn(async () => ({ accessToken: 'token' })),
+      getAppOwnerFallback: vi.fn(async () => 'ou_owner_1'),
+      getTokenStatus: vi.fn(() => 'valid'),
+      requiredAppScopes: ['application:application:self_manage', 'im:message:readonly'],
+      filterSensitiveScopes: vi.fn((scopes: string[]) => scopes),
+    });
+
+    const { getFeishuIntegrationStatus } = await import('@electron/services/feishu-integration');
+    const result = await getFeishuIntegrationStatus();
+
+    expect(result.status).toBe('authorized');
+    expect(result.auth).toEqual(expect.objectContaining({
+      accountId: 'default',
+      ownerOpenId: 'ou_owner_1',
+      tokenStatus: 'valid',
+    }));
+  });
+
+  it('reports expired status when the stored feishu user authorization has expired', async () => {
+    mockExistsSync.mockImplementation((filePath: string) => {
+      if (filePath.includes('build\\openclaw-plugins\\feishu-openclaw-plugin') || filePath.includes('build/openclaw-plugins/feishu-openclaw-plugin')) {
+        return true;
+      }
+      if (filePath.includes('.openclaw') && filePath.includes('extensions') && filePath.includes('feishu-openclaw-plugin')) {
+        return true;
+      }
+      return false;
+    });
+    mockReadFile.mockImplementation(async (filePath: string) => {
+      if (String(filePath).includes('package.json')) {
+        return JSON.stringify({ version: '2026.3.25' });
+      }
+      if (String(filePath).includes('openclaw.json')) {
+        return JSON.stringify({
+          channels: {
+            feishu: {
+              enabled: true,
+              accounts: {
+                default: { appId: 'cli_default', appSecret: 'secret' },
+              },
+            },
+          },
+          plugins: {
+            allow: ['openclaw-lark'],
+            entries: {
+              'openclaw-lark': { enabled: true },
+            },
+          },
+        });
+      }
+      return '{}';
+    });
+    mockLoadFeishuAuthRuntime.mockResolvedValue({
+      getLarkAccount: vi.fn(() => ({
+        configured: true,
+        appId: 'cli_default',
+        appSecret: 'secret',
+        brand: 'feishu',
+        accountId: 'default',
+      })),
+      createSdk: vi.fn(() => ({ sdk: true })),
+      getAppGrantedScopes: vi.fn(async () => ['application:application:self_manage', 'im:message:readonly']),
+      requestDeviceAuthorization: vi.fn(),
+      pollDeviceToken: vi.fn(),
+      setStoredToken: vi.fn(),
+      getStoredToken: vi.fn(async () => ({ accessToken: 'token' })),
+      getAppOwnerFallback: vi.fn(async () => 'ou_owner_1'),
+      getTokenStatus: vi.fn(() => 'expired'),
+      requiredAppScopes: ['application:application:self_manage', 'im:message:readonly'],
+      filterSensitiveScopes: vi.fn((scopes: string[]) => scopes),
+    });
+
+    const { getFeishuIntegrationStatus } = await import('@electron/services/feishu-integration');
+    const result = await getFeishuIntegrationStatus();
+
+    expect(result.status).toBe('expired');
+    expect(result.auth).toEqual(expect.objectContaining({
+      accountId: 'default',
+      ownerOpenId: 'ou_owner_1',
+      tokenStatus: 'expired',
+    }));
+  });
+
+  it('falls back quickly when feishu authorization probing hangs', async () => {
+    vi.useFakeTimers();
+    try {
+      mockExistsSync.mockImplementation((filePath: string) => {
+        if (filePath.includes('build\\openclaw-plugins\\feishu-openclaw-plugin') || filePath.includes('build/openclaw-plugins/feishu-openclaw-plugin')) {
+          return true;
+        }
+        if (filePath.includes('.openclaw') && filePath.includes('extensions') && filePath.includes('feishu-openclaw-plugin')) {
+          return true;
+        }
+        return false;
+      });
+      mockReadFile.mockImplementation(async (filePath: string) => {
+        if (String(filePath).includes('package.json')) {
+          return JSON.stringify({ version: '2026.3.25' });
+        }
+        if (String(filePath).includes('openclaw.json')) {
+          return JSON.stringify({
+            channels: {
+              feishu: {
+                enabled: true,
+                accounts: {
+                  default: { appId: 'cli_default', appSecret: 'secret' },
+                },
+              },
+            },
+            plugins: {
+              allow: ['openclaw-lark'],
+              entries: {
+                'openclaw-lark': { enabled: true },
+              },
+            },
+          });
+        }
+        return '{}';
+      });
+      mockLoadFeishuAuthRuntime.mockResolvedValue({
+        getLarkAccount: vi.fn(() => ({
+          configured: true,
+          appId: 'cli_default',
+          appSecret: 'secret',
+          brand: 'feishu',
+          accountId: 'default',
+        })),
+        createSdk: vi.fn(() => ({ sdk: true })),
+        getAppGrantedScopes: vi.fn(async () => ['application:application:self_manage', 'im:message:readonly']),
+        requestDeviceAuthorization: vi.fn(),
+        pollDeviceToken: vi.fn(),
+        setStoredToken: vi.fn(),
+        getStoredToken: vi.fn(async () => null),
+        getAppOwnerFallback: vi.fn(() => new Promise(() => undefined)),
+        getTokenStatus: vi.fn(() => 'unknown'),
+        requiredAppScopes: ['application:application:self_manage', 'im:message:readonly'],
+        filterSensitiveScopes: vi.fn((scopes: string[]) => scopes),
+      });
+
+      const { getFeishuIntegrationStatus } = await import('@electron/services/feishu-integration');
+      const resultPromise = getFeishuIntegrationStatus();
+      const watchdogPromise = new Promise<'timed_out'>((resolve) => {
+        setTimeout(() => resolve('timed_out'), 2500);
+      });
+      const raced = Promise.race([resultPromise, watchdogPromise]);
+
+      await vi.advanceTimersByTimeAsync(2500);
+      const result = await raced;
+
+      expect(result).not.toBe('timed_out');
+      expect(result).toEqual(expect.objectContaining({
+        status: 'bot-only',
+        auth: expect.objectContaining({
+          accountId: 'default',
+          tokenStatus: 'unknown',
+        }),
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('installs the bundled feishu plugin into the openclaw extensions directory', async () => {

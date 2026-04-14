@@ -179,6 +179,7 @@ describe('workbench sidebar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Channels' }));
 
     expect(screen.getByText('Feishu Bot')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Feishu / Lark' })).toBeInTheDocument();
     expect(screen.getByText('Alpha Session')).toBeInTheDocument();
   });
 

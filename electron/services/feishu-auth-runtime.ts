@@ -86,6 +86,7 @@ export async function loadFeishuAuthRuntime() {
     >;
   }>(sourceDir, 'src/core/device-flow.js');
   const tokenStore = await importFeishuModule<{
+    getStoredToken: (appId: string, userOpenId: string) => Promise<unknown | null>;
     setStoredToken: (token: {
       userOpenId: string;
       appId: string;
@@ -96,7 +97,14 @@ export async function loadFeishuAuthRuntime() {
       scope: string;
       grantedAt: number;
     }) => Promise<void>;
+    tokenStatus: (token: unknown) => 'valid' | 'needs_refresh' | 'expired';
   }>(sourceDir, 'src/core/token-store.js');
+  const ownerFallback = await importFeishuModule<{
+    getAppOwnerFallback: (
+      account: unknown,
+      sdk: unknown,
+    ) => Promise<string | undefined>;
+  }>(sourceDir, 'src/core/app-owner-fallback.js');
 
   return {
     getLarkAccount: accounts.getLarkAccount,
@@ -104,6 +112,9 @@ export async function loadFeishuAuthRuntime() {
     getAppGrantedScopes: scopeChecker.getAppGrantedScopes,
     requestDeviceAuthorization: deviceFlow.requestDeviceAuthorization,
     pollDeviceToken: deviceFlow.pollDeviceToken,
+    getStoredToken: tokenStore.getStoredToken,
+    getAppOwnerFallback: ownerFallback.getAppOwnerFallback,
+    getTokenStatus: tokenStore.tokenStatus,
     setStoredToken: tokenStore.setStoredToken,
     requiredAppScopes: toolScopes.REQUIRED_APP_SCOPES,
     filterSensitiveScopes: toolScopes.filterSensitiveScopes,

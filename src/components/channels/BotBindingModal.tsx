@@ -6,8 +6,9 @@ import { useEffect, useState } from 'react';
 import { useChannelsStore } from '@/stores/channels';
 import { useAgentsStore } from '@/stores/agents';
 import { useTeamsStore } from '@/stores/teams';
+import { ChannelIcon } from '@/components/channels/ChannelIcon';
 import { hostApiFetch } from '@/lib/host-api';
-import { CHANNEL_ICONS, CHANNEL_NAMES } from '@/types/channel';
+import { CHANNEL_NAMES } from '@/types/channel';
 import type { AgentSummary } from '@/types/agent';
 import type { TeamSummary } from '@/types/team';
 
@@ -156,7 +157,11 @@ export function BotBindingModal({ botId, onClose, onBound }: BotBindingModalProp
             <p className="mb-3 text-[12px] font-medium text-[#8e8e93] uppercase tracking-wide">机器人信息</p>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f3f1e9] text-xl">
-                {bot ? CHANNEL_ICONS[bot.type] ?? '🔌' : '🔌'}
+                {bot ? (
+                  <ChannelIcon type={bot.type} className="h-6 w-6" />
+                ) : (
+                  <span role="img" aria-label="Unknown channel">🔌</span>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[14px] font-medium text-[#111827]">{bot?.name}</p>

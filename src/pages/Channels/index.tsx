@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { ChannelIcon } from '@/components/channels/ChannelIcon';
 import { cn } from '@/lib/utils';
 import { hostApiFetch } from '@/lib/host-api';
 import { subscribeHostEvent } from '@/lib/host-events';
@@ -11,7 +12,6 @@ import { WeChatOnboardingWizard } from '@/components/channels/WeChatOnboardingWi
 import { BotBindingModal } from '@/components/channels/BotBindingModal';
 import { ChannelConfigModal } from '@/components/channels/ChannelConfigModal';
 import { DingTalkConfigPage } from '@/components/channels/DingTalkConfigPage';
-import { FeishuWorkbenchPlaceholder } from '@/components/channels/FeishuWorkbenchPlaceholder';
 import { WeComConfigPage } from '@/components/channels/WeComConfigPage';
 import { QQConfigPage } from '@/components/channels/QQConfigPage';
 import MarkdownContent from '@/pages/Chat/MarkdownContent';
@@ -81,6 +81,86 @@ type SettingsChannelGroup = {
   status: 'connected' | 'connecting' | 'disconnected' | 'error';
   accounts: SettingsChannelAccount[];
 };
+
+type FeishuWorkbenchStatus = {
+  status?: 'unconfigured' | 'authorized' | 'bot-only' | 'expired' | 'error';
+  channel?: {
+    configured?: boolean;
+    accountIds?: string[];
+    pluginEnabled?: boolean;
+  };
+  auth?: {
+    available?: boolean;
+    accountId?: string | null;
+    ownerOpenId?: string | null;
+    tokenStatus?: 'valid' | 'needs_refresh' | 'expired' | 'missing' | 'unknown';
+  };
+  nextAction?: string;
+  warning?: string;
+};
+
+type FeishuBannerState = {
+  tone: 'info' | 'warn' | 'error';
+  title: string;
+  description: string;
+  actionLabel: string;
+  autoStartAuthorization: boolean;
+  initialStep: FeishuWizardStep;
+};
+
+function matchesSessionSearch(session: ChannelSyncSession, query: string): boolean {
+  if (!query.trim()) return true;
+  const normalizedQuery = query.trim().toLowerCase();
+  if (session.title.toLowerCase().includes(normalizedQuery)) return true;
+  if (session.previewText?.toLowerCase().includes(normalizedQuery)) return true;
+  return false;
+}
+
+function resolveFeishuBannerState(status: FeishuWorkbenchStatus | null): FeishuBannerState | null {
+  if (!status) return null;
+  if (status.status === 'authorized') return null;
+  if (status.status === 'unconfigured' || status.nextAction === 'configure-channel') {
+    return {
+      tone: 'info',
+      title: '飞书尚未完成接入',
+      description: status.warning ?? '工作台已经开放浏览，完成配置后即可发送并启用个人身份能力。',
+      actionLabel: '继续配置',
+      autoStartAuthorization: false,
+      initialStep: 'configure',
+    };
+  }
+  if (status.status === 'bot-only') {
+    return {
+      tone: 'warn',
+      title: '当前仅支持机器人发送',
+      description: status.warning ?? '完成飞书个人授权后，可切换为“我”发送。',
+      actionLabel: '完成授权',
+      autoStartAuthorization: true,
+      initialStep: 'configure',
+    };
+  }
+  if (status.status === 'expired') {
+    return {
+      tone: 'error',
+      title: '飞书个人授权已过期',
+      description: status.warning ?? '系统已自动回退到机器人发送，完成授权后可恢复个人身份发送。',
+      actionLabel: '重新授权',
+      autoStartAuthorization: true,
+      initialStep: 'configure',
+    };
+  }
+  if (status.nextAction === 'install-plugin' || status.nextAction === 'update-plugin' || status.nextAction === 'upgrade-openclaw' || status.status === 'error') {
+    return {
+      tone: 'error',
+      title: '飞书接入需要处理',
+      description: status.warning ?? '请打开飞书向导完成插件或环境检查。',
+      actionLabel: '打开向导',
+      autoStartAuthorization: false,
+      initialStep: 'choose',
+    };
+  }
+  return null;
+}
 
 function formatRelativeTimestamp(value?: string): string {
   if (!value) return '';
@@ -239,6 +319,7 @@ export function Channels() {
   const [feishuWizardAccountId, setFeishuWizardAccountId] = useState('default');
   const [feishuWizardInitialConfigValues, setFeishuWizardInitialConfigValues] = useState<Record<string, string> | null>(null);
   const [feishuWizardInitialStep, setFeishuWizardInitialStep] = useState<FeishuWizardStep>('choose');
+  const [feishuWizardAutoStartAuthorization, setFeishuWizardAutoStartAuthorization] = useState(false);
   const [wechatWizardOpen, setWechatWizardOpen] = useState(false);
   const [bindingModalOpen, setBindingModalOpen] = useState(false);
   const [bindingBotId, setBindingBotId] = useState<string | null>(null);
@@ -253,6 +334,7 @@ export function Channels() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<Record<string, ChannelRuntimeCapability>>({});
+  const [feishuStatus, setFeishuStatus] = useState<FeishuWorkbenchStatus | null>(null);
   const [sessions, setSessions] = useState<ChannelSyncSession[]>([]);
   const [conversation, setConversation] = useState<ChannelSyncConversation | null>(null);
   const [messages, setMessages] = useState<ChannelSyncMessage[]>([]);
@@ -271,6 +353,7 @@ export function Channels() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [sessionSearchQuery, setSessionSearchQuery] = useState('');
+  const [fallbackSearchSessions, setFallbackSearchSessions] = useState<ChannelSyncSession[]>([]);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingSessionTitle, setEditingSessionTitle] = useState('');
 
@@ -295,7 +378,7 @@ export function Channels() {
   const scopedSessionAccountId = activeChannelType === 'wechat' && activeChannelAccountId && activeChannelAccountId !== 'default'
     ? activeChannelAccountId
     : undefined;
-  const showFeishuWorkbenchPlaceholder = selectedChannel?.type === 'feishu';
+  const feishuBannerState = activeChannelType === 'feishu' ? resolveFeishuBannerState(feishuStatus) : null;
   const selectedSessionType = sessions.find((session) => session.id === selectedConversationId)?.sessionType;
   const composerPlaceholder = selectedChannel
     ? buildWorkbenchComposerPlaceholder(selectedChannel.type, selectedSessionType)
@@ -303,6 +386,17 @@ export function Channels() {
   const conversationSyncStatusLabel = conversation?.syncState === 'synced'
     ? `${getChannelWorkbenchLabel(activeChannelType)}同步中`
     : conversation?.syncState ?? '';
+
+  const refreshFeishuStatus = useCallback(async () => {
+    try {
+      const response = await hostApiFetch<FeishuWorkbenchStatus>('/api/feishu/status');
+      setFeishuStatus(response);
+      return response;
+    } catch {
+      setFeishuStatus(null);
+      return null;
+    }
+  }, []);
 
   useEffect(() => {
     if (resolvedActiveChannelId !== activeChannelId) {
@@ -353,6 +447,24 @@ export function Channels() {
     };
   }, [channels]);
 
+  useEffect(() => {
+    if (activeChannelType !== 'feishu') {
+      setFeishuStatus(null);
+      return;
+    }
+
+    let active = true;
+    void refreshFeishuStatus().then((response) => {
+      if (active && response == null) {
+        setFeishuStatus(null);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [activeChannelType, resolvedActiveChannelId, refreshFeishuStatus]);
+
   const selectedRuntimeCapability = selectedChannel
     ? runtimeCapabilities[selectedChannel.id] ?? runtimeCapabilities[`${selectedChannel.type}-${selectedChannel.accountId || 'default'}`] ?? null
     : null;
@@ -376,11 +488,13 @@ export function Channels() {
     accountId?: string;
     initialConfigValues?: Record<string, string> | null;
     initialStep?: FeishuWizardStep;
+    autoStartAuthorization?: boolean;
   }) => {
     setFeishuWizardInitialName(options?.initialChannelName?.trim() ?? '');
     setFeishuWizardAccountId(options?.accountId?.trim() || 'default');
     setFeishuWizardInitialConfigValues(options?.initialConfigValues ?? null);
     setFeishuWizardInitialStep(options?.initialStep ?? 'choose');
+    setFeishuWizardAutoStartAuthorization(Boolean(options?.autoStartAuthorization));
     setFeishuWizardOpen(true);
   };
 
@@ -433,7 +547,16 @@ export function Channels() {
         return [...msgs, ...uniqueOptimistic];
       });
     } else {
-      setMessages(msgs);
+      setMessages((prev) => {
+        const failedMsgs = prev.filter((message) => message.sendError);
+        const serverMsgIds = new Set(msgs.map((message) => message.id));
+        const uniqueFailed = failedMsgs.filter(
+          (failed) =>
+            !serverMsgIds.has(failed.id)
+            && !msgs.some((message) => message.isSelf && message.content === failed.content),
+        );
+        return [...msgs, ...uniqueFailed];
+      });
     }
 
     setHasMoreMessages(response.hasMore ?? false);
@@ -644,13 +767,19 @@ export function Channels() {
     openChannelConfig(activeChannelType, selectedChannel?.accountId);
   };
 
-  const feishuPlaceholderActionLabel = selectedChannel ? '打开频道设置' : '新增飞书接入';
+  const feishuPlaceholderActionLabel = feishuBannerState?.actionLabel ?? (selectedChannel ? '打开频道设置' : '新增飞书接入');
   const handleFeishuPlaceholderAction = () => {
-    if (selectedChannel) {
-      setSettingsOpen(true);
+    if (!feishuBannerState) return;
+    if (!selectedChannel) {
+      handleQuickAddCurrentType();
       return;
     }
-    handleQuickAddCurrentType();
+    openFeishuWizard({
+      accountId: selectedChannel.accountId,
+      initialChannelName: selectedChannel.name,
+      initialStep: feishuBannerState.initialStep,
+      autoStartAuthorization: feishuBannerState.autoStartAuthorization,
+    });
   };
 
   const handleSend = async (retryText?: string) => {
@@ -675,10 +804,16 @@ export function Channels() {
       return [...filtered, optimisticMsg];
     });
     try {
-      await hostApiFetch(`/api/channels/${encodeURIComponent(selectedChannel.id)}/send`, {
+      const response = await hostApiFetch<{
+        warning?: string;
+      }>(`/api/channels/${encodeURIComponent(selectedChannel.id)}/send`, {
         method: 'POST',
         body: JSON.stringify({ text, conversationId: convId, identity: 'bot' }),
       });
+      if (response.warning) {
+        setTestResult({ ok: true, msg: response.warning });
+        window.setTimeout(() => setTestResult(null), 6000);
+      }
       // Poll for new messages — loadConversation will drop the optimistic message
       // once it sees a server-side self-message with matching content.
       window.setTimeout(() => { void loadConversation(convId, true); }, 1000);
@@ -700,13 +835,40 @@ export function Channels() {
 
   const ARCHIVE_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
   const now = Date.now();
-  const filteredSessions = sessions.filter((s) => {
-    if (!sessionSearchQuery) return true;
-    const q = sessionSearchQuery.toLowerCase();
-    if (s.title.toLowerCase().includes(q)) return true;
-    if (s.previewText?.toLowerCase().includes(q)) return true;
-    return false;
-  });
+  const filteredSessions = sessions.filter((session) => matchesSessionSearch(session, sessionSearchQuery));
+  const displayedSessions = sessionSearchQuery.trim() && filteredSessions.length === 0 && fallbackSearchSessions.length > 0
+    ? fallbackSearchSessions
+    : filteredSessions;
+
+  useEffect(() => {
+    if (activeChannelType !== 'feishu' || !sessionSearchQuery.trim()) {
+      setFallbackSearchSessions([]);
+      return;
+    }
+    if (filteredSessions.length > 0) {
+      setFallbackSearchSessions([]);
+      return;
+    }
+
+    let active = true;
+    void hostApiFetch<{ sessions?: ChannelSyncSession[] }>(
+      `/api/channels/workbench/search?channelType=feishu&query=${encodeURIComponent(sessionSearchQuery.trim())}`,
+    )
+      .then((response) => {
+        if (active) {
+          setFallbackSearchSessions(response.sessions ?? []);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setFallbackSearchSessions([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [activeChannelType, filteredSessions.length, sessionSearchQuery]);
 
   const beginRenameSession = (session: ChannelSyncSession) => {
     setEditingSessionId(session.id);
@@ -866,11 +1028,11 @@ export function Channels() {
             <div className="px-2 py-8 text-[13px] text-[#8e8e93]">{t('common:status.loading')}</div>
           ) : error ? (
             <div className="px-2 py-8 text-[13px] text-[#ef4444]">{error}</div>
-          ) : filteredSessions.length === 0 ? (
+          ) : displayedSessions.length === 0 ? (
             <div className="px-2 py-8 text-[13px] text-[#8e8e93]">{t('syncWorkbench.emptySessions', { defaultValue: '暂无同步会话' })}</div>
           ) : (
             <div className="flex flex-col gap-2">
-              {filteredSessions.map((session) => {
+              {displayedSessions.map((session) => {
                 const isActive = session.id === selectedConversationId;
                 const isError = session.syncState === 'error';
                 const lastActivity = session.latestActivityAt ? Date.parse(session.latestActivityAt) : null;
@@ -984,19 +1146,18 @@ export function Channels() {
 
       <main className="relative flex min-w-0 flex-1 flex-col bg-white">
         <div
-          className={cn(
-            'flex min-h-0 flex-1 flex-col',
-            showFeishuWorkbenchPlaceholder && 'pointer-events-none select-none opacity-25',
-          )}
+          className="flex min-h-0 flex-1 flex-col"
         >
         {!conversation || !selectedChannel ? (
           <div
             data-testid={!selectedChannel ? 'channels-neutral-placeholder' : undefined}
             className="flex flex-1 flex-col items-center justify-center gap-3 text-center"
           >
-            <span className={selectedChannel ? 'text-[40px]' : 'text-[36px] text-[#94a3b8]'}>
-              {selectedChannel ? CHANNEL_ICONS[activeChannelType] : '◎'}
-            </span>
+            {selectedChannel ? (
+              <ChannelIcon type={activeChannelType} className="h-10 w-10" />
+            ) : (
+              <span className="text-[36px] text-[#94a3b8]">◎</span>
+            )}
             <p className="text-[14px] text-[#8e8e93]">{t('syncWorkbench.emptyConversation', { defaultValue: '选择一个同步会话开始查看' })}</p>
           </div>
         ) : (
@@ -1026,6 +1187,31 @@ export function Channels() {
                 </button>
               </div>
             </header>
+
+            {feishuBannerState ? (
+              <div
+                data-testid="feishu-status-banner"
+                className={cn(
+                  'mx-6 mt-3 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3',
+                  feishuBannerState.tone === 'info' && 'border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]',
+                  feishuBannerState.tone === 'warn' && 'border-[#fde68a] bg-[#fffbeb] text-[#b45309]',
+                  feishuBannerState.tone === 'error' && 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]',
+                )}
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium">{feishuBannerState.title}</p>
+                  <p className="mt-1 text-[12px] opacity-90">{feishuBannerState.description}</p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="feishu-status-action"
+                  onClick={handleFeishuPlaceholderAction}
+                  className="shrink-0 rounded-full border border-current/20 px-3 py-1.5 text-[12px] font-medium hover:bg-white/60"
+                >
+                  {feishuPlaceholderActionLabel}
+                </button>
+              </div>
+            ) : null}
 
             {testResult ? (
               <div className={cn(
@@ -1303,13 +1489,6 @@ export function Channels() {
           </>
         )}
         </div>
-        {showFeishuWorkbenchPlaceholder ? (
-          <FeishuWorkbenchPlaceholder
-            channelName={selectedChannel?.name ?? null}
-            actionLabel={feishuPlaceholderActionLabel}
-            onAction={handleFeishuPlaceholderAction}
-          />
-        ) : null}
       </main>
 
       {lightboxUrl && (
@@ -1583,6 +1762,7 @@ export function Channels() {
       {feishuWizardOpen && (
         <FeishuOnboardingWizard
           accountId={feishuWizardAccountId}
+          autoStartAuthorization={feishuWizardAutoStartAuthorization}
           initialConfigValues={feishuWizardInitialConfigValues ?? undefined}
           initialChannelName={feishuWizardInitialName}
           initialStep={feishuWizardInitialStep}
@@ -1592,6 +1772,7 @@ export function Channels() {
             setFeishuWizardAccountId('default');
             setFeishuWizardInitialConfigValues(null);
             setFeishuWizardInitialStep('choose');
+            setFeishuWizardAutoStartAuthorization(false);
           }}
           onConfigured={async ({ channelName }) => {
             const hadFeishuChannel = channels.some((channel) => channel.type === 'feishu');

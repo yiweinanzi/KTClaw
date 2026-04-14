@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, Clock3, Download, Pin, Plus, Trash2 } from 'lucide-react';
+import { ChannelIcon } from '@/components/channels/ChannelIcon';
 import { useSettingsStore } from '@/stores/settings';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
-import { CHANNEL_ICONS } from '@/types/channel';
+import type { ChannelType } from '@/types/channel';
 import type { AttachedFileMeta } from '@/stores/chat';
 import {
   buildConversationExportFileName,
@@ -307,7 +308,10 @@ export function ContextRail() {
             <div className="flex flex-wrap gap-1.5">
               {currentAgent.channelTypes.map((ch) => (
                 <span key={ch} className="rounded-md bg-[#f2f2f7] px-2 py-0.5 text-[12px] text-[#3c3c43]">
-                  {CHANNEL_ICONS[ch as keyof typeof CHANNEL_ICONS] ?? '📡'} {ch}
+                  <span className="inline-flex items-center gap-1">
+                    <ChannelIcon type={ch as ChannelType} className="h-3.5 w-3.5 shrink-0" />
+                    <span>{ch}</span>
+                  </span>
                 </span>
               ))}
             </div>

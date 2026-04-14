@@ -4,6 +4,7 @@ import { getProviderSecret } from '../secrets/secret-store';
 import type { ProviderConfig } from '../../utils/secure-storage';
 import { getAllProviders, getApiKey, getDefaultProvider, getProvider } from '../../utils/secure-storage';
 import { getProviderConfig, getProviderDefaultModel } from '../../utils/provider-registry';
+import { readOpenClawConfig, writeOpenClawConfig } from '../../utils/channel-config';
 import {
   removeProviderKeyFromOpenClaw,
   removeProviderFromOpenClaw,
@@ -235,6 +236,8 @@ export async function syncAllProviderAuthToRuntime(): Promise<void> {
       });
     }
   }
+
+  await normalizeAgentModelRefsInOpenClawConfig();
 }
 
 async function syncProviderSecretToRuntime(
@@ -269,6 +272,108 @@ async function syncProviderSecretToRuntime(
 
   if (secret?.type === 'local' && secret.apiKey) {
     await saveProviderKeyToOpenClaw(runtimeProviderKey, secret.apiKey);
+  }
+}
+
+function normalizeModelRefToRuntimeKey(
+  modelRef: string | undefined,
+  providerKeysByVendor: Map<string, string[]>,
+): string | undefined {
+  if (!modelRef) return modelRef;
+
+  const trimmed = modelRef.trim();
+  if (!trimmed) return modelRef;
+
+  const separatorIndex = trimmed.indexOf('/');
+  if (separatorIndex === -1) return modelRef;
+
+  const vendorKey = trimmed.slice(0, separatorIndex);
+  const modelId = trimmed.slice(separatorIndex + 1);
+  const runtimeKeys = providerKeysByVendor.get(vendorKey) ?? [];
+  if (runtimeKeys.length !== 1) return modelRef;
+
+  const runtimeKey = runtimeKeys[0];
+  if (!runtimeKey || runtimeKey === vendorKey) return modelRef;
+
+  return `${runtimeKey}/${modelId}`;
+}
+
+async function normalizeAgentModelRefsInOpenClawConfig(): Promise<void> {
+  const accounts = await listProviderAccounts();
+  if (accounts.length === 0) return;
+
+  const providerKeysByVendor = new Map<string, string[]>();
+  for (const account of accounts) {
+    const runtimeProviderKey = await resolveRuntimeProviderKey({
+      id: account.id,
+      name: account.label,
+      type: account.vendorId,
+      baseUrl: account.baseUrl,
+      model: account.model,
+      fallbackModels: account.fallbackModels,
+      fallbackProviderIds: account.fallbackAccountIds,
+      enabled: account.enabled,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt,
+    });
+
+    const existing = providerKeysByVendor.get(account.vendorId) ?? [];
+    if (!existing.includes(runtimeProviderKey)) {
+      existing.push(runtimeProviderKey);
+      providerKeysByVendor.set(account.vendorId, existing);
+    }
+  }
+
+  const config = await readOpenClawConfig();
+  const agents = config.agents && typeof config.agents === 'object'
+    ? config.agents as Record<string, unknown>
+    : null;
+  if (!agents) return;
+
+  let modified = false;
+
+  const defaults = agents.defaults && typeof agents.defaults === 'object'
+    ? agents.defaults as Record<string, unknown>
+    : null;
+  if (defaults) {
+    if (typeof defaults.model === 'string') {
+      const normalized = normalizeModelRefToRuntimeKey(defaults.model, providerKeysByVendor);
+      if (normalized && normalized !== defaults.model) {
+        defaults.model = normalized;
+        modified = true;
+      }
+    } else if (defaults.model && typeof defaults.model === 'object') {
+      const modelConfig = defaults.model as Record<string, unknown>;
+      if (typeof modelConfig.primary === 'string') {
+        const normalized = normalizeModelRefToRuntimeKey(modelConfig.primary, providerKeysByVendor);
+        if (normalized && normalized !== modelConfig.primary) {
+          modelConfig.primary = normalized;
+          modified = true;
+        }
+      }
+      if (Array.isArray(modelConfig.fallbacks)) {
+        const normalizedFallbacks = modelConfig.fallbacks.map((entry) =>
+          typeof entry === 'string' ? normalizeModelRefToRuntimeKey(entry, providerKeysByVendor) ?? entry : entry);
+        if (JSON.stringify(normalizedFallbacks) !== JSON.stringify(modelConfig.fallbacks)) {
+          modelConfig.fallbacks = normalizedFallbacks;
+          modified = true;
+        }
+      }
+    }
+  }
+
+  const agentList = Array.isArray(agents.list) ? agents.list as Array<Record<string, unknown>> : [];
+  for (const agent of agentList) {
+    if (typeof agent.model !== 'string') continue;
+    const normalized = normalizeModelRefToRuntimeKey(agent.model, providerKeysByVendor);
+    if (normalized && normalized !== agent.model) {
+      agent.model = normalized;
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    await writeOpenClawConfig(config);
   }
 }
 

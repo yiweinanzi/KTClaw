@@ -18,6 +18,7 @@ const FEISHU_RECOMMENDED_VERSION_NEW = '2026.3.25';
 const FEISHU_RECOMMENDED_VERSION_LEGACY = '2026.3.18';
 const FEISHU_PLUGIN_DIR_NAME = 'feishu-openclaw-plugin';
 const FEISHU_PLUGIN_ALT_DIR_NAME = 'openclaw-lark';
+const FEISHU_AUTH_STATUS_TIMEOUT_MS = 1500;
 
 export type FeishuNextAction =
   | 'upgrade-openclaw'
@@ -53,7 +54,15 @@ export interface FeishuIntegrationStatus {
     accountIds: string[];
     pluginEnabled: boolean;
   };
+  status: 'unconfigured' | 'authorized' | 'bot-only' | 'expired' | 'error';
+  auth: {
+    available: boolean;
+    accountId: string | null;
+    ownerOpenId: string | null;
+    tokenStatus: 'valid' | 'needs_refresh' | 'expired' | 'missing' | 'unknown';
+  };
   nextAction: FeishuNextAction;
+  warning?: string;
 }
 
 export interface FeishuPluginInstallResult {
@@ -252,6 +261,128 @@ function resolveRecommendedPluginVersion(openClawVersion: string | null): string
   return FEISHU_RECOMMENDED_VERSION_LEGACY;
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
+async function resolveFeishuAuthorizationState(channelState: {
+  configured: boolean;
+  accountIds: string[];
+  pluginEnabled: boolean;
+}): Promise<{
+  status: FeishuIntegrationStatus['status'];
+  auth: FeishuIntegrationStatus['auth'];
+  warning?: string;
+}> {
+  const preferredAccountId = channelState.accountIds[0] ?? null;
+  if (!channelState.configured || !channelState.pluginEnabled) {
+    return {
+      status: 'unconfigured',
+      auth: {
+        available: false,
+        accountId: preferredAccountId,
+        ownerOpenId: null,
+        tokenStatus: 'missing',
+      },
+      warning: 'Complete Feishu channel setup to enable personal authorization.',
+    };
+  }
+
+  try {
+    const runtime = await loadFeishuAuthRuntime();
+    const config = await readOpenClawConfig();
+    const accountId = preferredAccountId ?? 'default';
+    const account = runtime.getLarkAccount(config as Record<string, unknown>, accountId);
+    if (!account?.configured || !account.appId) {
+      return {
+        status: 'bot-only',
+        auth: {
+          available: false,
+          accountId,
+          ownerOpenId: null,
+          tokenStatus: 'missing',
+        },
+      };
+    }
+
+    const sdk = runtime.createSdk(account);
+    const ownerOpenId = await runtime.getAppOwnerFallback(account, sdk).catch(() => undefined);
+    if (!ownerOpenId) {
+      return {
+        status: 'bot-only',
+        auth: {
+          available: false,
+          accountId,
+          ownerOpenId: null,
+          tokenStatus: 'missing',
+        },
+      };
+    }
+
+    const token = await runtime.getStoredToken(account.appId, ownerOpenId);
+    if (!token) {
+      return {
+        status: 'bot-only',
+        auth: {
+          available: false,
+          accountId,
+          ownerOpenId,
+          tokenStatus: 'missing',
+        },
+      };
+    }
+
+    const tokenStatus = runtime.getTokenStatus(token);
+    if (tokenStatus === 'expired') {
+      return {
+        status: 'expired',
+        auth: {
+          available: false,
+          accountId,
+          ownerOpenId,
+          tokenStatus,
+        },
+        warning: 'Feishu personal authorization expired and fell back to bot mode.',
+      };
+    }
+
+    return {
+      status: 'authorized',
+      auth: {
+        available: true,
+        accountId,
+        ownerOpenId,
+        tokenStatus,
+      },
+    };
+  } catch (error) {
+    return {
+      status: 'bot-only',
+      auth: {
+        available: false,
+        accountId: preferredAccountId,
+        ownerOpenId: null,
+        tokenStatus: 'unknown',
+      },
+      warning: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function getFeishuIntegrationStatus(): Promise<FeishuIntegrationStatus> {
   const openClawStatus = getOpenClawStatus();
   const bundledPlugin = await resolveBundledPluginInfo();
@@ -281,6 +412,46 @@ export async function getFeishuIntegrationStatus(): Promise<FeishuIntegrationSta
     nextAction = 'configure-channel';
   }
 
+  let status: FeishuIntegrationStatus['status'] = 'error';
+  let warning: string | undefined;
+  let auth: FeishuIntegrationStatus['auth'] = {
+    available: false,
+    accountId: channelState.accountIds[0] ?? null,
+    ownerOpenId: null,
+    tokenStatus: 'missing',
+  };
+
+  if (nextAction === 'upgrade-openclaw') {
+    status = 'error';
+    warning = 'Upgrade OpenClaw before using Feishu personal authorization.';
+  } else if (nextAction === 'install-plugin') {
+    status = 'error';
+    warning = 'Install the Feishu plugin before using the workbench.';
+  } else if (nextAction === 'update-plugin') {
+    status = 'error';
+    warning = 'Update the Feishu plugin to restore full workbench support.';
+  } else {
+    try {
+      const authorizationState = await withTimeout(
+        resolveFeishuAuthorizationState(channelState),
+        FEISHU_AUTH_STATUS_TIMEOUT_MS,
+        'Feishu authorization probe',
+      );
+      status = authorizationState.status;
+      auth = authorizationState.auth;
+      warning = authorizationState.warning;
+    } catch (error) {
+      status = 'bot-only';
+      auth = {
+        available: false,
+        accountId: channelState.accountIds[0] ?? null,
+        ownerOpenId: null,
+        tokenStatus: 'unknown',
+      };
+      warning = error instanceof Error ? error.message : String(error);
+    }
+  }
+
   return {
     docsVersion: FEISHU_DOCS_VERSION,
     openClaw: {
@@ -298,7 +469,10 @@ export async function getFeishuIntegrationStatus(): Promise<FeishuIntegrationSta
       needsUpdate,
     },
     channel: channelState,
+    status,
+    auth,
     nextAction,
+    ...(warning ? { warning } : {}),
   };
 }
 

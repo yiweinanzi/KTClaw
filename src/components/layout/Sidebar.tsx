@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { ChannelIcon } from '@/components/channels/ChannelIcon';
 import { GlobalSearchModal } from '@/components/search/GlobalSearchModal';
 import { SessionItem } from '@/components/sessions/SessionItem';
 import { SessionSearchModal } from '@/components/sessions/SessionSearchModal';
@@ -25,7 +26,6 @@ import { useChatStore } from '@/stores/chat';
 import { useGatewayStore } from '@/stores/gateway';
 import { useSettingsStore } from '@/stores/settings';
 import { useRightPanelStore } from '@/stores/rightPanelStore';
-import { CHANNEL_ICONS } from '@/types/channel';
 const NICKNAME_STORAGE_KEY = 'ktclaw-user-nickname';
 const LEGACY_NICKNAME_STORAGE_KEY = 'clawx-user-nickname';
 const AVATAR_STORAGE_KEY = 'ktclaw-user-avatar';
@@ -445,7 +445,6 @@ export function Sidebar() {
                   <>
                     {sortedBots.map((bot) => {
                       const isActive = bot.id === activeChannelId;
-                      const icon = CHANNEL_ICONS[bot.type] ?? '🔌';
                       const statusDotColor =
                         bot.status === 'connected'
                           ? 'bg-[#10b981]'
@@ -473,7 +472,7 @@ export function Sidebar() {
                             }}
                             className="flex min-w-0 flex-1 items-center gap-2"
                           >
-                            <span className="shrink-0 text-[14px]">{icon}</span>
+                            <ChannelIcon type={bot.type} className="h-[14px] w-[14px] shrink-0" />
                             <span className="truncate text-[13px]">{bot.name}</span>
                             <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', statusDotColor)} />
                           </button>

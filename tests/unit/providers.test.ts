@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { createElement } from 'react';
 import {
+  buildAgentModelRef,
   PROVIDER_TYPES,
   PROVIDER_TYPE_INFO,
   getProviderDocsUrl,
@@ -149,6 +150,38 @@ describe('provider metadata', () => {
     expect(resolveProviderApiKeyForSave('ollama', 'real-key')).toBe('real-key');
     expect(resolveProviderApiKeyForSave('openai', '')).toBeUndefined();
     expect(resolveProviderApiKeyForSave('openai', ' sk-test ')).toBe('sk-test');
+  });
+
+  it('builds runtime model refs for multi-instance providers', () => {
+    expect(buildAgentModelRef(
+      {
+        id: 'ollama-ollamaad',
+        vendorId: 'ollama',
+        label: 'Ollama Local',
+        model: 'qwen3.5-0.8b',
+        authMode: 'local',
+        enabled: true,
+        isDefault: false,
+        createdAt: '2026-04-12T00:00:00.000Z',
+        updatedAt: '2026-04-12T00:00:00.000Z',
+      },
+      undefined,
+    )).toBe('ollama-ollamaol/qwen3.5-0.8b');
+
+    expect(buildAgentModelRef(
+      {
+        id: 'custom-provider-1',
+        vendorId: 'custom',
+        label: 'Custom',
+        model: 'my-model',
+        authMode: 'api_key',
+        enabled: true,
+        isDefault: false,
+        createdAt: '2026-04-12T00:00:00.000Z',
+        updatedAt: '2026-04-12T00:00:00.000Z',
+      },
+      undefined,
+    )).toBe('custom-custompr/my-model');
   });
 
   it('renders the reusable models and providers settings panel', async () => {

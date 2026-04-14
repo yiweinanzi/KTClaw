@@ -249,3 +249,27 @@ export function resolveProviderApiKeyForSave(type: ProviderType | string, apiKey
   }
   return trimmed || undefined;
 }
+
+export function getOpenClawProviderKeyForAccount(vendorId: ProviderType | string, accountId: string): string {
+  if (vendorId === 'custom' || vendorId === 'ollama') {
+    const suffix = accountId.replace(/-/g, '').slice(0, 8);
+    return `${vendorId}-${suffix}`;
+  }
+  if (vendorId === 'minimax-portal-cn') {
+    return 'minimax-portal';
+  }
+  return vendorId;
+}
+
+export function buildAgentModelRef(
+  account: Pick<ProviderAccount, 'id' | 'model'> & { vendorId: string },
+  vendor?: Pick<ProviderVendorInfo, 'defaultModelId'>,
+): string | undefined {
+  const modelId = account.model || vendor?.defaultModelId;
+  if (!modelId) {
+    return undefined;
+  }
+
+  const providerKey = getOpenClawProviderKeyForAccount(account.vendorId, account.id);
+  return `${providerKey}/${modelId}`;
+}

@@ -8,6 +8,7 @@ import { useTeamsStore } from '@/stores/teams';
 import { useProviderStore } from '@/stores/providers';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { buildAgentModelRef } from '@/lib/providers';
 
 const inputClasses = 'h-[44px] rounded-xl border border-black/10 bg-[#eeece3] px-3 text-[13px] text-foreground shadow-sm transition-all placeholder:text-foreground/40 focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 dark:border-white/10 dark:bg-muted';
 const labelClasses = 'text-[14px] font-bold text-foreground/80';
@@ -23,9 +24,8 @@ function buildModelOptions(
     if (!account.enabled) continue;
     const vendor = vendorMap.get(account.vendorId);
     const modelId = account.model || vendor?.defaultModelId;
-    if (!modelId) continue;
-
-    const value = `${account.vendorId}/${modelId}`;
+    const value = buildAgentModelRef(account, vendor);
+    if (!modelId || !value) continue;
     const label = `${vendor?.name || account.vendorId} / ${modelId}`;
     if (!options.some((option) => option.value === value)) {
       options.push({ value, label });

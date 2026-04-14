@@ -7,6 +7,7 @@ const {
   chatState,
   gatewayState,
   settingsState,
+  providerStoreState,
   navigateMock,
   hostApiFetchMock,
   toastInfoMock,
@@ -27,6 +28,25 @@ const {
   },
   settingsState: {
     defaultModel: 'claude-sonnet-4-6',
+  },
+  providerStoreState: {
+    accounts: [
+      {
+        id: 'openai-primary',
+        vendorId: 'openai',
+        label: 'OpenAI Primary',
+        model: 'gpt-5.4',
+        enabled: true,
+      },
+    ] as Array<Record<string, unknown>>,
+    vendors: [
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        defaultModelId: 'gpt-5.4',
+      },
+    ] as Array<Record<string, unknown>>,
+    refreshProviderSnapshot: vi.fn(async () => undefined),
   },
   navigateMock: vi.fn(),
   hostApiFetchMock: vi.fn(),
@@ -57,6 +77,10 @@ vi.mock('@/stores/gateway', () => ({
 
 vi.mock('@/stores/settings', () => ({
   useSettingsStore: (selector: (state: typeof settingsState) => unknown) => selector(settingsState),
+}));
+
+vi.mock('@/stores/providers', () => ({
+  useProviderStore: (selector: (state: typeof providerStoreState) => unknown) => selector(providerStoreState),
 }));
 
 vi.mock('@/lib/host-api', () => ({
@@ -131,6 +155,23 @@ describe('ChatInput agent targeting', () => {
     chatState.newSession = vi.fn();
     gatewayState.status = { state: 'running', port: 18789 };
     settingsState.defaultModel = 'claude-sonnet-4-6';
+    providerStoreState.accounts = [
+      {
+        id: 'openai-primary',
+        vendorId: 'openai',
+        label: 'OpenAI Primary',
+        model: 'gpt-5.4',
+        enabled: true,
+      },
+    ];
+    providerStoreState.vendors = [
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        defaultModelId: 'gpt-5.4',
+      },
+    ];
+    providerStoreState.refreshProviderSnapshot.mockReset();
     navigateMock.mockReset();
     hostApiFetchMock.mockReset();
     toastInfoMock.mockReset();

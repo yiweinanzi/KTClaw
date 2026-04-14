@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   setOpenClawDefaultModelWithOverride: vi.fn(),
   syncProviderConfigToOpenClaw: vi.fn(),
   updateAgentModelProvider: vi.fn(),
+  readOpenClawConfig: vi.fn(),
+  writeOpenClawConfig: vi.fn(),
 }));
 
 vi.mock('@electron/services/providers/provider-store', () => ({
@@ -52,6 +54,11 @@ vi.mock('@electron/utils/openclaw-auth', () => ({
   setOpenClawDefaultModelWithOverride: mocks.setOpenClawDefaultModelWithOverride,
   syncProviderConfigToOpenClaw: mocks.syncProviderConfigToOpenClaw,
   updateAgentModelProvider: mocks.updateAgentModelProvider,
+}));
+
+vi.mock('@electron/utils/channel-config', () => ({
+  readOpenClawConfig: mocks.readOpenClawConfig,
+  writeOpenClawConfig: mocks.writeOpenClawConfig,
 }));
 
 vi.mock('@electron/utils/logger', () => ({
@@ -113,6 +120,8 @@ describe('provider-runtime-sync refresh strategy', () => {
     mocks.saveProviderKeyToOpenClaw.mockResolvedValue(undefined);
     mocks.removeProviderFromOpenClaw.mockResolvedValue(undefined);
     mocks.updateAgentModelProvider.mockResolvedValue(undefined);
+    mocks.readOpenClawConfig.mockResolvedValue({});
+    mocks.writeOpenClawConfig.mockResolvedValue(undefined);
   });
 
   it('uses debouncedReload after saving provider config', async () => {
@@ -152,5 +161,62 @@ describe('provider-runtime-sync refresh strategy', () => {
 
     expect(gateway.debouncedReload).not.toHaveBeenCalled();
     expect(gateway.debouncedRestart).not.toHaveBeenCalled();
+  });
+
+  it('normalizes legacy ollama model refs to the runtime provider key during startup sync', async () => {
+    mocks.listProviderAccounts.mockResolvedValue([
+      {
+        id: 'ollama-ollamaad',
+        vendorId: 'ollama',
+        label: 'Ollama',
+        authMode: 'local',
+        baseUrl: 'http://localhost:8000/v1',
+        model: 'qwen3.5-0.8b',
+        enabled: true,
+        isDefault: false,
+        createdAt: '2026-04-12T00:00:00.000Z',
+        updatedAt: '2026-04-12T00:00:00.000Z',
+      },
+    ]);
+    mocks.getProviderSecret.mockResolvedValue({
+      type: 'local',
+      accountId: 'ollama-ollamaad',
+      apiKey: 'ollama-local',
+    });
+    mocks.readOpenClawConfig.mockResolvedValue({
+      agents: {
+        defaults: {
+          model: {
+            primary: 'ollama/qwen3.5-0.8b',
+            fallbacks: [],
+          },
+        },
+        list: [
+          {
+            id: 'main',
+            model: 'ollama/qwen3.5-0.8b',
+          },
+        ],
+      },
+    });
+
+    const { syncAllProviderAuthToRuntime } = await import('@electron/services/providers/provider-runtime-sync');
+    await syncAllProviderAuthToRuntime();
+
+    expect(mocks.writeOpenClawConfig).toHaveBeenCalledWith(expect.objectContaining({
+      agents: expect.objectContaining({
+        defaults: expect.objectContaining({
+          model: expect.objectContaining({
+            primary: 'ollama-ollamaol/qwen3.5-0.8b',
+          }),
+        }),
+        list: [
+          expect.objectContaining({
+            id: 'main',
+            model: 'ollama-ollamaol/qwen3.5-0.8b',
+          }),
+        ],
+      }),
+    }));
   });
 });

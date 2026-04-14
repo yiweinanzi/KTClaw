@@ -19,6 +19,7 @@ import {
 } from '@/lib/chat-session-export';
 import { hostApiFetch } from '@/lib/host-api';
 import { invokeIpc } from '@/lib/api-client';
+import { buildAgentModelRef } from '@/lib/providers';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/stores/agents';
 import { useChatStore } from '@/stores/chat';
@@ -147,6 +148,7 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
   const modelPickerRef = useRef<HTMLDivElement>(null);
   const providerAccounts = useProviderStore((s) => s.accounts);
   const providerVendors = useProviderStore((s) => s.vendors);
+  const refreshProviderSnapshot = useProviderStore((s) => s.refreshProviderSnapshot);
   const updateAgent = useAgentsStore((s) => s.updateAgent);
   const modelOptions = useMemo(() => {
     const vendorMap = new Map(providerVendors.map((v) => [v.id, v]));
@@ -155,8 +157,8 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
       if (!account.enabled) continue;
       const vendor = vendorMap.get(account.vendorId);
       const modelId = account.model || vendor?.defaultModelId;
-      if (!modelId) continue;
-      const value = `${account.vendorId}/${modelId}`;
+      const value = buildAgentModelRef(account, vendor);
+      if (!modelId || !value) continue;
       const label = `${vendor?.name || account.vendorId} / ${modelId}`;
       if (!options.some((o) => o.value === value)) {
         options.push({ value, label });
@@ -164,6 +166,14 @@ export function ChatInput({ onSend, onStop, disabled = false, sending = false, i
     }
     return options;
   }, [providerAccounts, providerVendors]);
+
+  useEffect(() => {
+    if (providerAccounts.length > 0 && providerVendors.length > 0) {
+      return;
+    }
+    void refreshProviderSnapshot();
+  }, [providerAccounts.length, providerVendors.length, refreshProviderSnapshot]);
+
   const imageUnderstandingAvailability = useMemo(
     () => resolveImageUnderstandingAvailability({
       currentModel: currentAgent?.model || currentModelDisplay,

@@ -14,6 +14,7 @@ import { CHANNEL_ICONS, CHANNEL_NAMES, type ChannelType } from '@/types/channel'
 import type { AgentSummary } from '@/types/agent';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import { buildAgentModelRef } from '@/lib/providers';
 import telegramIcon from '@/assets/channels/telegram.svg';
 import discordIcon from '@/assets/channels/discord.svg';
 import whatsappIcon from '@/assets/channels/whatsapp.svg';
@@ -47,8 +48,8 @@ function buildModelOptions(accounts: Array<{ id: string; vendorId: string; label
     if (!account.enabled) continue;
     const vendor = vendorMap.get(account.vendorId);
     const modelId = account.model || vendor?.defaultModelId;
-    if (!modelId) continue;
-    const value = `${account.vendorId}/${modelId}`;
+    const value = buildAgentModelRef(account, vendor);
+    if (!modelId || !value) continue;
     const label = `${vendor?.name || account.vendorId} / ${modelId}`;
     if (!options.some((o) => o.value === value)) {
       options.push({ value, label });
