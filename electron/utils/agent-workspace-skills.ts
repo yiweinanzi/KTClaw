@@ -1,8 +1,7 @@
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { homedir } from 'os';
 import { listAgentsSnapshot } from './agent-config';
-import { expandPath } from './paths';
+import { expandPath, getOpenClawSkillsDir } from './paths';
 
 async function getAgentWorkspace(agentId: string): Promise<string> {
   const snapshot = await listAgentsSnapshot();
@@ -16,7 +15,7 @@ async function getAgentWorkspace(agentId: string): Promise<string> {
 
 export async function assignInstalledSkillToAgentWorkspace(agentId: string, slug: string): Promise<void> {
   const workspaceDir = await getAgentWorkspace(agentId);
-  const sourceDir = join(homedir(), '.openclaw', 'skills', slug);
+  const sourceDir = join(getOpenClawSkillsDir(), slug);
   const skillsDir = join(workspaceDir, 'skills');
   const targetDir = join(skillsDir, slug);
 

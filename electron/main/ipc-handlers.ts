@@ -1456,7 +1456,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
     candidateSources: string[],
     pluginLabel: string,
   ): { installed: boolean; warning?: string } {
-    const targetDir = join(homedir(), '.openclaw', 'extensions', pluginDirName);
+    const targetDir = join(getOpenClawConfigDir(), 'extensions', pluginDirName);
     const targetManifest = join(targetDir, 'openclaw.plugin.json');
     const targetPkgJson = join(targetDir, 'package.json');
 
@@ -1482,7 +1482,7 @@ function registerOpenClawHandlers(gatewayManager: GatewayManager): void {
     }
 
     try {
-      mkdirSync(join(homedir(), '.openclaw', 'extensions'), { recursive: true });
+      mkdirSync(join(getOpenClawConfigDir(), 'extensions'), { recursive: true });
       rmSync(targetDir, { recursive: true, force: true });
       cpSync(sourceDir, targetDir, { recursive: true, dereference: true });
 

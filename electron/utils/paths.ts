@@ -31,6 +31,9 @@ export function expandPath(path: string): string {
  * Get OpenClaw config directory
  */
 export function getOpenClawConfigDir(): string {
+  if (app.isPackaged) {
+    return join(app.getPath('userData'), 'openclaw');
+  }
   return join(homedir(), '.openclaw');
 }
 

@@ -1,11 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { getOpenClawConfigDir } from '../../utils/paths';
 
-const FEISHU_PLUGIN_ROOT = join(homedir(), '.openclaw', 'extensions', 'feishu-openclaw-plugin');
+const FEISHU_PLUGIN_ROOT = join(getOpenClawConfigDir(), 'extensions', 'feishu-openclaw-plugin');
 
 export async function readFeishuOpenClawConfigJson(): Promise<Record<string, unknown> | null> {
   try {

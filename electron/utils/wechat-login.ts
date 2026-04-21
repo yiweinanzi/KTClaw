@@ -6,6 +6,7 @@ import { logger } from './logger';
 import { normalizeOpenClawAccountId, OPENCLAW_WECHAT_CHANNEL_TYPE } from './channel-alias';
 import { proxyAwareFetch } from './proxy-fetch';
 import { renderQrPngDataUrl } from './qr-code';
+import { getOpenClawConfigDir } from './paths';
 
 type WeChatQrStatus = 'pending' | 'scanned' | 'confirmed' | 'expired' | 'error';
 
@@ -55,7 +56,7 @@ type WeChatAccountData = {
 };
 
 function resolveWeChatStateDir(): string {
-  return join(homedir(), '.openclaw', OPENCLAW_WECHAT_CHANNEL_TYPE);
+  return join(getOpenClawConfigDir(), OPENCLAW_WECHAT_CHANNEL_TYPE);
 }
 
 function resolveWeChatAccountsDir(): string {

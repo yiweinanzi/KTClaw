@@ -1,11 +1,12 @@
 import { app, utilityProcess } from 'electron';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getOpenClawDir, getOpenClawEntryPath } from '../utils/paths';
+import { getOpenClawConfigDir, getOpenClawDir, getOpenClawEntryPath } from '../utils/paths';
 import { getUvMirrorEnv } from '../utils/uv-env';
 import { isPythonReady, setupManagedPython } from '../utils/uv-setup';
 import { logger } from '../utils/logger';
 import { prependPathEntry } from '../utils/env-path';
+import { stripOpenClawSupervisorEnv } from '../utils/openclaw-supervisor-env';
 import { probeGatewayReady } from './ws-client';
 
 const SYSTEMD_GATEWAY_SERVICE_NAMES = [
@@ -352,11 +353,13 @@ export async function runOpenClawDoctorRepair(): Promise<boolean> {
   );
 
   return await new Promise<boolean>((resolve) => {
-    const forkEnv: Record<string, string | undefined> = {
+    const forkEnv = stripOpenClawSupervisorEnv({
       ...baseEnvPatched,
       ...uvEnv,
+      OPENCLAW_STATE_DIR: getOpenClawConfigDir(),
+      OPENCLAW_CONFIG_PATH: path.join(getOpenClawConfigDir(), 'openclaw.json'),
       OPENCLAW_NO_RESPAWN: '1',
-    };
+    });
 
     const child = utilityProcess.fork(entryScript, doctorArgs, {
       cwd: openclawDir,

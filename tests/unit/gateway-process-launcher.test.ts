@@ -83,4 +83,40 @@ describe('launchGatewayProcess', () => {
     expect(options?.env?.NODE_OPTIONS).toContain('--disable-warning=ExperimentalWarning');
     expect(options?.env?.NODE_OPTIONS).toContain('gateway-fetch-preload.cjs');
   });
+
+  it('strips supervisor marker env vars before forking the embedded gateway', async () => {
+    const { launchGatewayProcess } = await import('@electron/gateway/process-launcher');
+
+    await launchGatewayProcess({
+      port: 18789,
+      launchContext: {
+        openclawDir: 'C:/repo/node_modules/openclaw',
+        entryScript: 'C:/repo/node_modules/openclaw/openclaw.mjs',
+        gatewayArgs: ['gateway', '--port', '18789', '--token', 'token', '--allow-unconfigured'],
+        forkEnv: {
+          OPENCLAW_WINDOWS_TASK_NAME: 'OpenClaw Gateway',
+          OPENCLAW_SERVICE_MARKER: '1',
+          OPENCLAW_SERVICE_KIND: 'gateway',
+        },
+        mode: 'dev',
+        binPathExists: true,
+        loadedProviderKeyCount: 0,
+        proxySummary: 'disabled',
+        channelStartupSummary: 'enabled(feishu)',
+        appSettings: {} as never,
+      },
+      sanitizeSpawnArgs: (args) => args,
+      getCurrentState: () => 'starting',
+      getShouldReconnect: () => true,
+      onStderrLine: () => {},
+      onSpawn: () => {},
+      onExit: () => {},
+      onError: () => {},
+    });
+
+    const options = forkMock.mock.calls.at(-1)?.[2] as { env?: Record<string, string | undefined> } | undefined;
+    expect(options?.env?.OPENCLAW_WINDOWS_TASK_NAME).toBeUndefined();
+    expect(options?.env?.OPENCLAW_SERVICE_MARKER).toBeUndefined();
+    expect(options?.env?.OPENCLAW_SERVICE_KIND).toBeUndefined();
+  });
 });

@@ -9,12 +9,11 @@ import { readFile, writeFile, access, cp, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { constants } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
-import { getOpenClawDir, getResourcesDir } from './paths';
+import { getOpenClawConfigDir, getOpenClawDir, getOpenClawSkillsDir, getResourcesDir } from './paths';
 import { logger } from './logger';
 import { withConfigLock } from './config-mutex';
 
-const OPENCLAW_CONFIG_PATH = join(homedir(), '.openclaw', 'openclaw.json');
+const OPENCLAW_CONFIG_PATH = join(getOpenClawConfigDir(), 'openclaw.json');
 
 interface SkillEntry {
     enabled?: boolean;
@@ -200,7 +199,7 @@ const BUILTIN_SKILLS = [] as const;
  * block the normal startup flow.
  */
 export async function ensureBuiltinSkillsInstalled(): Promise<void> {
-    const skillsRoot = join(homedir(), '.openclaw', 'skills');
+    const skillsRoot = getOpenClawSkillsDir();
 
     for (const { slug, sourceExtension } of BUILTIN_SKILLS) {
         const targetDir = join(skillsRoot, slug);
@@ -328,7 +327,7 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
     }
     const lockVersions = await readPreinstalledLockVersions(sourceRoot);
 
-    const targetRoot = join(homedir(), '.openclaw', 'skills');
+    const targetRoot = getOpenClawSkillsDir();
     await mkdir(targetRoot, { recursive: true });
     const toEnable: string[] = [];
 

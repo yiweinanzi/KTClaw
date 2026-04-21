@@ -1251,7 +1251,7 @@ export function ModelProviderSection({
           <li>
             3. <strong>诊断</strong> — 运行{' '}
             <code className="rounded bg-[#dbeafe] px-1 font-mono text-[12px]">
-              openclaw doctor --json
+              openclaw doctor --deep --non-interactive
             </code>{' '}
             检查环境变量、端口占用和权限。
           </li>

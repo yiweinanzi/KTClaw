@@ -233,7 +233,7 @@ export class WhatsAppLoginManager extends EventEmitter {
 
         try {
             // Path where OpenClaw expects WhatsApp credentials
-            const authDir = join(homedir(), '.openclaw', 'credentials', 'whatsapp', accountId);
+            const authDir = join(getOpenClawConfigDir(), 'credentials', 'whatsapp', accountId);
 
             // Ensure directory exists
             if (!existsSync(authDir)) {

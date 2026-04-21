@@ -7,14 +7,14 @@
 import { access, mkdir, readFile, writeFile, readdir, stat, rm } from 'fs/promises';
 import { constants } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 import * as logger from './logger';
 import { proxyAwareFetch } from './proxy-fetch';
 import { withConfigLock } from './config-mutex';
 import { runOpenClawDoctor } from './openclaw-doctor';
 import { OPENCLAW_WECHAT_CHANNEL_TYPE, toOpenClawChannelType, toUiChannelType } from './channel-alias';
+import { getOpenClawConfigDir } from './paths';
 
-const OPENCLAW_DIR = join(homedir(), '.openclaw');
+const OPENCLAW_DIR = getOpenClawConfigDir();
 const CONFIG_FILE = join(OPENCLAW_DIR, 'openclaw.json');
 const WECOM_PLUGIN_ID = 'wecom-openclaw-plugin';
 const FEISHU_PLUGIN_ID = 'openclaw-lark';
@@ -702,7 +702,7 @@ export async function deleteChannelConfig(channelType: string): Promise<void> {
 
         if (channelType === 'whatsapp') {
             try {
-                const whatsappDir = join(homedir(), '.openclaw', 'credentials', 'whatsapp');
+                const whatsappDir = join(getOpenClawConfigDir(), 'credentials', 'whatsapp');
                 if (await fileExists(whatsappDir)) {
                     await rm(whatsappDir, { recursive: true, force: true });
                     logger.info('Deleted WhatsApp credentials directory');
@@ -746,7 +746,7 @@ export async function listConfiguredChannels(): Promise<string[]> {
     }
 
     try {
-        const whatsappDir = join(homedir(), '.openclaw', 'credentials', 'whatsapp');
+        const whatsappDir = join(getOpenClawConfigDir(), 'credentials', 'whatsapp');
         if (await fileExists(whatsappDir)) {
             const entries = await readdir(whatsappDir);
             const hasSession = await (async () => {

@@ -6,7 +6,6 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import type {
   McpServerConfig,
   McpServerLogEntry,
@@ -18,6 +17,7 @@ import type {
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
 import { checkPermission } from '../../utils/permissions-enforcer';
+import { getOpenClawConfigDir } from '../../utils/paths';
 
 interface McpConfig {
   servers: McpServerConfig[];
@@ -34,7 +34,7 @@ type LegacyMcpServerEntry = Partial<{
 }>;
 
 function configPath(): string {
-  return join(homedir(), '.openclaw', 'mcp-servers.json');
+  return join(getOpenClawConfigDir(), 'mcp-servers.json');
 }
 
 export function loadMcpConfig(): McpConfig {
@@ -74,7 +74,7 @@ export function loadMcpConfig(): McpConfig {
 
 export function saveMcpConfig(config: McpConfig): void {
   const path = configPath();
-  mkdirSync(join(homedir(), '.openclaw'), { recursive: true });
+  mkdirSync(getOpenClawConfigDir(), { recursive: true });
   writeFileSync(path, JSON.stringify(config, null, 2), 'utf8');
 }
 

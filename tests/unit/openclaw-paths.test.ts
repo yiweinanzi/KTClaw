@@ -87,4 +87,14 @@ describe('OpenClaw path resolution', () => {
 
     cwdSpy.mockRestore();
   });
+
+  it('uses an app-scoped OpenClaw state directory when packaged', async () => {
+    mockApp.isPackaged = true;
+    mockGetPath.mockImplementation((name: string) =>
+      name === 'userData' ? 'C:/Users/test/AppData/Roaming/KTClaw' : 'C:/Users/test/AppData/Roaming/KTClaw');
+
+    const { getOpenClawConfigDir } = await importPathsModule();
+
+    expect(getOpenClawConfigDir()).toBe(join('C:/Users/test/AppData/Roaming/KTClaw', 'openclaw'));
+  });
 });

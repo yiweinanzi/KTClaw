@@ -1,7 +1,7 @@
-import { homedir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
+import { getOpenClawConfigDir } from './paths';
 
-const OUTBOUND_MEDIA_DIR = join(homedir(), '.openclaw', 'media', 'outbound');
+const OUTBOUND_MEDIA_DIR = join(getOpenClawConfigDir(), 'media', 'outbound');
 
 function normalizePath(value: string): string {
   const resolved = resolve(value);

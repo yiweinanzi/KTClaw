@@ -43,6 +43,7 @@ vi.mock('electron', () => ({
 vi.mock('@electron/utils/paths', () => ({
   getOpenClawDir: () => '/tmp/openclaw',
   getOpenClawEntryPath: () => '/tmp/openclaw/openclaw-entry.js',
+  getOpenClawConfigDir: () => '/tmp/ktclaw-user/openclaw',
 }));
 
 vi.mock('@electron/utils/uv-env', () => ({
@@ -173,5 +174,34 @@ describe('openclaw doctor output handling', () => {
     expect(result.success).toBe(true);
     expect(result.command).toBe('openclaw doctor --json');
     expect(mockFork.mock.calls[0][1]).toEqual(['doctor', '--json']);
+  });
+
+  it('falls back to non-json doctor args when --json is unsupported', async () => {
+    const firstChild = new MockUtilityChild();
+    const secondChild = new MockUtilityChild();
+    mockFork
+      .mockReturnValueOnce(firstChild)
+      .mockReturnValueOnce(secondChild);
+
+    const { runOpenClawDoctor } = await import('@electron/utils/openclaw-doctor');
+    const resultPromise = runOpenClawDoctor();
+
+    await vi.waitFor(() => {
+      expect(mockFork).toHaveBeenCalledTimes(1);
+    });
+    firstChild.stderr.emit('data', Buffer.from("error: unknown option '--json'\n"));
+    firstChild.emit('exit', 1);
+
+    await vi.waitFor(() => {
+      expect(mockFork).toHaveBeenCalledTimes(2);
+    });
+    secondChild.stdout.emit('data', Buffer.from('doctor ok\n'));
+    secondChild.emit('exit', 0);
+
+    const result = await resultPromise;
+    expect(result.success).toBe(true);
+    expect(result.command).toBe('openclaw doctor --deep --non-interactive');
+    expect(mockFork.mock.calls[0][1]).toEqual(['doctor', '--json']);
+    expect(mockFork.mock.calls[1][1]).toEqual(['doctor', '--deep', '--non-interactive']);
   });
 });

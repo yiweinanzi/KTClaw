@@ -2,9 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
+import { getOpenClawConfigDir } from '../../utils/paths';
 
 export interface AlertRule {
   id: string;
@@ -15,7 +15,7 @@ export interface AlertRule {
   createdAt: string;
 }
 
-const ALERTS_FILE = join(homedir(), '.openclaw', 'alerts.json');
+const ALERTS_FILE = join(getOpenClawConfigDir(), 'alerts.json');
 
 async function readAlerts(): Promise<AlertRule[]> {
   try {
@@ -28,7 +28,7 @@ async function readAlerts(): Promise<AlertRule[]> {
 }
 
 async function writeAlerts(rules: AlertRule[]): Promise<void> {
-  const dir = join(homedir(), '.openclaw');
+  const dir = getOpenClawConfigDir();
   if (!existsSync(dir)) await mkdir(dir, { recursive: true });
   await writeFile(ALERTS_FILE, JSON.stringify(rules, null, 2), 'utf-8');
 }

@@ -1,13 +1,15 @@
 import { app, utilityProcess } from 'electron';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { getOpenClawDir, getOpenClawEntryPath } from './paths';
+import { getOpenClawConfigDir, getOpenClawDir, getOpenClawEntryPath } from './paths';
 import { logger } from './logger';
 import { getUvMirrorEnv } from './uv-env';
+import { stripOpenClawSupervisorEnv } from './openclaw-supervisor-env';
 
 const OPENCLAW_DOCTOR_TIMEOUT_MS = 60_000;
 const MAX_DOCTOR_OUTPUT_BYTES = 10 * 1024 * 1024;
 const OPENCLAW_DOCTOR_ARGS = ['doctor', '--json'];
+const OPENCLAW_DOCTOR_FALLBACK_ARGS = ['doctor', '--deep', '--non-interactive'];
 const OPENCLAW_DOCTOR_FIX_ARGS = ['doctor', '--fix', '--yes', '--non-interactive'];
 
 export type OpenClawDoctorMode = 'diagnose' | 'fix';
@@ -105,12 +107,14 @@ async function runDoctorCommandWithArgs(
     const child = utilityProcess.fork(entryScript, args, {
       cwd: openclawDir,
       stdio: 'pipe',
-      env: {
+      env: stripOpenClawSupervisorEnv({
         ...process.env,
         ...uvEnv,
         PATH: finalPath,
+        OPENCLAW_STATE_DIR: getOpenClawConfigDir(),
+        OPENCLAW_CONFIG_PATH: path.join(getOpenClawConfigDir(), 'openclaw.json'),
         OPENCLAW_NO_RESPAWN: '1',
-      } as NodeJS.ProcessEnv,
+      }) as NodeJS.ProcessEnv,
     });
 
     let stdout = '';
@@ -199,7 +203,16 @@ async function runDoctorCommandWithArgs(
 }
 
 export async function runOpenClawDoctor(): Promise<OpenClawDoctorResult> {
-  return await runDoctorCommandWithArgs('diagnose', OPENCLAW_DOCTOR_ARGS);
+  const primaryResult = await runDoctorCommandWithArgs('diagnose', OPENCLAW_DOCTOR_ARGS);
+  const combinedOutput = `${primaryResult.stdout}\n${primaryResult.stderr}`;
+  const jsonUnsupported = /unknown option ['"]--json['"]/i.test(combinedOutput);
+
+  if (!primaryResult.success && jsonUnsupported) {
+    logger.warn('OpenClaw doctor --json is unsupported in this runtime; retrying with --deep --non-interactive');
+    return await runDoctorCommandWithArgs('diagnose', OPENCLAW_DOCTOR_FALLBACK_ARGS);
+  }
+
+  return primaryResult;
 }
 
 export async function runOpenClawDoctorFix(): Promise<OpenClawDoctorResult> {

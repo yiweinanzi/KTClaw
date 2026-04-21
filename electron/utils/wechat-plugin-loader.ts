@@ -1,11 +1,11 @@
 import { existsSync } from 'node:fs';
 import { app } from 'electron';
 import { join } from 'node:path';
-import { homedir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { patchInstalledWeChatPluginCompatibility } from './wechat-plugin-compat';
+import { getOpenClawConfigDir } from './paths';
 
-const EXTENSION_ROOT = join(homedir(), '.openclaw', 'extensions');
+const EXTENSION_ROOT = join(getOpenClawConfigDir(), 'extensions');
 const WECHAT_PLUGIN_DIR_CANDIDATES = ['openclaw-weixin', 'wechat'];
 const WECHAT_PLUGIN_ENTRY_CANDIDATES = ['index.js', 'index.ts'];
 

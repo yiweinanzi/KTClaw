@@ -122,7 +122,7 @@ function ensurePluginInstalled(
   candidateSources: string[],
   pluginLabel: string,
 ): { installed: boolean; warning?: string } {
-  const targetDir = join(homedir(), '.openclaw', 'extensions', pluginDirName);
+  const targetDir = join(getOpenClawConfigDir(), 'extensions', pluginDirName);
   const targetManifest = join(targetDir, 'openclaw.plugin.json');
   const targetPkgJson = join(targetDir, 'package.json');
 
@@ -151,7 +151,7 @@ function ensurePluginInstalled(
   }
 
   try {
-    mkdirSync(join(homedir(), '.openclaw', 'extensions'), { recursive: true });
+    mkdirSync(join(getOpenClawConfigDir(), 'extensions'), { recursive: true });
     rmSync(targetDir, { recursive: true, force: true });
     cpSync(sourceDir, targetDir, { recursive: true, dereference: true });
     if (!existsSync(join(targetDir, 'openclaw.plugin.json'))) {
@@ -311,8 +311,8 @@ type WorkbenchConversationMessage = {
   isSelf?: boolean;
 };
 
-const FEISHU_PLUGIN_ROOT = join(homedir(), '.openclaw', 'extensions', 'feishu-openclaw-plugin');
-const WECHAT_PLUGIN_ROOT = join(homedir(), '.openclaw', 'extensions', 'openclaw-weixin');
+const FEISHU_PLUGIN_ROOT = join(getOpenClawConfigDir(), 'extensions', 'feishu-openclaw-plugin');
+const WECHAT_PLUGIN_ROOT = join(getOpenClawConfigDir(), 'extensions', 'openclaw-weixin');
 const channelConversationBindings = createChannelConversationBindingStore();
 const TEST_FEISHU_SNAPSHOT_KEY = '__ktclawTestFeishuWorkbenchSnapshot';
 const TEST_DERIVED_WORKBENCH_RECORDS_KEY = '__ktclawTestDerivedWorkbenchRecords';

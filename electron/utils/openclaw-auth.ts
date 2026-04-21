@@ -26,6 +26,7 @@ import {
 import { OPENCLAW_WECHAT_CHANNEL_TYPE } from './channel-alias';
 import { withConfigLock } from './config-mutex';
 import { logger } from './logger';
+import { getOpenClawConfigDir } from './paths';
 
 const AUTH_STORE_VERSION = 1;
 const AUTH_PROFILE_FILENAME = 'auth-profiles.json';
@@ -98,7 +99,7 @@ interface AuthProfilesStore {
 // ── Auth Profiles I/O ────────────────────────────────────────────
 
 function getAuthProfilesPath(agentId = 'main'): string {
-  return join(homedir(), '.openclaw', 'agents', agentId, 'agent', AUTH_PROFILE_FILENAME);
+  return join(getOpenClawConfigDir(), 'agents', agentId, 'agent', AUTH_PROFILE_FILENAME);
 }
 
 async function readAuthProfiles(agentId = 'main'): Promise<AuthProfilesStore> {
@@ -121,7 +122,7 @@ async function writeAuthProfiles(store: AuthProfilesStore, agentId = 'main'): Pr
 // ── Agent Discovery ──────────────────────────────────────────────
 
 async function discoverAgentIds(): Promise<string[]> {
-  const agentsDir = join(homedir(), '.openclaw', 'agents');
+  const agentsDir = join(getOpenClawConfigDir(), 'agents');
   try {
     if (!(await fileExists(agentsDir))) return ['main'];
     return await listConfiguredAgentIds();
@@ -132,7 +133,7 @@ async function discoverAgentIds(): Promise<string[]> {
 
 // ── OpenClaw Config Helpers ──────────────────────────────────────
 
-const OPENCLAW_CONFIG_PATH = join(homedir(), '.openclaw', 'openclaw.json');
+const OPENCLAW_CONFIG_PATH = join(getOpenClawConfigDir(), 'openclaw.json');
 const VALID_COMPACTION_MODES = new Set(['default', 'safeguard']);
 
 async function readOpenClawJson(): Promise<Record<string, unknown>> {
@@ -332,7 +333,7 @@ export async function removeProviderFromOpenClaw(provider: string): Promise<void
 
   // 2. Remove from models.json (per-agent model registry used by pi-ai directly)
   for (const id of agentIds) {
-    const modelsPath = join(homedir(), '.openclaw', 'agents', id, 'agent', 'models.json');
+    const modelsPath = join(getOpenClawConfigDir(), 'agents', id, 'agent', 'models.json');
     try {
       if (await fileExists(modelsPath)) {
         const raw = await readFile(modelsPath, 'utf-8');
@@ -831,7 +832,7 @@ export async function updateAgentModelProvider(
 ): Promise<void> {
   const agentIds = await discoverAgentIds();
   for (const agentId of agentIds) {
-    const modelsPath = join(homedir(), '.openclaw', 'agents', agentId, 'agent', 'models.json');
+    const modelsPath = join(getOpenClawConfigDir(), 'agents', agentId, 'agent', 'models.json');
     let data: Record<string, unknown> = {};
     try {
       data = (await readJsonFile<Record<string, unknown>>(modelsPath)) ?? {};

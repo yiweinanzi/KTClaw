@@ -5,6 +5,7 @@ import type { GatewayLaunchContext } from './config-sync';
 import type { GatewayLifecycleState } from './process-policy';
 import { logger } from '../utils/logger';
 import { appendNodeImportToNodeOptions, appendNodeRequireToNodeOptions } from '../utils/paths';
+import { stripOpenClawSupervisorEnv } from '../utils/openclaw-supervisor-env';
 
 const GATEWAY_FETCH_PRELOAD_SOURCE = `'use strict';
 (function () {
@@ -126,7 +127,7 @@ export async function launchGatewayProcess(options: {
   );
   const lastSpawnSummary = `mode=${mode}, entry="${entryScript}", args="${options.sanitizeSpawnArgs(gatewayArgs).join(' ')}", cwd="${openclawDir}"`;
 
-  const runtimeEnv = { ...forkEnv };
+  const runtimeEnv = stripOpenClawSupervisorEnv({ ...forkEnv });
   runtimeEnv.OPENCLAW_NODE_OPTIONS_READY = runtimeEnv.OPENCLAW_NODE_OPTIONS_READY || '1';
   runtimeEnv.NODE_OPTIONS = appendNodeOptionFlag(
     runtimeEnv.NODE_OPTIONS,

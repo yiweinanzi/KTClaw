@@ -6,7 +6,7 @@ import { join } from 'path';
 import { getAllSettings } from '../utils/store';
 import { getApiKey, getDefaultProvider, getProvider } from '../utils/secure-storage';
 import { getProviderEnvVar, getKeyableProviderTypes } from '../utils/provider-registry';
-import { getOpenClawDir, getOpenClawEntryPath, getOpenClawResolvedDir, isOpenClawPresent } from '../utils/paths';
+import { getOpenClawConfigDir, getOpenClawDir, getOpenClawEntryPath, getOpenClawResolvedDir, isOpenClawPresent } from '../utils/paths';
 import { getUvMirrorEnv } from '../utils/uv-env';
 import { listConfiguredChannels } from '../utils/channel-config';
 import { syncGatewayTokenToConfig, syncBrowserConfigToOpenClaw, sanitizeOpenClawConfig } from '../utils/openclaw-auth';
@@ -189,10 +189,10 @@ function ensureConfiguredPluginsUpgraded(configuredChannels: string[]): void {
     if (!pluginInfo) continue;
     const { dirName, npmName } = pluginInfo;
 
-    const targetDir = join(homedir(), '.openclaw', 'extensions', dirName);
+    const targetDir = join(getOpenClawConfigDir(), 'extensions', dirName);
     const targetManifest = join(targetDir, 'openclaw.plugin.json');
     const legacyTargetDir = channelType === 'wechat'
-      ? join(homedir(), '.openclaw', 'extensions', 'wechat')
+      ? join(getOpenClawConfigDir(), 'extensions', 'wechat')
       : null;
     const isInstalled = existsSync(targetManifest);
 
@@ -220,7 +220,7 @@ function ensureConfiguredPluginsUpgraded(configuredChannels: string[]): void {
       if (!isInstalled || (sourceVersion && installedVersion && sourceVersion !== installedVersion)) {
         logger.info(`[plugin] Auto-upgrading ${channelType} plugin: ${installedVersion} → ${sourceVersion} (bundled)`);
         try {
-          mkdirSync(join(homedir(), '.openclaw', 'extensions'), { recursive: true });
+          mkdirSync(join(getOpenClawConfigDir(), 'extensions'), { recursive: true });
           if (legacyTargetDir && legacyTargetDir !== targetDir) {
             rmSync(legacyTargetDir, { recursive: true, force: true });
           }
@@ -245,7 +245,7 @@ function ensureConfiguredPluginsUpgraded(configuredChannels: string[]): void {
 
       logger.info(`[plugin] Auto-upgrading ${channelType} plugin: ${installedVersion} → ${sourceVersion} (dev/node_modules)`);
       try {
-        mkdirSync(join(homedir(), '.openclaw', 'extensions'), { recursive: true });
+        mkdirSync(join(getOpenClawConfigDir(), 'extensions'), { recursive: true });
         if (legacyTargetDir && legacyTargetDir !== targetDir) {
           rmSync(legacyTargetDir, { recursive: true, force: true });
         }
@@ -409,6 +409,8 @@ export async function prepareGatewayLaunchContext(port: number): Promise<Gateway
     ...proxyEnv,
     ...localEmbeddingsLaunch.env,
     OPENCLAW_GATEWAY_TOKEN: appSettings.gatewayToken,
+    OPENCLAW_STATE_DIR: getOpenClawConfigDir(),
+    OPENCLAW_CONFIG_PATH: join(getOpenClawConfigDir(), 'openclaw.json'),
     OPENCLAW_SKIP_CHANNELS: skipChannels ? '1' : '',
     CLAWDBOT_SKIP_CHANNELS: skipChannels ? '1' : '',
     OPENCLAW_NO_RESPAWN: '1',
