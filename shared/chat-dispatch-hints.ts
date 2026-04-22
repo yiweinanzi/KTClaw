@@ -60,27 +60,11 @@ const MULTISTEP_TASK_PATTERN = new RegExp([
   '调研',
 ].join('|'), 'i');
 
-const VISION_MODEL_PATTERNS = [
-  /\bclaude\b/i,
-  /\bgemini\b/i,
-  /\bgpt-4o\b/i,
-  /\bgpt-5\b/i,
-  /\bvision\b/i,
-  /\bgemma[-_ ]?3\b/i,
-  /\bminicpm(?:[-_ ]?v)?\b/i,
-  /\bmini?max-vl\b/i,
-  /\bglm-4\.?6v\b/i,
-  /\bqwen.*vl\b/i,
-  /\bmoondream\b/i,
-  /\bomni\b/i,
-  /\bllava\b/i,
-  /\bbakllava\b/i,
-  /\bpixtral\b/i,
-  /\binternvl\b/i,
-  /\bidefics\b/i,
-  /\bphi[-_ ]?3(?:\.\d+)?[-_ ]?vision\b/i,
-  /\bkimi-k2\.5\b/i,
-  /\bgrok\b/i,
+// Known text-only models that explicitly do not support vision input.
+// Default assumption is that any model may be vision-capable.
+const TEXT_ONLY_MODEL_PATTERNS = [
+  /\bdeepseek-chat\b/i,
+  /\bdeepseek-reasoner\b/i,
 ];
 
 const IMAGE_TOOL_FALLBACK_VENDORS = new Set([
@@ -105,13 +89,7 @@ export function hasImageAttachments(
 export function modelLooksVisionCapable(modelId?: string | null): boolean {
   const normalized = normalizeText(modelId).toLowerCase();
   if (!normalized) return false;
-  if (normalized.startsWith('ollama/')) {
-    return true;
-  }
-  if (normalized.includes('deepseek-chat') || normalized.includes('deepseek-reasoner')) {
-    return false;
-  }
-  return VISION_MODEL_PATTERNS.some((pattern) => pattern.test(normalized));
+  return !TEXT_ONLY_MODEL_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function accountHasVisionFallback(account: DispatchProviderAccountLike): boolean {

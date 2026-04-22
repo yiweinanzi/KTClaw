@@ -55,7 +55,7 @@ describe('chat dispatch hints', () => {
     expect(availability).toBe('native');
   });
 
-  it('treats common local multimodal Ollama models as vision-capable', () => {
+  it('treats unknown local models as vision-capable by default', () => {
     expect(resolveImageUnderstandingAvailability({
       currentModel: 'ollama/gemma3:12b',
       accounts: [],
@@ -63,6 +63,16 @@ describe('chat dispatch hints', () => {
 
     expect(resolveImageUnderstandingAvailability({
       currentModel: 'ollama/minicpm-v:8b',
+      accounts: [],
+    })).toBe('native');
+
+    expect(resolveImageUnderstandingAvailability({
+      currentModel: 'ollama/qwen3.5:9b',
+      accounts: [],
+    })).toBe('native');
+
+    expect(resolveImageUnderstandingAvailability({
+      currentModel: 'some-unknown-model',
       accounts: [],
     })).toBe('native');
   });
@@ -82,7 +92,7 @@ describe('chat dispatch hints', () => {
     expect(availability).toBe('fallback');
   });
 
-  it('treats any enabled Ollama account as an image-understanding fallback', () => {
+  it('treats any enabled Ollama account as native since all models default to vision-capable', () => {
     const availability = resolveImageUnderstandingAvailability({
       currentModel: 'plain-local-model-name',
       accounts: [
@@ -94,6 +104,6 @@ describe('chat dispatch hints', () => {
       ],
     });
 
-    expect(availability).toBe('fallback');
+    expect(availability).toBe('native');
   });
 });
