@@ -142,6 +142,15 @@ function buildDispatchHints(
     return hints;
   }
 
+  // When images are attached, the model should look at the image directly
+  // instead of being nudged to search for tools first.
+  if (needsImageHints) {
+    hints.push('Image attachments are present. Respond based on the attached image content directly.');
+    hints.push('Do not search the workspace for unrelated older images unless the user explicitly asks for that.');
+    hints.push('Do not invoke tools or skills to process the image unless the user explicitly requests it.');
+    return hints;
+  }
+
   hints.push('Before answering, check whether a local skill or tool already fits this task.');
   hints.push('If a local skill or tool can do the work, use it proactively instead of stopping at manual instructions.');
 
@@ -153,11 +162,6 @@ function buildDispatchHints(
     hints.push('For browser, web, app, and UI tasks, prefer browser automation over pure text instructions.');
     hints.push('Preferred browser flow: start/open or navigate -> snapshot or screenshot -> act.');
     hints.push('When visual state matters, capture a snapshot or screenshot before concluding.');
-  }
-
-  if (needsImageHints) {
-    hints.push('Image attachments are present. Use the current attached image content directly before answering.');
-    hints.push('Do not search the workspace for unrelated older images unless the user explicitly asks for that.');
   }
 
   return hints;
