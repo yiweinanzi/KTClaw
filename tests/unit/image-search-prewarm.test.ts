@@ -34,7 +34,10 @@ describe('image search semantic model prewarm', () => {
     );
     resetImageSearchSemanticPrewarmForTests();
 
-    const env = { KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM: '1' };
+    const env = {
+      KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM: '1',
+      KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '1',
+    };
     scheduleImageSearchSemanticPrewarm({ delayMs: 25, env, logWarn, prewarm, setTimer });
     scheduleImageSearchSemanticPrewarm({ delayMs: 25, env, logWarn, prewarm, setTimer });
 
@@ -68,6 +71,25 @@ describe('image search semantic model prewarm', () => {
     expect(prewarm).not.toHaveBeenCalled();
   });
 
+  it('does not schedule prewarm when semantic search is not enabled', async () => {
+    const setTimer = vi.fn();
+    const prewarm = vi.fn().mockResolvedValue(undefined);
+
+    const { scheduleImageSearchSemanticPrewarm, resetImageSearchSemanticPrewarmForTests } = await import(
+      '@electron/services/image-search/prewarm'
+    );
+    resetImageSearchSemanticPrewarmForTests();
+
+    scheduleImageSearchSemanticPrewarm({
+      env: { KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM: '1' },
+      prewarm,
+      setTimer,
+    });
+
+    expect(setTimer).not.toHaveBeenCalled();
+    expect(prewarm).not.toHaveBeenCalled();
+  });
+
   it('logs prewarm failures instead of throwing from the timer', async () => {
     const scheduled: Array<() => void> = [];
     const setTimer = vi.fn((handler: () => void) => {
@@ -84,7 +106,10 @@ describe('image search semantic model prewarm', () => {
     resetImageSearchSemanticPrewarmForTests();
 
     scheduleImageSearchSemanticPrewarm({
-      env: { KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM: '1' },
+      env: {
+        KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM: '1',
+        KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '1',
+      },
       logWarn,
       prewarm,
       setTimer,

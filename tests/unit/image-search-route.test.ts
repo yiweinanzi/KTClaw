@@ -64,6 +64,37 @@ describe('image search route', () => {
     });
   });
 
+  it('does not enable semantic search unless the request opts in', async () => {
+    mocks.parseJsonBody.mockResolvedValue({
+      query: 'cat',
+      roots: ['C:\\Pictures'],
+    });
+    mocks.searchImages.mockResolvedValue({
+      parsed: { contentTerms: ['cat'] },
+      roots: ['C:\\Pictures'],
+      totalScanned: 1,
+      totalMatched: 0,
+      results: [],
+    });
+
+    const { handleImageSearchRoutes } = await import('@electron/api/routes/image-search');
+
+    await handleImageSearchRoutes(
+      { method: 'POST' } as IncomingMessage,
+      {} as ServerResponse,
+      new URL('http://127.0.0.1:3210/api/image-search/query'),
+      {} as never,
+    );
+
+    expect(mocks.searchImages).toHaveBeenCalledWith({
+      query: 'cat',
+      roots: ['C:\\Pictures'],
+      limit: undefined,
+      now: undefined,
+      semantic: false,
+    });
+  });
+
   it('rejects missing query or roots', async () => {
     mocks.parseJsonBody.mockResolvedValue({ query: '', roots: [] });
 

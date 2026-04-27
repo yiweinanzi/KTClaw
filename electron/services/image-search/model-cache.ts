@@ -38,6 +38,10 @@ export function getImageSearchModelCacheDir(): string {
   return join(getDataDir(), 'image-search-models');
 }
 
+export function isImageSearchSemanticEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC === '1';
+}
+
 export function getImageSearchLocalModelPath(env: NodeJS.ProcessEnv = process.env): string | null {
   const configured = env.KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH?.trim();
   if (configured) return configured;
@@ -117,6 +121,8 @@ export function getImageSearchRemoteModelSources(env: NodeJS.ProcessEnv = proces
 }
 
 export function getImageSearchModelSources(env: NodeJS.ProcessEnv = process.env): ImageSearchModelSource[] {
+  if (!isImageSearchSemanticEnabled(env)) return [];
+
   const localModelPath = getImageSearchLocalModelPath(env);
   const sources: ImageSearchModelSource[] = localModelPath
     ? [{ name: 'local', modelId: MOBILECLIP_MODEL_ID, localModelPath }]
@@ -134,6 +140,9 @@ export function getImageSearchModelRuntimeEnv(env: NodeJS.ProcessEnv = process.e
   const runtimeEnv: Record<string, string> = {
     KTCLAW_IMAGE_SEARCH_MODEL_CACHE: getImageSearchModelCacheDir(),
   };
+  if (isImageSearchSemanticEnabled(env)) {
+    runtimeEnv.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC = '1';
+  }
   const localModelPath = getImageSearchLocalModelPath(env);
   if (localModelPath) {
     runtimeEnv.KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH = localModelPath;

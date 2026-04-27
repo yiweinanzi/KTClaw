@@ -47,12 +47,17 @@ describe('image search model cache path', () => {
     ]);
   });
 
-  it('does not include remote MobileCLIP sources unless remote download is explicitly enabled', async () => {
-    const { getImageSearchModelSources } = await import('@electron/services/image-search/model-cache');
+  it('does not include MobileCLIP sources unless semantic search is explicitly enabled', async () => {
+    const { getImageSearchModelSources, isImageSearchSemanticEnabled } = await import(
+      '@electron/services/image-search/model-cache'
+    );
 
+    expect(isImageSearchSemanticEnabled()).toBe(false);
     expect(getImageSearchModelSources()).toEqual([]);
 
+    vi.stubEnv('KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC', '1');
     vi.stubEnv('KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS', '1');
+    expect(isImageSearchSemanticEnabled()).toBe(true);
     expect(getImageSearchModelSources().map((source) => source.name)).toEqual([
       'modelscope',
       'hf-mirror',
@@ -80,10 +85,12 @@ describe('image search model cache path', () => {
 
   it('exports shared runtime env for gateway skill processes', async () => {
     vi.stubEnv('KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH', join('E:', 'offline-models'));
+    vi.stubEnv('KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC', '1');
     const { getImageSearchModelRuntimeEnv } = await import('@electron/services/image-search/model-cache');
 
     expect(getImageSearchModelRuntimeEnv()).toEqual({
       KTCLAW_IMAGE_SEARCH_MODEL_CACHE: join('C:', 'Users', 'test', 'KTClawData', 'image-search-models'),
+      KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '1',
       KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH: join('E:', 'offline-models'),
     });
   });

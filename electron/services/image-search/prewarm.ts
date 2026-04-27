@@ -6,7 +6,10 @@ type TimerHandle = ReturnType<typeof setTimeout>;
 
 export interface ImageSearchSemanticPrewarmOptions {
   delayMs?: number;
-  env?: Pick<NodeJS.ProcessEnv, 'KTCLAW_DISABLE_IMAGE_SEARCH_PREWARM' | 'KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM'>;
+  env?: Pick<
+    NodeJS.ProcessEnv,
+    'KTCLAW_DISABLE_IMAGE_SEARCH_PREWARM' | 'KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM' | 'KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC'
+  >;
   logWarn?: (message: string, error: unknown) => void;
   prewarm?: () => Promise<void>;
   setTimer?: (handler: () => void, delayMs: number) => TimerHandle | number;
@@ -19,6 +22,7 @@ export function scheduleImageSearchSemanticPrewarm(options: ImageSearchSemanticP
   const env = options.env ?? process.env;
   if (env.KTCLAW_DISABLE_IMAGE_SEARCH_PREWARM === '1') return;
   if (env.KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM !== '1') return;
+  if (env.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC !== '1') return;
   if (scheduled) return;
 
   scheduled = true;

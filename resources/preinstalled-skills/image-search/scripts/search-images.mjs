@@ -207,6 +207,10 @@ function getLocalModelPath() {
   return process.env.KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH?.trim() || null;
 }
 
+function isSemanticEnabled() {
+  return process.env.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC === '1';
+}
+
 function hasCachedModel(cacheDir = getModelCacheDir()) {
   const modelRoot = join(cacheDir, ...MOBILECLIP_MODEL_ID.split('/'));
   return [
@@ -278,6 +282,8 @@ function getRemoteModelSources() {
 }
 
 function getModelSources() {
+  if (!isSemanticEnabled()) return [];
+
   const localModelPath = getLocalModelPath();
   const sources = localModelPath
     ? [{ name: 'local', modelId: MOBILECLIP_MODEL_ID, localModelPath }]
@@ -313,6 +319,10 @@ function getLoadOptions(source) {
 }
 
 async function loadSemanticProvider() {
+  if (!isSemanticEnabled()) {
+    throw new Error('Semantic image search is disabled. Set KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC=1 to enable it.');
+  }
+
   const transformers = await import('@xenova/transformers');
   transformers.env.cacheDir = getModelCacheDir();
   const sources = getModelSources();

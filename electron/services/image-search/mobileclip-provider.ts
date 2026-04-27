@@ -3,6 +3,7 @@ import type { ImageSemanticProvider } from './image-search-service';
 import {
   getImageSearchModelCacheDir,
   getImageSearchModelSources,
+  isImageSearchSemanticEnabled,
   type ImageSearchModelSource,
 } from './model-cache';
 
@@ -65,12 +66,19 @@ export async function prewarmMobileClipSemanticProvider(): Promise<void> {
 }
 
 async function loadMobileClipSemanticProvider(): Promise<ImageSemanticProvider> {
+  if (!isImageSearchSemanticEnabled()) {
+    throw new Error('Semantic image search is disabled. Set KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC=1 to enable it.');
+  }
+
   const MODEL_CACHE_DIR = getImageSearchModelCacheDir();
   ensureDir(MODEL_CACHE_DIR);
   const transformers = await import('@xenova/transformers');
   transformers.env.cacheDir = MODEL_CACHE_DIR;
 
   const sources = getImageSearchModelSources();
+  if (sources.length === 0) {
+    throw new Error('MobileCLIP model is not installed. Set KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS=1 to allow download, or provide KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH.');
+  }
   let lastError: unknown;
   for (const source of sources) {
     try {

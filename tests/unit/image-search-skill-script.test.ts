@@ -63,7 +63,7 @@ describe('image-search bundled skill script', () => {
     expect(parsed.results[0].match.matchedTerms).toEqual(['penguin']);
   });
 
-  it('does not download semantic model files unless remote model loading is explicitly enabled', async () => {
+  it('does not enable semantic search unless the semantic feature flag is set', async () => {
     const root = join(tmpdir(), `ktclaw-image-search-skill-${Date.now()}-semantic-disabled`);
     await createImage(root, 'img-001.jpg', '2026-04-26T04:00:00.000Z');
 
@@ -81,6 +81,44 @@ describe('image-search bundled skill script', () => {
       env: {
         ...process.env,
         KTCLAW_IMAGE_SEARCH_MODEL_CACHE: join(root, 'empty-cache'),
+        KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '',
+        KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS: '',
+        KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH: '',
+      },
+    });
+
+    const parsed = JSON.parse(stdout) as {
+      semantic: { requested: boolean; enabled: boolean; model: string | null; error?: string };
+      results: Array<{ path: string }>;
+    };
+    expect(parsed.semantic).toMatchObject({
+      requested: true,
+      enabled: false,
+      model: null,
+    });
+    expect(parsed.semantic.error).toContain('Semantic image search is disabled');
+    expect(parsed.results).toEqual([]);
+  });
+
+  it('does not download semantic model files unless remote model loading is explicitly enabled', async () => {
+    const root = join(tmpdir(), `ktclaw-image-search-skill-${Date.now()}-remote-disabled`);
+    await createImage(root, 'img-001.jpg', '2026-04-26T04:00:00.000Z');
+
+    const { stdout } = await execFileAsync('node', [
+      scriptPath,
+      '--root',
+      root,
+      '--query',
+      'penguin',
+      '--now',
+      '2026-04-27T10:30:00+08:00',
+      '--semantic',
+      '--json',
+    ], {
+      env: {
+        ...process.env,
+        KTCLAW_IMAGE_SEARCH_MODEL_CACHE: join(root, 'empty-cache'),
+        KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '1',
         KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS: '',
         KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH: '',
       },
