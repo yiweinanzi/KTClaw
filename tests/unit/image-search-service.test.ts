@@ -70,4 +70,32 @@ describe('image search service', () => {
       reasons: ['content:企鹅'],
     });
   });
+
+  it('can rank images by semantic similarity when filenames do not match the query', async () => {
+    const root = join(tmpdir(), `ktclaw-image-search-${Date.now()}-semantic`);
+    const penguin = await createImage(root, 'wildlife/img-001.jpg', '2026-04-26T04:00:00.000Z');
+    const seal = await createImage(root, 'wildlife/img-002.jpg', '2026-04-26T04:00:00.000Z');
+
+    const result = await searchImages({
+      query: '帮我搜索一张企鹅的图片',
+      roots: [root],
+      now: new Date('2026-04-27T10:30:00+08:00'),
+      semantic: true,
+      semanticProvider: {
+        async embedText() {
+          return [1, 0];
+        },
+        async embedImage(filePath: string) {
+          return filePath === penguin ? [0.98, 0.02] : [0.1, 0.9];
+        },
+      },
+    });
+
+    expect(result.results.map((entry) => entry.path)).toEqual([penguin]);
+    expect(result.results[0].match).toMatchObject({
+      score: expect.any(Number),
+      matchedTerms: ['企鹅'],
+      reasons: ['semantic:企鹅'],
+    });
+  });
 });

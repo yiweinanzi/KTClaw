@@ -28,6 +28,7 @@ describe('image search route', () => {
       roots: ['C:\\Pictures'],
       limit: 10,
       now: '2026-04-27T10:30:00+08:00',
+      semantic: true,
     });
     mocks.searchImages.mockResolvedValue({
       parsed: { contentTerms: ['猫'] },
@@ -52,6 +53,7 @@ describe('image search route', () => {
       roots: ['C:\\Pictures'],
       limit: 10,
       now: new Date('2026-04-27T10:30:00+08:00'),
+      semantic: true,
     });
     expect(mocks.sendJson).toHaveBeenCalledWith(expect.anything(), 200, {
       parsed: { contentTerms: ['猫'] },

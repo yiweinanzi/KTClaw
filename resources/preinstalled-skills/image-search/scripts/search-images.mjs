@@ -1,8 +1,14 @@
 #!/usr/bin/env node
+import { existsSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, extname, join, relative, resolve } from 'node:path';
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.heic', '.heif']);
+const MOBILECLIP_MODEL_ID = 'Xenova/mobileclip_s0';
+const DEFAULT_REMOTE_PATH_TEMPLATE = '{model}/resolve/{revision}/';
+const SEMANTIC_SCORE_SCALE = 10;
+const SEMANTIC_MIN_SIMILARITY = 0.2;
 const TERM_SYNONYMS = {
   猫: ['cat', 'kitty', 'kitten'],
   企鹅: ['penguin', 'penguins'],
@@ -12,13 +18,14 @@ const TERM_SYNONYMS = {
 };
 
 function parseArgs(argv) {
-  const out = { roots: [], query: '', limit: 50, json: false, now: undefined };
+  const out = { roots: [], query: '', limit: 50, json: false, now: undefined, semantic: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--root') out.roots.push(argv[++index] || '');
     else if (arg === '--query') out.query = argv[++index] || '';
     else if (arg === '--limit') out.limit = Number(argv[++index] || '50');
     else if (arg === '--now') out.now = argv[++index] || undefined;
+    else if (arg === '--semantic') out.semantic = true;
     else if (arg === '--json') out.json = true;
   }
   out.roots = out.roots.map((root) => root.trim()).filter(Boolean);
@@ -127,6 +134,232 @@ function scorePath(filePath, parsed, root) {
   return { score, matchedTerms, reasons };
 }
 
+function cosineSimilarity(a, b) {
+  const length = Math.min(a.length, b.length);
+  if (length === 0) return 0;
+  let dot = 0;
+  let aNorm = 0;
+  let bNorm = 0;
+  for (let index = 0; index < length; index += 1) {
+    dot += a[index] * b[index];
+    aNorm += a[index] * a[index];
+    bNorm += b[index] * b[index];
+  }
+  if (aNorm <= 0 || bNorm <= 0) return 0;
+  return dot / (Math.sqrt(aNorm) * Math.sqrt(bNorm));
+}
+
+function mergeSemanticMatch(base, parsed, similarity) {
+  if (similarity < SEMANTIC_MIN_SIMILARITY) return base;
+  const matchedTerms = new Set(base.matchedTerms);
+  for (const term of parsed.contentTerms) matchedTerms.add(term);
+  return {
+    score: base.score + similarity * SEMANTIC_SCORE_SCALE,
+    matchedTerms: [...matchedTerms],
+    reasons: [...base.reasons, `semantic:${parsed.contentQuery || parsed.normalizedQuery}`],
+  };
+}
+
+function tensorToVector(tensor) {
+  return Array.from(tensor.data, Number);
+}
+
+function toMobileClipPrompt(text) {
+  const normalized = text.trim().toLowerCase();
+  const dictionary = [
+    [/企鹅/g, 'penguin'],
+    [/猫|小猫/g, 'cat'],
+    [/狗|小狗/g, 'dog'],
+    [/海边|海滩|沙滩/g, 'beach'],
+    [/夕阳|日落|落日/g, 'sunset'],
+    [/会议/g, 'meeting'],
+    [/截图|截屏/g, 'screenshot'],
+    [/人像|人物|人/g, 'person'],
+    [/小孩|孩子/g, 'child'],
+    [/天空/g, 'sky'],
+    [/雪/g, 'snow'],
+    [/山/g, 'mountain'],
+    [/花/g, 'flower'],
+    [/车|汽车/g, 'car'],
+    [/建筑|楼/g, 'building'],
+    [/食物|美食/g, 'food'],
+  ];
+  let translated = normalized;
+  for (const [pattern, replacement] of dictionary) {
+    translated = translated.replace(pattern, ` ${replacement} `);
+  }
+  translated = translated.replace(/\s+/g, ' ').trim();
+  if (!translated) return normalized;
+  if (/^(a|an|the)\s+/.test(translated) || translated.includes('photo of')) return translated;
+  return `a photo of ${translated}`;
+}
+
+function ensureTrailingSlash(value) {
+  return value.endsWith('/') ? value : `${value}/`;
+}
+
+function getModelCacheDir() {
+  return process.env.KTCLAW_IMAGE_SEARCH_MODEL_CACHE
+    || join(homedir(), '.ktclaw', 'image-search-models');
+}
+
+function getLocalModelPath() {
+  return process.env.KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH?.trim() || null;
+}
+
+function hasCachedModel(cacheDir = getModelCacheDir()) {
+  const modelRoot = join(cacheDir, ...MOBILECLIP_MODEL_ID.split('/'));
+  return [
+    'config.json',
+    'tokenizer.json',
+    'tokenizer_config.json',
+    'preprocessor_config.json',
+    join('onnx', 'text_model_quantized.onnx'),
+    join('onnx', 'vision_model_quantized.onnx'),
+  ].every((relativePath) => existsSync(join(modelRoot, relativePath)));
+}
+
+function getRemoteModelSources() {
+  const customHost = process.env.KTCLAW_IMAGE_SEARCH_MODEL_REMOTE_HOST?.trim();
+  if (customHost) {
+    return [{
+      name: 'custom',
+      modelId: MOBILECLIP_MODEL_ID,
+      remoteHost: ensureTrailingSlash(customHost),
+      remotePathTemplate: process.env.KTCLAW_IMAGE_SEARCH_MODEL_REMOTE_PATH_TEMPLATE?.trim() || DEFAULT_REMOTE_PATH_TEMPLATE,
+      revision: process.env.KTCLAW_IMAGE_SEARCH_MODEL_REVISION?.trim() || 'main',
+    }];
+  }
+
+  const allSources = {
+    modelscope: {
+      name: 'modelscope',
+      modelId: MOBILECLIP_MODEL_ID,
+      remoteHost: 'https://www.modelscope.cn/models/',
+      remotePathTemplate: DEFAULT_REMOTE_PATH_TEMPLATE,
+      revision: 'master',
+    },
+    'hf-mirror': {
+      name: 'hf-mirror',
+      modelId: MOBILECLIP_MODEL_ID,
+      remoteHost: 'https://hf-mirror.com/',
+      remotePathTemplate: DEFAULT_REMOTE_PATH_TEMPLATE,
+      revision: 'main',
+    },
+    huggingface: {
+      name: 'huggingface',
+      modelId: MOBILECLIP_MODEL_ID,
+      remoteHost: 'https://huggingface.co/',
+      remotePathTemplate: DEFAULT_REMOTE_PATH_TEMPLATE,
+      revision: 'main',
+    },
+  };
+
+  const configuredSource = process.env.KTCLAW_IMAGE_SEARCH_MODEL_SOURCE?.trim().toLowerCase();
+  if (configuredSource && configuredSource !== 'auto') {
+    return allSources[configuredSource]
+      ? [allSources[configuredSource]]
+      : [allSources.modelscope, allSources['hf-mirror'], allSources.huggingface];
+  }
+
+  const sources = [allSources.modelscope];
+  const hfEndpoint = process.env.KTCLAW_IMAGE_SEARCH_HF_ENDPOINT?.trim() || process.env.HF_ENDPOINT?.trim();
+  if (hfEndpoint) {
+    sources.push({
+      name: 'hf-endpoint',
+      modelId: MOBILECLIP_MODEL_ID,
+      remoteHost: ensureTrailingSlash(hfEndpoint),
+      remotePathTemplate: DEFAULT_REMOTE_PATH_TEMPLATE,
+      revision: 'main',
+    });
+  }
+  sources.push(allSources['hf-mirror'], allSources.huggingface);
+  return sources;
+}
+
+function getModelSources() {
+  const localModelPath = getLocalModelPath();
+  const sources = localModelPath
+    ? [{ name: 'local', modelId: MOBILECLIP_MODEL_ID, localModelPath }]
+    : [];
+  if (!localModelPath && hasCachedModel()) {
+    sources.push({ name: 'cache', modelId: MOBILECLIP_MODEL_ID });
+  }
+  if (process.env.KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS === '1') {
+    sources.push(...getRemoteModelSources());
+  }
+  return sources;
+}
+
+function configureTransformersSource(transformers, source) {
+  transformers.env.allowLocalModels = true;
+  if (source.name === 'local') {
+    transformers.env.localModelPath = source.localModelPath;
+    transformers.env.allowRemoteModels = false;
+    return;
+  }
+  if (source.name === 'cache') {
+    transformers.env.allowRemoteModels = false;
+    return;
+  }
+
+  transformers.env.allowRemoteModels = true;
+  transformers.env.remoteHost = source.remoteHost;
+  transformers.env.remotePathTemplate = source.remotePathTemplate;
+}
+
+function getLoadOptions(source) {
+  return source.name === 'local' || source.name === 'cache' ? {} : { revision: source.revision };
+}
+
+async function loadSemanticProvider() {
+  const transformers = await import('@xenova/transformers');
+  transformers.env.cacheDir = getModelCacheDir();
+  const sources = getModelSources();
+  if (sources.length === 0) {
+    throw new Error('MobileCLIP model is not installed. Set KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS=1 to allow download, or provide KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH.');
+  }
+
+  let loaded = null;
+  let lastError = null;
+  for (const source of sources) {
+    try {
+      configureTransformersSource(transformers, source);
+      const loadOptions = getLoadOptions(source);
+      const [tokenizer, processor, textModel, visionModel] = await Promise.all([
+        transformers.AutoTokenizer.from_pretrained(source.modelId, loadOptions),
+        transformers.AutoProcessor.from_pretrained(source.modelId, loadOptions),
+        transformers.CLIPTextModelWithProjection.from_pretrained(source.modelId, { ...loadOptions, quantized: true }),
+        transformers.CLIPVisionModelWithProjection.from_pretrained(source.modelId, { ...loadOptions, quantized: true }),
+      ]);
+      loaded = { tokenizer, processor, textModel, visionModel };
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!loaded) throw lastError || new Error('Unable to load MobileCLIP semantic model');
+
+  const imageCache = new Map();
+  return {
+    async embedText(text) {
+      const inputs = loaded.tokenizer([toMobileClipPrompt(text)], { padding: 'max_length', truncation: true });
+      const output = await loaded.textModel(inputs);
+      return tensorToVector(output.text_embeds);
+    },
+    async embedImage(filePath) {
+      const cached = imageCache.get(filePath);
+      if (cached) return cached;
+      const image = await transformers.RawImage.read(filePath);
+      const inputs = await loaded.processor(image);
+      const output = await loaded.visionModel(inputs);
+      const embedding = tensorToVector(output.image_embeds);
+      imageCache.set(filePath, embedding);
+      return embedding;
+    },
+  };
+}
+
 async function* walkImages(root) {
   let entries;
   try {
@@ -141,10 +374,18 @@ async function* walkImages(root) {
   }
 }
 
-async function searchImages({ roots, query, now, limit }) {
+async function searchImages({ roots, query, now, limit, semantic }) {
   const parsed = parseQuery(query, now);
   const normalizedRoots = [...new Set(roots.map((root) => resolve(root)))];
   const results = [];
+  let semanticError;
+  const semanticProvider = semantic && parsed.contentQuery
+    ? await loadSemanticProvider().catch((error) => {
+      semanticError = error instanceof Error ? error.message : String(error);
+      return null;
+    })
+    : null;
+  const semanticTextEmbedding = semanticProvider ? await semanticProvider.embedText(parsed.contentQuery) : null;
   let totalScanned = 0;
   let totalMatched = 0;
   for (const root of normalizedRoots) {
@@ -157,7 +398,11 @@ async function searchImages({ roots, query, now, limit }) {
         const end = Date.parse(parsed.timeRange.end);
         if (fileStat.mtimeMs < start || fileStat.mtimeMs >= end) continue;
       }
-      const match = scorePath(filePath, parsed, root);
+      let match = scorePath(filePath, parsed, root);
+      if (semanticTextEmbedding && semanticProvider) {
+        const imageEmbedding = await semanticProvider.embedImage(filePath);
+        match = mergeSemanticMatch(match, parsed, cosineSimilarity(semanticTextEmbedding, imageEmbedding));
+      }
       if (parsed.contentTerms.length > 0 && match.score <= 0) continue;
       totalMatched += 1;
       results.push({
@@ -173,18 +418,30 @@ async function searchImages({ roots, query, now, limit }) {
     }
   }
   results.sort((a, b) => b.match.score - a.match.score || Date.parse(b.fileTime) - Date.parse(a.fileTime));
-  return { parsed, roots: normalizedRoots, totalScanned, totalMatched, results: results.slice(0, limit) };
+  return {
+    parsed,
+    roots: normalizedRoots,
+    totalScanned,
+    totalMatched,
+    semantic: {
+      requested: Boolean(semantic),
+      enabled: Boolean(semanticProvider),
+      model: semanticProvider ? MOBILECLIP_MODEL_ID : null,
+      ...(semanticError ? { error: semanticError } : {}),
+    },
+    results: results.slice(0, limit),
+  };
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.query || args.roots.length === 0) {
-    console.error('Usage: search-images.mjs --root <directory> --query "<query>" [--limit 50] [--json]');
+    console.error('Usage: search-images.mjs --root <directory> --query "<query>" [--limit 50] [--semantic] [--json]');
     process.exitCode = 2;
     return;
   }
   const now = args.now ? new Date(args.now) : new Date();
-  const result = await searchImages({ roots: args.roots, query: args.query, now, limit: args.limit });
+  const result = await searchImages({ roots: args.roots, query: args.query, now, limit: args.limit, semantic: args.semantic });
   if (args.json) {
     console.log(JSON.stringify(result, null, 2));
     return;

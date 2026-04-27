@@ -48,6 +48,7 @@ import { browserOAuthManager } from '../utils/browser-oauth';
 import { syncAllProviderAuthToRuntime } from '../services/providers/provider-runtime-sync';
 import { McpRuntimeManager } from '../services/mcp/runtime-manager';
 import { SessionRuntimeManager, type RuntimeSessionRecord } from '../services/session-runtime-manager';
+import { scheduleImageSearchSemanticPrewarm } from '../services/image-search/prewarm';
 import { loadMcpConfig } from '../api/routes/mcp';
 import { resolveWindowChromeOptions } from './window-chrome';
 
@@ -487,6 +488,10 @@ async function initialize(): Promise<void> {
   void ensurePreinstalledSkillsInstalled().catch((error) => {
     logger.warn('Failed to install preinstalled skills:', error);
   });
+
+  // Optional semantic image model prewarm. This is disabled by default and only
+  // runs when KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM=1 is set.
+  scheduleImageSearchSemanticPrewarm();
 
   // Bridge gateway and host-side events before any auto-start logic runs, so
   // renderer subscribers observe the full startup lifecycle.

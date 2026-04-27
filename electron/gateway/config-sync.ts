@@ -15,6 +15,7 @@ import { logger } from '../utils/logger';
 import { prependPathEntry } from '../utils/env-path';
 import { patchInstalledFeishuPluginCompatibility, patchInstalledWeChatPluginCompatibility } from '../utils/wechat-plugin-compat';
 import { getLocalEmbeddingsRuntimeManager } from '../services/local-embeddings-runtime-manager';
+import { getImageSearchModelRuntimeEnv } from '../services/image-search/model-cache';
 
 export interface GatewayLaunchContext {
   appSettings: Awaited<ReturnType<typeof getAllSettings>>;
@@ -413,6 +414,7 @@ export async function prepareGatewayLaunchContext(port: number): Promise<Gateway
     OPENCLAW_SKIP_CHANNELS: skipChannels ? '1' : '',
     CLAWDBOT_SKIP_CHANNELS: skipChannels ? '1' : '',
     OPENCLAW_NO_RESPAWN: '1',
+    ...getImageSearchModelRuntimeEnv(),
   };
 
   return {

@@ -28,7 +28,7 @@ describe('image-search bundled skill script', () => {
       '--root',
       root,
       '--query',
-      '昨天创建的猫的图片',
+      'yesterday cat image',
       '--now',
       '2026-04-27T10:30:00+08:00',
       '--json',
@@ -38,7 +38,7 @@ describe('image-search bundled skill script', () => {
     expect(parsed.results.map((entry) => entry.path)).toEqual([expected]);
   });
 
-  it('understands conversational Chinese penguin searches', async () => {
+  it('understands conversational penguin searches', async () => {
     const root = join(tmpdir(), `ktclaw-image-search-skill-${Date.now()}-penguin`);
     const expected = await createImage(root, 'antarctica-penguin.jpg', '2026-04-26T04:00:00.000Z');
     await createImage(root, 'antarctica-seal.jpg', '2026-04-26T04:00:00.000Z');
@@ -48,7 +48,7 @@ describe('image-search bundled skill script', () => {
       '--root',
       root,
       '--query',
-      '帮我搜索一张企鹅的图片',
+      'penguin image',
       '--now',
       '2026-04-27T10:30:00+08:00',
       '--json',
@@ -58,8 +58,44 @@ describe('image-search bundled skill script', () => {
       parsed: { contentTerms: string[] };
       results: Array<{ path: string; match: { matchedTerms: string[] } }>;
     };
-    expect(parsed.parsed.contentTerms).toEqual(['企鹅']);
+    expect(parsed.parsed.contentTerms).toEqual(['penguin']);
     expect(parsed.results.map((entry) => entry.path)).toEqual([expected]);
-    expect(parsed.results[0].match.matchedTerms).toEqual(['企鹅']);
+    expect(parsed.results[0].match.matchedTerms).toEqual(['penguin']);
+  });
+
+  it('does not download semantic model files unless remote model loading is explicitly enabled', async () => {
+    const root = join(tmpdir(), `ktclaw-image-search-skill-${Date.now()}-semantic-disabled`);
+    await createImage(root, 'img-001.jpg', '2026-04-26T04:00:00.000Z');
+
+    const { stdout } = await execFileAsync('node', [
+      scriptPath,
+      '--root',
+      root,
+      '--query',
+      'penguin',
+      '--now',
+      '2026-04-27T10:30:00+08:00',
+      '--semantic',
+      '--json',
+    ], {
+      env: {
+        ...process.env,
+        KTCLAW_IMAGE_SEARCH_MODEL_CACHE: join(root, 'empty-cache'),
+        KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS: '',
+        KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH: '',
+      },
+    });
+
+    const parsed = JSON.parse(stdout) as {
+      semantic: { requested: boolean; enabled: boolean; model: string | null; error?: string };
+      results: Array<{ path: string }>;
+    };
+    expect(parsed.semantic).toMatchObject({
+      requested: true,
+      enabled: false,
+      model: null,
+    });
+    expect(parsed.semantic.error).toContain('MobileCLIP model is not installed');
+    expect(parsed.results).toEqual([]);
   });
 });

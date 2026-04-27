@@ -1,5 +1,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
+import { getMobileClipSemanticProvider } from './mobileclip-provider';
+import { MOBILECLIP_MODEL_ID } from './model-cache';
 import { parseImageSearchQuery, type ParsedImageSearchQuery } from './query-parser';
 
 export interface ImageSearchRequest {
@@ -7,6 +9,13 @@ export interface ImageSearchRequest {
   roots: string[];
   now?: Date;
   limit?: number;
+  semantic?: boolean;
+  semanticProvider?: ImageSemanticProvider;
+}
+
+export interface ImageSemanticProvider {
+  embedText(text: string): Promise<number[]>;
+  embedImage(filePath: string): Promise<number[]>;
 }
 
 export interface ImageSearchResultEntry {
@@ -29,6 +38,12 @@ export interface ImageSearchResult {
   roots: string[];
   totalScanned: number;
   totalMatched: number;
+  semantic?: {
+    requested: boolean;
+    enabled: boolean;
+    model: string | null;
+    error?: string;
+  };
   results: ImageSearchResultEntry[];
 }
 
@@ -47,6 +62,7 @@ const IMAGE_EXTENSIONS = new Set([
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const SEMANTIC_MIN_SIMILARITY = 0.2;
 
 const TERM_SYNONYMS: Record<string, string[]> = {
   猫: ['cat', 'kitty', 'kitten'],
@@ -55,6 +71,8 @@ const TERM_SYNONYMS: Record<string, string[]> = {
   会议: ['meeting', 'conference', 'sync', 'standup'],
   截图: ['screenshot', 'screen shot', 'screen-shot', 'screen_capture', 'snapshot'],
 };
+
+const SEMANTIC_SCORE_SCALE = 10;
 
 function normalizeLimit(limit: number | undefined): number {
   if (!Number.isFinite(limit ?? NaN)) return DEFAULT_LIMIT;
@@ -122,6 +140,38 @@ function scorePath(path: string, parsed: ParsedImageSearchQuery, root?: string):
   };
 }
 
+function cosineSimilarity(a: number[], b: number[]): number {
+  const length = Math.min(a.length, b.length);
+  if (length === 0) return 0;
+  let dot = 0;
+  let aNorm = 0;
+  let bNorm = 0;
+  for (let index = 0; index < length; index += 1) {
+    const av = a[index];
+    const bv = b[index];
+    dot += av * bv;
+    aNorm += av * av;
+    bNorm += bv * bv;
+  }
+  if (aNorm <= 0 || bNorm <= 0) return 0;
+  return dot / (Math.sqrt(aNorm) * Math.sqrt(bNorm));
+}
+
+function mergeSemanticMatch(
+  base: ImageSearchResultEntry['match'],
+  parsed: ParsedImageSearchQuery,
+  similarity: number,
+): ImageSearchResultEntry['match'] {
+  if (similarity < SEMANTIC_MIN_SIMILARITY) return base;
+  const matchedTerms = new Set(base.matchedTerms);
+  for (const term of parsed.contentTerms) matchedTerms.add(term);
+  return {
+    score: base.score + similarity * SEMANTIC_SCORE_SCALE,
+    matchedTerms: [...matchedTerms],
+    reasons: [...base.reasons, `semantic:${parsed.contentQuery || parsed.normalizedQuery}`],
+  };
+}
+
 function isInsideRoot(path: string, root: string): boolean {
   const normalizedPath = resolve(path);
   const normalizedRoot = resolve(root);
@@ -161,6 +211,18 @@ export async function searchImages(request: ImageSearchRequest): Promise<ImageSe
   const roots = [...new Set((request.roots ?? []).map((root) => resolve(root)).filter(Boolean))];
   const limit = normalizeLimit(request.limit);
   const results: ImageSearchResultEntry[] = [];
+  let semanticError: string | undefined;
+  const semanticProvider = request.semanticProvider
+    ?? (request.semantic === true
+      ? await getMobileClipSemanticProvider().catch((error) => {
+        semanticError = error instanceof Error ? error.message : String(error);
+        return null;
+      })
+      : null);
+  const useSemantic = request.semantic === true && semanticProvider && parsed.contentQuery;
+  const semanticTextEmbedding = useSemantic
+    ? await semanticProvider!.embedText(parsed.contentQuery)
+    : null;
   let totalScanned = 0;
   let totalMatched = 0;
 
@@ -175,7 +237,15 @@ export async function searchImages(request: ImageSearchRequest): Promise<ImageSe
       const fileTimeMs = fileStat.mtimeMs;
       if (!isInTimeRange(fileTimeMs, parsed)) continue;
 
-      const match = scorePath(filePath, parsed, root);
+      let match = scorePath(filePath, parsed, root);
+      if (semanticTextEmbedding && semanticProvider) {
+        const imageEmbedding = await semanticProvider.embedImage(filePath);
+        match = mergeSemanticMatch(
+          match,
+          parsed,
+          cosineSimilarity(semanticTextEmbedding, imageEmbedding),
+        );
+      }
       if (parsed.contentTerms.length > 0 && match.score <= 0) continue;
 
       totalMatched += 1;
@@ -202,6 +272,14 @@ export async function searchImages(request: ImageSearchRequest): Promise<ImageSe
     roots,
     totalScanned,
     totalMatched,
+    semantic: request.semantic === true
+      ? {
+        requested: true,
+        enabled: Boolean(semanticProvider),
+        model: semanticProvider ? MOBILECLIP_MODEL_ID : null,
+        ...(semanticError ? { error: semanticError } : {}),
+      }
+      : undefined,
     results: results.slice(0, limit),
   };
 }

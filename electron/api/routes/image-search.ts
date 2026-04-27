@@ -8,6 +8,7 @@ interface ImageSearchQueryBody {
   roots?: unknown;
   limit?: number;
   now?: string;
+  semantic?: boolean;
 }
 
 function normalizeRoots(value: unknown): string[] {
@@ -50,6 +51,7 @@ export async function handleImageSearchRoutes(
       roots,
       limit: body.limit,
       now: normalizeNow(body.now),
+      semantic: body.semantic === true,
     });
     sendJson(res, 200, result);
     return true;
