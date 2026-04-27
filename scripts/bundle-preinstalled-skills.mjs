@@ -22,12 +22,19 @@ function loadManifest() {
   }
 
   for (const item of parsed.skills) {
-    if (!item.slug || !item.repo || !item.repoPath) {
+    if (!item.slug || (!item.localPath && (!item.repo || !item.repoPath))) {
       throw new Error(`Invalid manifest entry: ${JSON.stringify(item)}`);
     }
   }
 
   return parsed.skills;
+}
+
+export function splitPreinstalledManifestEntries(entries) {
+  return {
+    local: entries.filter((entry) => Boolean(entry.localPath)),
+    remote: entries.filter((entry) => !entry.localPath),
+  };
 }
 
 function groupByRepoRef(entries) {
@@ -100,6 +107,7 @@ function isWindowsPathCompatibilityError(error) {
 export async function main() {
   echo('Bundling preinstalled skills...');
   const manifestSkills = loadManifest();
+  const { local: localSkills, remote: remoteSkills } = splitPreinstalledManifestEntries(manifestSkills);
 
   rmSync(OUTPUT_ROOT, { recursive: true, force: true });
   mkdirSync(OUTPUT_ROOT, { recursive: true });
@@ -111,7 +119,27 @@ export async function main() {
     skills: [],
   };
 
-  const groups = groupByRepoRef(manifestSkills);
+  for (const entry of localSkills) {
+    const sourceDir = join(ROOT, entry.localPath);
+    const targetDir = join(OUTPUT_ROOT, entry.slug);
+    if (!existsSync(join(sourceDir, 'SKILL.md'))) {
+      throw new Error(`Local preinstalled skill ${entry.slug} is missing SKILL.md at ${sourceDir}`);
+    }
+    rmSync(targetDir, { recursive: true, force: true });
+    cpSync(sourceDir, targetDir, { recursive: true, dereference: true });
+    const version = (entry.version || 'local').trim() || 'local';
+    lock.skills.push({
+      slug: entry.slug,
+      version,
+      repo: 'local',
+      repoPath: entry.localPath,
+      ref: 'local',
+      commit: 'local',
+    });
+    echo(`   OK ${entry.slug} (local)`);
+  }
+
+  const groups = groupByRepoRef(remoteSkills);
   for (const group of groups) {
     if (process.platform === 'win32' && group.repo === 'openclaw/skills') {
       echo(`   WARN skipped ${group.repo} on Windows due to upstream path names incompatible with NTFS checkout`);

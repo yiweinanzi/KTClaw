@@ -130,16 +130,17 @@ Phase 5 then refines those surfaces into a warmer leader command center: Team Ov
 
 ### 🧩 Extensible Skill System
 Extend your AI agents with pre-built skills. Browse, install, and manage skills through the integrated skill panel—no package managers required.
-KTClaw also pre-bundles full document-processing skills (`pdf`, `xlsx`, `docx`, `pptx`), deploys them automatically to the managed skills directory (default `~/.openclaw/skills`) on startup, and enables them by default on first install. Additional bundled skills (`find-skills`, `self-improving-agent`, `tavily-search`, `brave-web-search`, `bocha-skill`) are also enabled by default; if required API keys are missing, OpenClaw will surface configuration errors in runtime.  
+KTClaw also pre-bundles full document-processing skills (`pdf`, `xlsx`, `docx`, `pptx`), deploys them automatically to the managed skills directory (default `~/.openclaw/skills`) on startup, and enables them by default on first install. Additional bundled skills (`image-search`, `find-skills`, `self-improving-agent`, `tavily-search`, `brave-web-search`, `bocha-skill`) are also enabled by default; if required API keys are missing, OpenClaw will surface configuration errors in runtime.
 The Skills page can display skills discovered from multiple OpenClaw sources (managed dir, workspace, and extra skill dirs), and now shows each skill's actual location so you can open the real folder directly.
 
 Environment variables for bundled search skills:
 - `BRAVE_SEARCH_API_KEY` for `brave-web-search`
 - `TAVILY_API_KEY` for `tavily-search` (OAuth may also be supported by upstream skill runtime)
 - `BOCHA_API_KEY` for `bocha-skill`
-- `find-skills` and `self-improving-agent` do not require API keys
+- `image-search`, `find-skills`, and `self-improving-agent` do not require API keys
 
 Image understanding in chat requires either a vision-capable active model or an image-analysis fallback path (for example OpenAI, Anthropic, Google, or MiniMax through OpenClaw image-model/provider auth). KTClaw now warns before image sends when no such path is configured, and it nudges the agent to proactively use the relevant local skills/tools for browser, screenshot, and other multi-step tasks instead of stopping at manual instructions.
+Local image search is available through the bundled `image-search` skill and Host API route. It works across Windows, macOS, and Linux/Kylin without relying on OS-specific indexes, and parses natural-language time/content combinations such as "yesterday's cat images", "last weekend beach photos", and "last month meeting screenshots" using file modification time by default.
 
 ### 🔐 Secure Provider Integration
 Connect to multiple AI providers (OpenAI, Anthropic, and more) with credentials stored securely in your system's native keychain. OpenAI supports both API key and browser OAuth (Codex subscription) sign-in.

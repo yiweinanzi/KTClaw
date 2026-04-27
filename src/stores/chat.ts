@@ -17,10 +17,12 @@ import {
   isLeaderOnlyAgent,
   resolveReportingLeader,
 } from '@/lib/team-chat-access';
+import { buildAgentModelRef } from '@/lib/providers';
 import { useGatewayStore } from './gateway';
 import { useAgentsStore } from './agents';
 import { useProviderStore } from './providers';
 import { useSettingsStore } from './settings';
+import { mergeLocalUserAttachmentMetadata } from './chat/attachment-history';
 import { buildCronSessionHistoryPath, isCronSessionKey } from './chat/cron-session-utils';
 import {
   getUnreadCounts,
@@ -72,6 +74,41 @@ function resolvePreferredProviderModelRef(): string | undefined {
   }
 
   return `${preferredAccount.vendorId}/${modelId}`;
+}
+
+function resolveChatModelSelection(agentId?: string | null): string | undefined {
+  const normalizedAgentId = normalizeAgentId(agentId);
+  const agent = useAgentsStore.getState().agents.find((entry) => normalizeAgentId(entry.id) === normalizedAgentId);
+  const agentModel = typeof agent?.model === 'string' ? agent.model.trim() : '';
+  if (agentModel) {
+    return agentModel;
+  }
+
+  const defaultModel = useSettingsStore.getState().defaultModel?.trim();
+  if (defaultModel) {
+    return defaultModel;
+  }
+
+  return resolvePreferredProviderModelRef();
+}
+
+function resolveProviderAccountsForModelSelection(modelSelection?: string | null) {
+  const normalizedSelection = typeof modelSelection === 'string' ? modelSelection.trim() : '';
+  if (!normalizedSelection) {
+    return [];
+  }
+
+  const { accounts, vendors } = useProviderStore.getState();
+  const vendorMap = new Map(vendors.map((vendor) => [vendor.id, vendor]));
+
+  return accounts.filter((account) => {
+    const accountModel = typeof account.model === 'string' ? account.model.trim() : '';
+    if (accountModel && accountModel === normalizedSelection) {
+      return true;
+    }
+    const ref = buildAgentModelRef(account, vendorMap.get(account.vendorId));
+    return ref === normalizedSelection;
+  });
 }
 
 /** Metadata for locally-attached files (not from Gateway) */
@@ -252,6 +289,7 @@ let _loadSessionsInFlight: Promise<void> | null = null;
 let _lastLoadSessionsAt = 0;
 const _historyLoadInFlight = new Map<string, Promise<void>>();
 const _lastHistoryLoadAtBySession = new Map<string, number>();
+const _historyRequestSeqBySession = new Map<string, number>();
 const SESSION_LOAD_MIN_INTERVAL_MS = 1_200;
 const HISTORY_LOAD_MIN_INTERVAL_MS = 800;
 const HISTORY_POLL_SILENCE_WINDOW_MS = 2_500;
@@ -270,6 +308,19 @@ function clearHistoryPoll(): void {
     clearTimeout(_historyPollTimer);
     _historyPollTimer = null;
   }
+}
+
+function beginHistoryRequest(sessionKey: string): number {
+  const next = (_historyRequestSeqBySession.get(sessionKey) ?? 0) + 1;
+  _historyRequestSeqBySession.set(sessionKey, next);
+  return next;
+}
+
+function isHistoryRequestCurrent(get: () => ChatState, sessionKey: string, requestSeq: number): boolean {
+  if (get().currentSessionKey !== sessionKey) {
+    return false;
+  }
+  return (_historyRequestSeqBySession.get(sessionKey) ?? 0) === requestSeq;
 }
 
 function pruneChatEventDedupe(now: number): void {
@@ -1589,15 +1640,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
+    const requestSeq = beginHistoryRequest(currentSessionKey);
     if (!quiet) set({ loading: true, error: null });
 
     const loadPromise = (async () => {
       const applyLoadedMessages = (rawMessages: RawMessage[], thinkingLevel: string | null) => {
+      if (!isHistoryRequestCurrent(get, currentSessionKey, requestSeq)) {
+        return;
+      }
       // Before filtering: attach images/files from tool_result messages to the next assistant message
       const messagesWithToolImages = enrichWithToolResultFiles(rawMessages);
       const filteredMessages = messagesWithToolImages.filter((msg) => !isToolResultRole(msg.role));
       // Restore file attachments for user/assistant messages (from cache + text patterns)
-      const enrichedMessages = enrichWithCachedImages(filteredMessages);
+      const enrichedMessages = mergeLocalUserAttachmentMetadata(
+        enrichWithCachedImages(filteredMessages),
+        get().messages,
+      );
 
       // Preserve the optimistic user message during an active send.
       // The Gateway may not include the user's message in chat.history
@@ -1648,14 +1706,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }));
       }
 
-      // Async: load missing image previews from disk (updates in background)
-      loadMissingPreviews(finalMessages).then((updated) => {
-        if (updated) {
-          // Create new object references so React.memo detects changes.
-          // loadMissingPreviews mutates AttachedFileMeta in place, so we
-          // must produce fresh message + file references for each affected msg.
-          set({
-            messages: finalMessages.map(msg =>
+        // Async: load missing image previews from disk (updates in background)
+        loadMissingPreviews(finalMessages).then((updated) => {
+          if (updated && isHistoryRequestCurrent(get, currentSessionKey, requestSeq)) {
+            // Create new object references so React.memo detects changes.
+            // loadMissingPreviews mutates AttachedFileMeta in place, so we
+            // must produce fresh message + file references for each affected msg.
+            set({
+              messages: finalMessages.map(msg =>
               msg._attachedFiles
                 ? { ...msg, _attachedFiles: msg._attachedFiles.map(f => ({ ...f })) }
                 : msg
@@ -1715,7 +1773,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           const fallbackMessages = await loadCronFallbackMessages(currentSessionKey, 200);
           if (fallbackMessages.length > 0) {
             applyLoadedMessages(fallbackMessages, null);
-          } else {
+          } else if (isHistoryRequestCurrent(get, currentSessionKey, requestSeq)) {
             set({ messages: [], loading: false });
           }
         }
@@ -1724,7 +1782,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const fallbackMessages = await loadCronFallbackMessages(effectiveSessionKey, 200);
         if (fallbackMessages.length > 0) {
           applyLoadedMessages(fallbackMessages, null);
-        } else {
+        } else if (isHistoryRequestCurrent(get, currentSessionKey, requestSeq)) {
           set({ messages: [], loading: false });
         }
       }
@@ -1759,7 +1817,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     }
 
-    const targetSessionKey = targetAgentId ? (resolveMainSessionKeyForAgent(targetAgentId) ?? get().currentSessionKey) : get().currentSessionKey;
+    const directTargetSessionKey = targetAgentId ? buildPrivateSessionKey(targetAgentId) : null;
+    const targetSessionKey = directTargetSessionKey ?? get().currentSessionKey;
     const rpcSessionKey = getEffectiveSessionKey(targetSessionKey);
     const blockedSessionAgent = findAgentBySessionKey(useAgentsStore.getState().agents, rpcSessionKey);
     if (blockedSessionAgent && isDirectMainSessionBlocked(blockedSessionAgent, rpcSessionKey)) {
@@ -1767,7 +1826,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     if (targetSessionKey !== get().currentSessionKey) {
-      set((s) => buildSessionSwitchPatch(s, targetSessionKey));
+      if (targetAgentId) {
+        get().openDirectAgentSession(targetAgentId);
+      } else {
+        set((s) => buildSessionSwitchPatch(s, targetSessionKey));
+      }
       await get().loadHistory(true);
     }
 
@@ -1811,11 +1874,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Mark this session as most recently active
     set((s) => ({ sessionLastActivity: { ...s.sessionLastActivity, [currentSessionKey]: nowMs } }));
 
+    const activeModelSelection = resolveChatModelSelection(targetAgentId ?? get().currentAgentId);
     const imageAvailability = hasImageAttachments(attachments)
       ? resolveImageUnderstandingAvailability({
-          currentModel: resolvePreferredProviderModelRef(),
+          currentModel: activeModelSelection,
           defaultModel: useSettingsStore.getState().defaultModel,
-          accounts: useProviderStore.getState().accounts,
+          accounts: resolveProviderAccountsForModelSelection(activeModelSelection),
         })
       : 'native';
 

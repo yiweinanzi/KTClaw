@@ -254,15 +254,14 @@ async function readPreinstalledManifest(): Promise<PreinstalledSkillSpec[]> {
     }
 }
 
-function resolvePreinstalledSkillsSourceRoot(): string | null {
+function resolvePreinstalledSkillsSourceRoots(): string[] {
     const candidates = [
         join(getResourcesDir(), 'preinstalled-skills'),
         join(process.cwd(), 'build', 'preinstalled-skills'),
         join(__dirname, '../../build/preinstalled-skills'),
     ];
 
-    const root = candidates.find((dir) => existsSync(dir));
-    return root || null;
+    return candidates.filter((dir, index, all) => existsSync(dir) && all.indexOf(dir) === index);
 }
 
 async function readPreinstalledLockVersions(sourceRoot: string): Promise<Map<string, string>> {
@@ -320,29 +319,33 @@ export async function ensurePreinstalledSkillsInstalled(): Promise<void> {
         return;
     }
 
-    const sourceRoot = resolvePreinstalledSkillsSourceRoot();
-    if (!sourceRoot) {
+    const sourceRoots = resolvePreinstalledSkillsSourceRoots();
+    if (sourceRoots.length === 0) {
         logger.warn('Preinstalled skills source root not found; skipping preinstall.');
         return;
     }
-    const lockVersions = await readPreinstalledLockVersions(sourceRoot);
+    const lockVersionsByRoot = new Map<string, Map<string, string>>();
+    for (const sourceRoot of sourceRoots) {
+        lockVersionsByRoot.set(sourceRoot, await readPreinstalledLockVersions(sourceRoot));
+    }
 
     const targetRoot = getOpenClawSkillsDir();
     await mkdir(targetRoot, { recursive: true });
     const toEnable: string[] = [];
 
     for (const spec of skills) {
-        const sourceDir = join(sourceRoot, spec.slug);
-        const sourceManifest = join(sourceDir, 'SKILL.md');
-        if (!existsSync(sourceManifest)) {
-            logger.warn(`Preinstalled skill source missing SKILL.md, skipping: ${sourceDir}`);
+        const sourceRoot = sourceRoots.find((root) => existsSync(join(root, spec.slug, 'SKILL.md')));
+        const sourceDir = sourceRoot ? join(sourceRoot, spec.slug) : null;
+        const sourceManifest = sourceDir ? join(sourceDir, 'SKILL.md') : null;
+        if (!sourceDir || !sourceManifest || !existsSync(sourceManifest)) {
+            logger.warn(`Preinstalled skill source missing SKILL.md, skipping: ${spec.slug}`);
             continue;
         }
 
         const targetDir = join(targetRoot, spec.slug);
         const targetManifest = join(targetDir, 'SKILL.md');
         const markerPath = join(targetDir, PREINSTALLED_MARKER_NAME);
-        const desiredVersion = lockVersions.get(spec.slug)
+        const desiredVersion = lockVersionsByRoot.get(sourceRoot)?.get(spec.slug)
             || (spec.version || 'unknown').trim()
             || 'unknown';
         const marker = await tryReadMarker(markerPath);

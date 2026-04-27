@@ -6,6 +6,7 @@ import type { HostApiContext } from '../context';
 import { parseJsonBody, sendJson } from '../route-utils';
 import { checkPermission, appendAuditLog } from '../../utils/permissions-enforcer';
 import { getOpenClawConfigDir } from '../../utils/paths';
+import { isOutboundMediaPath } from '../../utils/outbound-media';
 
 const EXT_MIME_MAP: Record<string, string> = {
   '.png': 'image/png',
@@ -158,6 +159,10 @@ export async function handleFileRoutes(
       const fsP = await import('node:fs/promises');
       const results: Record<string, { preview: string | null; fileSize: number }> = {};
       for (const { filePath, mimeType } of body.paths) {
+        if (!isOutboundMediaPath(filePath)) {
+          results[filePath] = { preview: null, fileSize: 0 };
+          continue;
+        }
         try {
           const s = await fsP.stat(filePath);
           const preview = mimeType.startsWith('image/')

@@ -12,6 +12,7 @@ type ChatLikeState = {
   messages: Array<{ role: string; timestamp?: number; content?: unknown }>;
   sessionLabels: Record<string, string>;
   sessionLastActivity: Record<string, number>;
+  sending: boolean;
   streamingText: string;
   streamingMessage: unknown | null;
   streamingTools: unknown[];
@@ -30,6 +31,7 @@ function makeHarness(initial?: Partial<ChatLikeState>) {
     messages: [],
     sessionLabels: {},
     sessionLastActivity: {},
+    sending: false,
     streamingText: '',
     streamingMessage: null,
     streamingTools: [],
@@ -75,6 +77,28 @@ describe('chat session actions', () => {
     expect(h.read().loadHistory).toHaveBeenCalledTimes(1);
   });
 
+  it('switchSession clears sending state from the previous run', async () => {
+    const { createSessionActions } = await import('@/stores/chat/session-actions');
+    const h = makeHarness({
+      currentSessionKey: 'agent:foo:session-a',
+      sessions: [{ key: 'agent:foo:session-a' }, { key: 'agent:foo:main' }],
+      messages: [{ role: 'assistant' }],
+      sending: true,
+      activeRunId: 'run-a',
+      pendingFinal: true,
+      lastUserMessageAt: 123,
+    });
+    const actions = createSessionActions(h.set as never, h.get as never);
+
+    actions.switchSession('agent:foo:main');
+    const next = h.read();
+    expect(next.currentSessionKey).toBe('agent:foo:main');
+    expect(next.sending).toBe(false);
+    expect(next.activeRunId).toBeNull();
+    expect(next.pendingFinal).toBe(false);
+    expect(next.lastUserMessageAt).toBeNull();
+  });
+
   it('deleteSession updates current session and keeps sidebar consistent', async () => {
     const { createSessionActions } = await import('@/stores/chat/session-actions');
     const h = makeHarness({
@@ -103,6 +127,7 @@ describe('chat session actions', () => {
       currentSessionKey: 'agent:foo:main',
       sessions: [{ key: 'agent:foo:main' }],
       messages: [{ role: 'assistant' }],
+      sending: true,
       streamingText: 'streaming',
       activeRunId: 'r1',
       pendingFinal: true,
@@ -114,6 +139,7 @@ describe('chat session actions', () => {
     expect(next.currentSessionKey).toBe('agent:foo:session-1711111111111');
     expect(next.sessions.some((s) => s.key === 'agent:foo:session-1711111111111')).toBe(true);
     expect(next.messages).toEqual([]);
+    expect(next.sending).toBe(false);
     expect(next.streamingText).toBe('');
     expect(next.activeRunId).toBeNull();
     expect(next.pendingFinal).toBe(false);

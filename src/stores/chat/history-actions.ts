@@ -11,6 +11,7 @@ import {
   toMs,
 } from './helpers';
 import { buildCronSessionHistoryPath, isCronSessionKey } from './cron-session-utils';
+import { mergeLocalUserAttachmentMetadata } from './attachment-history';
 import type { RawMessage } from './types';
 import type { ChatGet, ChatSet, SessionHistoryActions } from './store-api';
 
@@ -41,7 +42,10 @@ export function createHistoryActions(
         const messagesWithToolImages = enrichWithToolResultFiles(rawMessages);
         const filteredMessages = messagesWithToolImages.filter((msg) => !isToolResultRole(msg.role));
         // Restore file attachments for user/assistant messages (from cache + text patterns)
-        const enrichedMessages = enrichWithCachedImages(filteredMessages);
+        const enrichedMessages = mergeLocalUserAttachmentMetadata(
+          enrichWithCachedImages(filteredMessages),
+          get().messages,
+        );
 
         // Preserve the optimistic user message during an active send.
         // The Gateway may not include the user's message in chat.history

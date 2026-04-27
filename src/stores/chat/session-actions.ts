@@ -1,5 +1,11 @@
 import { invokeIpc } from '@/lib/api-client';
-import { getCanonicalPrefixFromSessions, getMessageText, toMs } from './helpers';
+import {
+  clearErrorRecoveryTimer,
+  clearHistoryPoll,
+  getCanonicalPrefixFromSessions,
+  getMessageText,
+  toMs,
+} from './helpers';
 import { DEFAULT_CANONICAL_PREFIX, DEFAULT_SESSION_KEY, type ChatSession, type RawMessage } from './types';
 import type { ChatGet, ChatSet, SessionHistoryActions } from './store-api';
 
@@ -155,10 +161,13 @@ export function createSessionActions(
     switchSession: (key: string) => {
       const { currentSessionKey, messages } = get();
       const leavingEmpty = !currentSessionKey.endsWith(':main') && messages.length === 0;
+      clearHistoryPoll();
+      clearErrorRecoveryTimer();
       set((s) => ({
         currentSessionKey: key,
         currentAgentId: getAgentIdFromSessionKey(key),
         messages: [],
+        sending: false,
         streamingText: '',
         streamingMessage: null,
         streamingTools: [],
@@ -210,12 +219,15 @@ export function createSessionActions(
 
       if (currentSessionKey === key) {
         // Switched away from deleted session — pick the first remaining or create new
+        clearHistoryPoll();
+        clearErrorRecoveryTimer();
         const next = remaining[0];
         set((s) => ({
           sessions: remaining,
           sessionLabels: Object.fromEntries(Object.entries(s.sessionLabels).filter(([k]) => k !== key)),
           sessionLastActivity: Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([k]) => k !== key)),
           messages: [],
+          sending: false,
           streamingText: '',
           streamingMessage: null,
           streamingTools: [],
@@ -251,6 +263,8 @@ export function createSessionActions(
       const prefix = getCanonicalPrefixFromSessions(get().sessions) ?? DEFAULT_CANONICAL_PREFIX;
       const newKey = `${prefix}:session-${Date.now()}`;
       const newSessionEntry: ChatSession = { key: newKey, displayName: newKey };
+      clearHistoryPoll();
+      clearErrorRecoveryTimer();
       set((s) => ({
         currentSessionKey: newKey,
         currentAgentId: getAgentIdFromSessionKey(newKey),
@@ -265,6 +279,7 @@ export function createSessionActions(
           ? Object.fromEntries(Object.entries(s.sessionLastActivity).filter(([k]) => k !== currentSessionKey))
           : s.sessionLastActivity,
         messages: [],
+        sending: false,
         streamingText: '',
         streamingMessage: null,
         streamingTools: [],

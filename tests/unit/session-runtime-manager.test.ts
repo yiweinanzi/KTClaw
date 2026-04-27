@@ -370,6 +370,70 @@ describe('SessionRuntimeManager', () => {
     ]);
   });
 
+  it('rolls back child runtime state when spawn chat.send fails', async () => {
+    let persistedRecords: Array<Record<string, unknown>> = [];
+    const persistence = {
+      load: vi.fn(async () => persistedRecords),
+      save: vi.fn(async (records: Array<Record<string, unknown>>) => {
+        persistedRecords = records.map((record) => ({ ...record }));
+      }),
+    };
+    const historyBySessionKey = new Map<string, string[]>();
+    const gatewayRpcMock = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === 'chat.send') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        const message = String(params?.message ?? '');
+        if (message === 'Child task') {
+          throw new Error('spawn failed');
+        }
+        historyBySessionKey.set(sessionKey, [message]);
+        return { runId: `run-${sessionKey.split(':').at(-1)}` };
+      }
+      if (method === 'sessions.list') {
+        return {
+          sessions: [...historyBySessionKey.keys()].map((sessionKey) => ({
+            sessionKey,
+            status: 'running',
+          })),
+        };
+      }
+      if (method === 'chat.history') {
+        const sessionKey = String(params?.sessionKey ?? '');
+        return {
+          messages: (historyBySessionKey.get(sessionKey) ?? []).map((content) => ({
+            role: 'assistant',
+            content,
+          })),
+        };
+      }
+      throw new Error(`Unexpected gateway RPC: ${method}`);
+    });
+
+    const manager = new SessionRuntimeManager(
+      { rpc: gatewayRpcMock } as never,
+      {},
+      persistence,
+    );
+    const root = await manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      prompt: 'Root task',
+    });
+
+    await expect(manager.spawn({
+      parentSessionKey: 'agent:planner-1:main',
+      parentRuntimeId: root.id,
+      prompt: 'Child task',
+    })).rejects.toThrow('spawn failed');
+
+    const listed = await manager.list();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.id).toBe(root.id);
+    expect(listed[0]?.childRuntimeIds).toEqual([]);
+    expect(persistedRecords).toHaveLength(1);
+    expect(persistedRecords[0]?.id).toBe(root.id);
+    expect(persistedRecords[0]?.childRuntimeIds).toEqual([]);
+  });
+
   it('returns a rooted runtime tree with descendants in creation order', async () => {
     const historyBySessionKey = new Map<string, string[]>();
     const gatewayRpcMock = vi.fn(async (method: string, params?: Record<string, unknown>) => {

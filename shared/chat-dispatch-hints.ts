@@ -65,6 +65,7 @@ const MULTISTEP_TASK_PATTERN = new RegExp([
 const TEXT_ONLY_MODEL_PATTERNS = [
   /\bdeepseek-chat\b/i,
   /\bdeepseek-reasoner\b/i,
+  /\bqwen3\.5-0\.8b\b/i,
 ];
 
 const IMAGE_TOOL_FALLBACK_VENDORS = new Set([

@@ -1,6 +1,12 @@
 {
   "skills": [
     {
+      "slug": "image-search",
+      "localPath": "resources/preinstalled-skills/image-search",
+      "version": "1.0.0",
+      "autoEnable": true
+    },
+    {
       "slug": "pdf",
       "repo": "anthropics/skills",
       "repoPath": "skills/pdf",

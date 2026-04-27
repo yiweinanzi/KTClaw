@@ -111,7 +111,7 @@ describe('chat target routing', () => {
     vi.useRealTimers();
   });
 
-  it('switches to the selected agent main session before sending text', async () => {
+  it('switches to the selected agent private session before sending text', async () => {
     const { useChatStore } = await import('@/stores/chat');
 
     useChatStore.setState({
@@ -138,9 +138,14 @@ describe('chat target routing', () => {
     await useChatStore.getState().sendMessage('Hello direct agent', undefined, 'research', '/tmp/workspace');
 
     const state = useChatStore.getState();
-    expect(state.currentSessionKey).toBe('agent:research:desk');
+    expect(state.currentSessionKey).toBe('agent:research:private-research');
     expect(state.currentAgentId).toBe('research');
-    expect(state.sessions.some((session) => session.key === 'agent:research:desk')).toBe(true);
+    expect(state.sessions.some((session) => session.key === 'agent:research:private-research')).toBe(true);
+    expect(state.sessions.find((session) => session.key === 'agent:research:private-research')).toMatchObject({
+      agentId: 'research',
+      targetAgentId: 'research',
+      isPrivateChat: true,
+    });
     expect(state.messages.at(-1)?.content).toBe('Hello direct agent');
 
     const historyCall = gatewayRpcMock.mock.calls.find(([method]) => method === 'chat.history');
@@ -156,7 +161,7 @@ describe('chat target routing', () => {
     expect(typeof (sendCall?.[1] as { idempotencyKey?: unknown })?.idempotencyKey).toBe('string');
   });
 
-  it('uses the selected agent main session for attachment sends', async () => {
+  it('uses the selected agent private session for attachment sends while keeping the effective backend session', async () => {
     const { useChatStore } = await import('@/stores/chat');
 
     useChatStore.setState({
@@ -195,7 +200,7 @@ describe('chat target routing', () => {
       '/tmp/workspace-media',
     );
 
-    expect(useChatStore.getState().currentSessionKey).toBe('agent:research:desk');
+    expect(useChatStore.getState().currentSessionKey).toBe('agent:research:private-research');
 
     expect(hostApiFetchMock).toHaveBeenCalledWith(
       '/api/chat/send-with-media',

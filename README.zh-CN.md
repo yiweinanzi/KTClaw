@@ -127,15 +127,17 @@ Phase 4 继续把这套团队控制台产品化：`团队总览` 现在以 Leade
 
 ### 🧩 可扩展技能系统
 通过预构建的技能扩展 AI 智能体的能力。在集成的技能面板中浏览、安装和管理技能——无需包管理器。
-KTClaw 还会内置预装完整的文档处理技能（`pdf`、`xlsx`、`docx`、`pptx`），在启动时自动部署到托管技能目录（默认 `~/.openclaw/skills`），并在首次安装时默认启用。额外预装技能（`find-skills`、`self-improving-agent`、`tavily-search`、`brave-web-search`、`bocha-skill`）也会默认启用；若缺少必需的 API Key，OpenClaw 会在运行时给出配置错误提示。  
+KTClaw 还会内置预装完整的文档处理技能（`pdf`、`xlsx`、`docx`、`pptx`），在启动时自动部署到托管技能目录（默认 `~/.openclaw/skills`），并在首次安装时默认启用。额外预装技能（`image-search`、`find-skills`、`self-improving-agent`、`tavily-search`、`brave-web-search`、`bocha-skill`）也会默认启用；若缺少必需的 API Key，OpenClaw 会在运行时给出配置错误提示。
 Skills 页面可展示来自多个 OpenClaw 来源的技能（托管目录、workspace、额外技能目录），并显示每个技能的实际路径，便于直接打开真实安装位置。
 
 重点搜索技能所需环境变量：
 - `BRAVE_SEARCH_API_KEY`：用于 `brave-web-search`
 - `TAVILY_API_KEY`：用于 `tavily-search`（上游运行时也可能支持 OAuth）
 - `BOCHA_API_KEY`：用于 `bocha-skill`
+- `image-search`、`find-skills`、`self-improving-agent` 不需要 API Key
 
 聊天中的图片理解需要两种能力之一：当前活动模型具备视觉能力，或者已配置 OpenClaw 的图像分析回退路径（例如 OpenAI / Anthropic / Google / MiniMax 的图像模型或 provider auth）。KTClaw 现在会在缺乏这类能力时发出提示，同时更强地引导 agent 在浏览器、截图、多步任务等场景主动调用对应的 local skills / tools，而不是停在手动指令上。
+本地搜图现在通过预装的 `image-search` skill 和 Host API 路由提供，三端通用，不依赖 macOS Spotlight、Windows 索引或 Linux 桌面搜索。它默认按文件修改时间解析“昨天 / 上周末 / 上月”等时间条件，并支持“昨天创建的猫的图片”“上周末在海边拍的照片”“上月会议截图”等时间 + 内容组合查询。
 
 ### 🔐 安全的供应商集成
 连接多个 AI 供应商（OpenAI、Anthropic 等），凭证安全存储在系统原生密钥链中。OpenAI 同时支持 API Key 与浏览器 OAuth（Codex 订阅）登录。

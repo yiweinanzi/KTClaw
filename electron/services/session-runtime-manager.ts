@@ -166,6 +166,7 @@ export class SessionRuntimeManager {
       toolSnapshot: capabilitySnapshot.toolSnapshot,
       skillSnapshot: capabilitySnapshot.skillSnapshot,
     };
+    const parentSnapshot = parentRuntime ? this.cloneRecord(parentRuntime) : null;
     this.sessions.set(record.id, record);
     if (parentRuntime) {
       const linkedExecutionRecords = this.linkParentExecutionRecord(parentRuntime, record);
@@ -176,15 +177,25 @@ export class SessionRuntimeManager {
       });
     }
     await this.persistSessions();
-    const sendResult = await this.gatewayRpc<Record<string, unknown>>('chat.send', {
-      sessionKey,
-      message: input.prompt,
-      idempotencyKey: randomUUID(),
-      deliver: false,
-      ...(record.attachments.length > 0 ? { attachments: record.attachments } : {}),
-      ...(record.sandbox ? { sandbox: record.sandbox } : {}),
-      ...(typeof record.timeoutMs === 'number' ? { timeoutMs: record.timeoutMs } : {}),
-    });
+    let sendResult: Record<string, unknown>;
+    try {
+      sendResult = await this.gatewayRpc<Record<string, unknown>>('chat.send', {
+        sessionKey,
+        message: input.prompt,
+        idempotencyKey: randomUUID(),
+        deliver: false,
+        ...(record.attachments.length > 0 ? { attachments: record.attachments } : {}),
+        ...(record.sandbox ? { sandbox: record.sandbox } : {}),
+        ...(typeof record.timeoutMs === 'number' ? { timeoutMs: record.timeoutMs } : {}),
+      });
+    } catch (error) {
+      this.sessions.delete(record.id);
+      if (parentSnapshot) {
+        this.sessions.set(parentSnapshot.id, parentSnapshot);
+      }
+      await this.persistSessions();
+      throw error;
+    }
     const withRun = this.patchRecord(record.id, {
       runId: this.extractFirstString(sendResult, ['runId', 'run_id']) ?? record.runId,
       updatedAt: new Date().toISOString(),

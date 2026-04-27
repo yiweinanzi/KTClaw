@@ -779,7 +779,7 @@ function registerUnifiedRequestHandlers(gatewayManager: GatewayManager): void {
             const settings = await getAllSettings();
             await handleProxySettingsChange();
             await syncLaunchAtStartupSettingFromStore();
-            data = { success: true, settings };
+            data = { success: true, settings: sanitizeRendererSettings(settings) };
             break;
           }
           return {
@@ -2354,7 +2354,7 @@ function registerSettingsHandlers(gatewayManager: GatewayManager): void {
     const settings = await getAllSettings();
     await handleProxySettingsChange();
     await syncLaunchAtStartupSettingFromStore();
-    return { success: true, settings };
+    return { success: true, settings: sanitizeRendererSettings(settings) };
   });
 }
 function registerUsageHandlers(): void {
@@ -2579,6 +2579,10 @@ function registerFileHandlers(): void {
     const fsP = await import('fs/promises');
     const results: Record<string, { preview: string | null; fileSize: number }> = {};
     for (const { filePath, mimeType } of paths) {
+      if (!isOutboundMediaPath(filePath)) {
+        results[filePath] = { preview: null, fileSize: 0 };
+        continue;
+      }
       try {
         const s = await fsP.stat(filePath);
         let preview: string | null = null;

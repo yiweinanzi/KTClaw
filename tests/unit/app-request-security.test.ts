@@ -6,14 +6,32 @@ import { join } from 'node:path';
 const handlers = new Map<string, (...args: unknown[]) => unknown>();
 const fsAccessMock = vi.fn();
 const fsReadFileMock = vi.fn();
+const fsStatMock = vi.fn();
+
+function makeSettings(overrides: Record<string, unknown> = {}) {
+  return {
+    gatewayToken: 'super-secret-token',
+    language: 'en',
+    proxyEnabled: false,
+    proxyServer: '',
+    proxyHttpServer: '',
+    proxyHttpsServer: '',
+    proxyAllServer: '',
+    proxyBypassRules: '',
+    launchAtStartup: false,
+    ...overrides,
+  };
+}
 
 const {
   mockGetAllSettings,
   mockGetSetting,
+  mockResetSettings,
   mockProviderService,
 } = vi.hoisted(() => ({
   mockGetAllSettings: vi.fn(),
   mockGetSetting: vi.fn(),
+  mockResetSettings: vi.fn(),
   mockProviderService: {
     listLegacyProvidersWithKeyInfo: vi.fn(),
     getLegacyProvider: vi.fn(),
@@ -33,6 +51,12 @@ vi.mock('electron', () => ({
     handle: vi.fn((channel: string, handler: (...args: unknown[]) => unknown) => {
       handlers.set(channel, handler);
     }),
+  },
+  session: {
+    defaultSession: {
+      setProxy: vi.fn(async () => undefined),
+      closeAllConnections: vi.fn(async () => undefined),
+    },
   },
   BrowserWindow: class {},
   shell: {
@@ -67,13 +91,14 @@ vi.mock('fs/promises', async (importOriginal) => {
     ...actual,
     access: (...args: unknown[]) => fsAccessMock(...args),
     readFile: (...args: unknown[]) => fsReadFileMock(...args),
+    stat: (...args: unknown[]) => fsStatMock(...args),
   };
 });
 
 vi.mock('@electron/utils/store', () => ({
   getAllSettings: mockGetAllSettings,
   getSetting: mockGetSetting,
-  resetSettings: vi.fn(),
+  resetSettings: mockResetSettings,
   setSetting: vi.fn(),
 }));
 
@@ -129,6 +154,7 @@ describe('app:request security', () => {
     gatewayManager.getStatus.mockReturnValue({ state: 'stopped', port: 18789 });
     fsAccessMock.mockResolvedValue(undefined);
     fsReadFileMock.mockResolvedValue(Buffer.from('file'));
+    fsStatMock.mockResolvedValue({ size: 123 });
     const { registerIpcHandlers } = await import('@electron/main/ipc-handlers');
     registerIpcHandlers(
       gatewayManager,
@@ -160,10 +186,7 @@ describe('app:request security', () => {
   it('sanitizes gatewayToken for unified settings:getAll', async () => {
     const handler = handlers.get('app:request');
     expect(handler).toBeDefined();
-    mockGetAllSettings.mockResolvedValueOnce({
-      gatewayToken: 'super-secret-token',
-      language: 'en',
-    });
+    mockGetAllSettings.mockResolvedValueOnce(makeSettings());
 
     const response = await handler?.({}, {
       id: 'req-2',
@@ -174,9 +197,62 @@ describe('app:request security', () => {
     expect(response).toEqual({
       id: 'req-2',
       ok: true,
+      data: makeSettings({ gatewayToken: '' }),
+    });
+  });
+
+  it('sanitizes gatewayToken for unified settings:reset', async () => {
+    const handler = handlers.get('app:request');
+    expect(handler).toBeDefined();
+    mockGetAllSettings.mockResolvedValue(makeSettings());
+
+    const response = await handler?.({}, {
+      id: 'req-reset',
+      module: 'settings',
+      action: 'reset',
+    });
+
+    expect(mockResetSettings).toHaveBeenCalledTimes(1);
+    expect(response).toEqual({
+      id: 'req-reset',
+      ok: true,
       data: {
+        success: true,
+        settings: {
+          gatewayToken: '',
+          language: 'en',
+          proxyEnabled: false,
+          proxyServer: '',
+          proxyHttpServer: '',
+          proxyHttpsServer: '',
+          proxyAllServer: '',
+          proxyBypassRules: '',
+          launchAtStartup: false,
+        },
+      },
+    });
+  });
+
+  it('sanitizes gatewayToken for legacy settings:reset', async () => {
+    const handler = handlers.get('settings:reset');
+    expect(handler).toBeDefined();
+    mockGetAllSettings.mockResolvedValue(makeSettings());
+
+    const response = await handler?.({});
+
+    expect(mockResetSettings).toHaveBeenCalledTimes(1);
+    expect(response).toEqual({
+      success: true,
+      settings: {
         gatewayToken: '',
         language: 'en',
+        proxyEnabled: false,
+        proxyServer: '',
+        proxyHttpServer: '',
+        proxyHttpsServer: '',
+        proxyAllServer: '',
+        proxyBypassRules: '',
+        launchAtStartup: false,
       },
     });
   });
@@ -268,5 +344,26 @@ describe('app:request security', () => {
       }),
       120000,
     );
+  });
+
+  it('blocks thumbnail reads for non-staged media paths', async () => {
+    const handler = handlers.get('media:getThumbnails');
+    expect(handler).toBeDefined();
+    const filePath = join(homedir(), 'Pictures', 'private.png');
+
+    const response = await handler?.({}, [
+      {
+        filePath,
+        mimeType: 'image/png',
+      },
+    ]);
+
+    expect(fsStatMock).not.toHaveBeenCalled();
+    expect(response).toEqual({
+      [filePath]: {
+        preview: null,
+        fileSize: 0,
+      },
+    });
   });
 });

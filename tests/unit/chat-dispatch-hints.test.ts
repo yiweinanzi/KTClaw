@@ -46,6 +46,15 @@ describe('chat dispatch hints', () => {
     expect(availability).toBe('missing');
   });
 
+  it('treats qwen3.5-0.8b as a text-only model when no matching fallback account is available', () => {
+    const availability = resolveImageUnderstandingAvailability({
+      currentModel: 'qwen3.5-0.8b',
+      accounts: [],
+    });
+
+    expect(availability).toBe('missing');
+  });
+
   it('reports native image understanding when the active model is vision-capable', () => {
     const availability = resolveImageUnderstandingAvailability({
       currentModel: 'anthropic/claude-sonnet-4-6',

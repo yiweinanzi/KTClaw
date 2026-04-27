@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { getSparseCheckoutGitCommands } from '../../scripts/bundle-preinstalled-skills.mjs';
+import {
+  getSparseCheckoutGitCommands,
+  splitPreinstalledManifestEntries,
+} from '../../scripts/bundle-preinstalled-skills.mjs';
 
 describe('bundle preinstalled skills script', () => {
   it('expands sparse checkout into direct git commands', () => {
@@ -19,6 +22,20 @@ describe('bundle preinstalled skills script', () => {
       ['git', ['-C', 'C:/tmp/repo', 'fetch', '--depth', '1', 'origin', 'main']],
       ['git', ['-C', 'C:/tmp/repo', 'checkout', 'FETCH_HEAD']],
       ['git', ['-C', 'C:/tmp/repo', 'rev-parse', 'HEAD']],
+    ]);
+  });
+
+  it('separates local preinstalled skills from git-backed skills', () => {
+    const split = splitPreinstalledManifestEntries([
+      { slug: 'image-search', localPath: 'resources/preinstalled-skills/image-search' },
+      { slug: 'pdf', repo: 'anthropics/skills', repoPath: 'skills/pdf', ref: 'main' },
+    ]);
+
+    expect(split.local).toEqual([
+      { slug: 'image-search', localPath: 'resources/preinstalled-skills/image-search' },
+    ]);
+    expect(split.remote).toEqual([
+      { slug: 'pdf', repo: 'anthropics/skills', repoPath: 'skills/pdf', ref: 'main' },
     ]);
   });
 });
