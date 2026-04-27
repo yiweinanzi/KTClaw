@@ -65,7 +65,32 @@ function makeHarness(initial?: Partial<ChatLikeState>) {
 describe('chat runtime send actions', () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    invokeIpcMock.mockResolvedValue({ ok: true });
+    invokeIpcMock.mockResolvedValue({ success: true, result: { runId: 'run-next' } });
+  });
+
+  it('clears pending tool images when starting a new user message', async () => {
+    vi.useFakeTimers();
+    const { createRuntimeSendActions } = await import('@/stores/chat/runtime-send-actions');
+    const h = makeHarness({
+      sending: false,
+      pendingToolImages: [{ fileName: 'old.png' }],
+      streamingMessage: null,
+      streamingText: '',
+      streamingTools: [],
+      pendingFinal: false,
+      lastUserMessageAt: null,
+    });
+    const actions = createRuntimeSendActions(h.set as never, h.get as never);
+
+    await actions.sendMessage('帮我搜索一张企鹅的图片');
+
+    expect(h.read().messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: '帮我搜索一张企鹅的图片',
+    });
+    expect(h.read().pendingToolImages).toEqual([]);
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 
   it('abortRun clears activeRunId before the next send can start', async () => {

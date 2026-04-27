@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  enrichWithToolResultFiles,
   extractMediaRefs,
   extractRawFilePaths,
 } from '@/stores/chat/helpers';
@@ -48,5 +49,26 @@ describe('chat attachment path parsing', () => {
         mimeType: 'image/png',
       },
     ]);
+  });
+
+  it('does not carry orphan tool-result images across a new user turn', () => {
+    const messages: RawMessage[] = [
+      {
+        role: 'toolresult',
+        content: 'Found old image: C:\\Users\\me\\Pictures\\old-cat.png',
+      },
+      {
+        role: 'user',
+        content: '帮我搜索一张企鹅的图片',
+      },
+      {
+        role: 'assistant',
+        content: 'No matching images found.',
+      },
+    ];
+
+    const enriched = enrichWithToolResultFiles(messages);
+
+    expect(enriched[2]._attachedFiles).toBeUndefined();
   });
 });

@@ -388,6 +388,10 @@ function enrichWithToolResultFiles(messages: RawMessage[]): RawMessage[] {
       };
     }
 
+    if (pending.length > 0 && msg.role !== 'assistant') {
+      pending.splice(0);
+    }
+
     return msg;
   });
 }

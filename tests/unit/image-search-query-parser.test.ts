@@ -51,4 +51,12 @@ describe('image search query parser', () => {
     expect(parsed.contentQuery).toBe('猫');
     expect(parsed.contentTerms).toEqual(['猫']);
   });
+
+  it('removes conversational search filler from content descriptions', () => {
+    const parsed = parseImageSearchQuery('帮我搜索一张企鹅的图片');
+
+    expect(parsed.timeRange).toBeNull();
+    expect(parsed.contentQuery).toBe('企鹅');
+    expect(parsed.contentTerms).toEqual(['企鹅']);
+  });
 });

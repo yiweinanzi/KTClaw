@@ -51,4 +51,23 @@ describe('image search service', () => {
     expect(result.results.map((entry) => entry.path)).toEqual([beach]);
     expect(result.parsed.contentTerms).toEqual(['海边']);
   });
+
+  it('matches Chinese penguin searches against English file names', async () => {
+    const root = join(tmpdir(), `ktclaw-image-search-${Date.now()}-penguin`);
+    const penguin = await createImage(root, 'wildlife/antarctica-penguin.jpg', '2026-04-26T04:00:00.000Z');
+    await createImage(root, 'wildlife/antarctica-seal.jpg', '2026-04-26T04:00:00.000Z');
+
+    const result = await searchImages({
+      query: '帮我搜索一张企鹅的图片',
+      roots: [root],
+      now: new Date('2026-04-27T10:30:00+08:00'),
+    });
+
+    expect(result.parsed.contentTerms).toEqual(['企鹅']);
+    expect(result.results.map((entry) => entry.path)).toEqual([penguin]);
+    expect(result.results[0].match).toMatchObject({
+      matchedTerms: ['企鹅'],
+      reasons: ['content:企鹅'],
+    });
+  });
 });

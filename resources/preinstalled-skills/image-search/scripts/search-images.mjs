@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { readdir, stat } from 'node:fs/promises';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, extname, join, relative, resolve } from 'node:path';
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.heic', '.heif']);
 const TERM_SYNONYMS = {
   猫: ['cat', 'kitty', 'kitten'],
+  企鹅: ['penguin', 'penguins'],
   海边: ['beach', 'sea', 'ocean', 'coast', 'shore', 'seaside'],
   会议: ['meeting', 'conference', 'sync', 'standup'],
   截图: ['screenshot', 'screen shot', 'screen-shot', 'screen_capture', 'snapshot'],
@@ -93,7 +94,7 @@ function parseQuery(query, now) {
     ? 'screenshot'
     : (/照片|相片|photo/i.test(normalizedQuery) ? 'photo' : 'image');
   let content = residue;
-  const fillers = ['图片', '图像', '照片', '相片', 'photo', 'photos', 'picture', 'pictures', 'image', 'images', '创建的', '创建', '修改的', '修改', '拍摄的', '拍摄', '拍的', '拍', '生成的', '生成', '保存的', '保存', '文件', '的', '在', '于', '里', '中', '截图', '截屏', 'of', 'from', 'created', 'modified', 'taken', 'saved'];
+  const fillers = ['图片', '图像', '照片', '相片', 'photo', 'photos', 'picture', 'pictures', 'image', 'images', '请帮我', '帮我', '帮忙', '给我', '搜一下', '搜图', '搜索', '查找', '查一下', '寻找', '找一下', '找', '搜', '查', '一张', '一幅', '一个', '一些', '几张', '有关', '关于', '相关', '里面', '包含', '含有', '带有', '显示', '一下', '创建的', '创建', '修改的', '修改', '拍摄的', '拍摄', '拍的', '拍', '生成的', '生成', '保存的', '保存', '文件', '的', '在', '于', '里', '中', '截图', '截屏', 'of', 'from', 'created', 'modified', 'taken', 'saved'];
   for (const word of fillers) content = content.replace(new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), ' ');
   content = content.replace(/[，。,.!?？、:：;；()[\]{}"'`~|\\/]+/g, ' ').replace(/\s+/g, ' ').trim();
   const contentTerms = [...new Set(content.match(/[\p{Script=Han}]+|[a-zA-Z0-9_-]+/gu) || [])];
@@ -104,9 +105,10 @@ function normalizeText(value) {
   return value.toLowerCase().replace(/[_-]+/g, ' ');
 }
 
-function scorePath(filePath, parsed) {
+function scorePath(filePath, parsed, root) {
   if (parsed.contentTerms.length === 0) return { score: 1, matchedTerms: [], reasons: ['time'] };
-  const text = normalizeText(filePath);
+  const searchPath = root ? relative(root, filePath) || basename(filePath) : filePath;
+  const text = normalizeText(searchPath);
   const matchedTerms = [];
   const reasons = [];
   let score = 0;
@@ -155,7 +157,7 @@ async function searchImages({ roots, query, now, limit }) {
         const end = Date.parse(parsed.timeRange.end);
         if (fileStat.mtimeMs < start || fileStat.mtimeMs >= end) continue;
       }
-      const match = scorePath(filePath, parsed);
+      const match = scorePath(filePath, parsed, root);
       if (parsed.contentTerms.length > 0 && match.score <= 0) continue;
       totalMatched += 1;
       results.push({

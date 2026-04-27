@@ -182,4 +182,27 @@ describe('ChatMessage', () => {
     expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Open cat face\.jpg/ })).toBeInTheDocument();
   });
+
+  it('renders assistant image previews as compact thumbnails', () => {
+    const message: RawMessage = {
+      role: 'assistant',
+      content: 'Found this penguin image.',
+      _attachedFiles: [
+        {
+          fileName: 'penguin.jpg',
+          mimeType: 'image/jpeg',
+          fileSize: 4096,
+          preview: 'data:image/jpeg;base64,AAAA',
+          filePath: '/home/user/penguin.jpg',
+        },
+      ],
+    };
+
+    render(<ChatMessage message={message} showThinking={false} />);
+
+    const preview = screen.getByRole('button', { name: /Preview penguin\.jpg/ });
+    expect(preview).toHaveClass('w-40');
+    expect(preview).toHaveClass('h-28');
+    expect(screen.getByRole('img', { name: 'penguin.jpg' })).toHaveClass('object-cover');
+  });
 });

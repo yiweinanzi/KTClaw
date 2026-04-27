@@ -130,6 +130,7 @@ export function createRuntimeSendActions(set: ChatSet, get: ChatGet): Pick<Runti
         streamingMessage: null,
         streamingTools: [],
         pendingFinal: false,
+        pendingToolImages: [],
         lastUserMessageAt: nowMs,
       }));
 

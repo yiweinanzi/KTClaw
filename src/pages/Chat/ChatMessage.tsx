@@ -586,11 +586,11 @@ function ImagePreviewCard({
   return (
     <button
       type="button"
-      className="relative max-w-xs rounded-xl border overflow-hidden border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 group/img cursor-zoom-in p-0"
+      className="relative w-40 h-28 rounded-xl border overflow-hidden border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 group/img cursor-zoom-in p-0"
       onClick={onPreview}
       aria-label={`Preview ${fileName}`}
     >
-      <img src={src} alt={fileName} className="block w-full" />
+      <img src={src} alt={fileName} className="block w-full h-full object-cover" />
       <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/20 transition-colors flex items-center justify-center">
         <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover/img:opacity-100 transition-opacity drop-shadow" />
       </div>

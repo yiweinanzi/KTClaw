@@ -1,5 +1,5 @@
 import { readdir, stat } from 'node:fs/promises';
-import { basename, extname, join, resolve } from 'node:path';
+import { basename, extname, join, relative, resolve } from 'node:path';
 import { parseImageSearchQuery, type ParsedImageSearchQuery } from './query-parser';
 
 export interface ImageSearchRequest {
@@ -50,6 +50,7 @@ const MAX_LIMIT = 200;
 
 const TERM_SYNONYMS: Record<string, string[]> = {
   猫: ['cat', 'kitty', 'kitten'],
+  企鹅: ['penguin', 'penguins'],
   海边: ['beach', 'sea', 'ocean', 'coast', 'shore', 'seaside'],
   会议: ['meeting', 'conference', 'sync', 'standup'],
   截图: ['screenshot', 'screen shot', 'screen-shot', 'screen_capture', 'snapshot'],
@@ -81,7 +82,7 @@ function getExpandedTerms(terms: string[], imageKind: ParsedImageSearchQuery['im
   return [...expanded];
 }
 
-function scorePath(path: string, parsed: ParsedImageSearchQuery): ImageSearchResultEntry['match'] {
+function scorePath(path: string, parsed: ParsedImageSearchQuery, root?: string): ImageSearchResultEntry['match'] {
   const terms = getExpandedTerms(parsed.contentTerms, parsed.imageKind);
   if (terms.length === 0) {
     return {
@@ -91,7 +92,8 @@ function scorePath(path: string, parsed: ParsedImageSearchQuery): ImageSearchRes
     };
   }
 
-  const text = normalizeSearchText(path);
+  const searchPath = root ? relative(root, path) || basename(path) : path;
+  const text = normalizeSearchText(searchPath);
   const matchedOriginalTerms = new Set<string>();
   let score = 0;
   const reasons: string[] = [];
@@ -173,7 +175,7 @@ export async function searchImages(request: ImageSearchRequest): Promise<ImageSe
       const fileTimeMs = fileStat.mtimeMs;
       if (!isInTimeRange(fileTimeMs, parsed)) continue;
 
-      const match = scorePath(filePath, parsed);
+      const match = scorePath(filePath, parsed, root);
       if (parsed.contentTerms.length > 0 && match.score <= 0) continue;
 
       totalMatched += 1;

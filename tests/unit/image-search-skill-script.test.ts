@@ -37,4 +37,29 @@ describe('image-search bundled skill script', () => {
     const parsed = JSON.parse(stdout) as { results: Array<{ path: string }> };
     expect(parsed.results.map((entry) => entry.path)).toEqual([expected]);
   });
+
+  it('understands conversational Chinese penguin searches', async () => {
+    const root = join(tmpdir(), `ktclaw-image-search-skill-${Date.now()}-penguin`);
+    const expected = await createImage(root, 'antarctica-penguin.jpg', '2026-04-26T04:00:00.000Z');
+    await createImage(root, 'antarctica-seal.jpg', '2026-04-26T04:00:00.000Z');
+
+    const { stdout } = await execFileAsync('node', [
+      scriptPath,
+      '--root',
+      root,
+      '--query',
+      '帮我搜索一张企鹅的图片',
+      '--now',
+      '2026-04-27T10:30:00+08:00',
+      '--json',
+    ]);
+
+    const parsed = JSON.parse(stdout) as {
+      parsed: { contentTerms: string[] };
+      results: Array<{ path: string; match: { matchedTerms: string[] } }>;
+    };
+    expect(parsed.parsed.contentTerms).toEqual(['企鹅']);
+    expect(parsed.results.map((entry) => entry.path)).toEqual([expected]);
+    expect(parsed.results[0].match.matchedTerms).toEqual(['企鹅']);
+  });
 });
