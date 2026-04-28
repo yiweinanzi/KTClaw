@@ -168,10 +168,9 @@ describe('query-parser: extended time expressions', () => {
     const parsed = parseImageSearchQuery('最近三个月', { now: NOW });
     expect(parsed.timeRange).not.toBeNull();
     const start = new Date(parsed.timeRange!.start);
-    // 3 months before April = January
-    expect(start.getMonth()).toBe(1); // Jan is 0, so 3 months before April (3) = January (1) -> wait, April - 3 = January
-    // April is month 3 (0-indexed), April - 3 = January = month 0?
-    // Actually: new Date(2026, 3, 28) - 3 months = new Date(2026, 0, 28) = Jan 28
+    // April is month 3 (0-indexed), April - 3 months = January = month 0
+    // new Date(2026, 3, 28) - 3 months = new Date(2026, 0, 28) = Jan 28
+    expect(start.getMonth()).toBe(0); // January
     expect(start.getFullYear()).toBe(2026);
   });
 
@@ -179,11 +178,9 @@ describe('query-parser: extended time expressions', () => {
     const parsed = parseImageSearchQuery('最近2个月的旅行照片', { now: NOW });
     expect(parsed.timeRange).not.toBeNull();
     const start = new Date(parsed.timeRange!.start);
-    // April - 2 months = February
-    expect(start.getMonth()).toBe(2); // February is month 1, March is 2
-    // 2026-04-28 - 2 months = 2026-02-28 (month 1)
-    // Wait: month 0 = Jan, 1 = Feb, 2 = Mar, 3 = Apr
-    // Apr (3) - 2 = Feb (1)
+    // April is month 3 (0-indexed), April - 2 months = February = month 1
+    // new Date(2026, 3, 28) - 2 months = new Date(2026, 1, 28) = Feb 28
+    expect(start.getMonth()).toBe(1); // February
     expect(start.getFullYear()).toBe(2026);
   });
 
