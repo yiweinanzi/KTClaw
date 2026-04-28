@@ -315,8 +315,8 @@ function getLoadOptions(source) {
 }
 
 async function loadSemanticProvider() {
-  // Use @huggingface/transformers (D-13: upgraded from @xenova/transformers)
-  const transformers = await import('@huggingface/transformers');
+  // Use @xenova/transformers (installed package)
+  const transformers = await import('@xenova/transformers');
   transformers.env.cacheDir = getModelCacheDir();
   const sources = getStandaloneModelSources();
   if (sources.length === 0) {
