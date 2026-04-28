@@ -67,6 +67,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Download MobileCLIP model for bundling
+        shell: bash
+        run: pnpm run model:download
+        env:
+          HF_MIRROR: https://hf-mirror.com
+
       - name: Download uv binaries for Windows
         run: pnpm run uv:download:win
 

@@ -53,6 +53,7 @@
         "uv:download:win": "zx scripts/download-bundled-uv.mjs --platform=win",
         "uv:download:linux": "zx scripts/download-bundled-uv.mjs --platform=linux",
         "uv:download:all": "zx scripts/download-bundled-uv.mjs --all",
+        "model:download": "node scripts/download-mobileclip-model.mjs",
         "icons": "zx scripts/generate-icons.mjs",
         "package:prepare": "pnpm run build:vite && pnpm run bundle:openclaw && pnpm run bundle:openclaw-plugins && pnpm run bundle:preinstalled-skills",
         "package": "pnpm run package:prepare && electron-builder",

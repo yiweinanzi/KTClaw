@@ -52,6 +52,7 @@ coverage/
 *.rpm
 
 resources/bin
+resources/image-search-models
 
 # Secrets
 *.p12
