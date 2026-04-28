@@ -18,15 +18,17 @@ const TERM_SYNONYMS = {
 };
 
 function parseArgs(argv) {
-  const out = { roots: [], query: '', limit: 50, json: false, now: undefined, semantic: false };
+  const out = { roots: [], query: '', limit: 50, json: false, now: undefined, status: false, similarTo: undefined };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--root') out.roots.push(argv[++index] || '');
     else if (arg === '--query') out.query = argv[++index] || '';
     else if (arg === '--limit') out.limit = Number(argv[++index] || '50');
     else if (arg === '--now') out.now = argv[++index] || undefined;
-    else if (arg === '--semantic') out.semantic = true;
+    else if (arg === '--status') out.status = true;
+    else if (arg === '--similar-to') out.similarTo = argv[++index] || undefined;
     else if (arg === '--json') out.json = true;
+    // --semantic is deprecated and silently ignored (semantic is always on)
   }
   out.roots = out.roots.map((root) => root.trim()).filter(Boolean);
   out.query = out.query.trim();
@@ -103,7 +105,7 @@ function parseQuery(query, now) {
   let content = residue;
   const fillers = ['图片', '图像', '照片', '相片', 'photo', 'photos', 'picture', 'pictures', 'image', 'images', '请帮我', '帮我', '帮忙', '给我', '搜一下', '搜图', '搜索', '查找', '查一下', '寻找', '找一下', '找', '搜', '查', '一张', '一幅', '一个', '一些', '几张', '有关', '关于', '相关', '里面', '包含', '含有', '带有', '显示', '一下', '创建的', '创建', '修改的', '修改', '拍摄的', '拍摄', '拍的', '拍', '生成的', '生成', '保存的', '保存', '文件', '的', '在', '于', '里', '中', '截图', '截屏', 'of', 'from', 'created', 'modified', 'taken', 'saved'];
   for (const word of fillers) content = content.replace(new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), ' ');
-  content = content.replace(/[，。,.!?？、:：;；()[\]{}"'`~|\\/]+/g, ' ').replace(/\s+/g, ' ').trim();
+  content = content.replace(/[，。,.!?？、:：;；()[\]{}\"'`~|\\/]+/g, ' ').replace(/\s+/g, ' ').trim();
   const contentTerms = [...new Set(content.match(/[\p{Script=Han}]+|[a-zA-Z0-9_-]+/gu) || [])];
   return { originalQuery: query, normalizedQuery, timeRange: range, imageKind, contentQuery: content, contentTerms };
 }
@@ -207,10 +209,6 @@ function getLocalModelPath() {
   return process.env.KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH?.trim() || null;
 }
 
-function isSemanticEnabled() {
-  return process.env.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC === '1';
-}
-
 function hasCachedModel(cacheDir = getModelCacheDir()) {
   const modelRoot = join(cacheDir, ...MOBILECLIP_MODEL_ID.split('/'));
   return [
@@ -281,9 +279,7 @@ function getRemoteModelSources() {
   return sources;
 }
 
-function getModelSources() {
-  if (!isSemanticEnabled()) return [];
-
+function getStandaloneModelSources() {
   const localModelPath = getLocalModelPath();
   const sources = localModelPath
     ? [{ name: 'local', modelId: MOBILECLIP_MODEL_ID, localModelPath }]
@@ -319,13 +315,10 @@ function getLoadOptions(source) {
 }
 
 async function loadSemanticProvider() {
-  if (!isSemanticEnabled()) {
-    throw new Error('Semantic image search is disabled. Set KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC=1 to enable it.');
-  }
-
-  const transformers = await import('@xenova/transformers');
+  // Use @huggingface/transformers (D-13: upgraded from @xenova/transformers)
+  const transformers = await import('@huggingface/transformers');
   transformers.env.cacheDir = getModelCacheDir();
-  const sources = getModelSources();
+  const sources = getStandaloneModelSources();
   if (sources.length === 0) {
     throw new Error('MobileCLIP model is not installed. Set KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS=1 to allow download, or provide KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH.');
   }
@@ -384,18 +377,19 @@ async function* walkImages(root) {
   }
 }
 
-async function searchImages({ roots, query, now, limit, semantic }) {
+async function searchImagesStandalone({ roots, query, now, limit, similarTo }) {
   const parsed = parseQuery(query, now);
   const normalizedRoots = [...new Set(roots.map((root) => resolve(root)))];
   const results = [];
   let semanticError;
-  const semanticProvider = semantic && parsed.contentQuery
+  const semanticProvider = parsed.contentQuery || similarTo
     ? await loadSemanticProvider().catch((error) => {
       semanticError = error instanceof Error ? error.message : String(error);
       return null;
     })
     : null;
-  const semanticTextEmbedding = semanticProvider ? await semanticProvider.embedText(parsed.contentQuery) : null;
+  const semanticTextEmbedding = semanticProvider && parsed.contentQuery ? await semanticProvider.embedText(parsed.contentQuery) : null;
+  const similarToEmbedding = semanticProvider && similarTo ? await semanticProvider.embedImage(similarTo).catch(() => null) : null;
   let totalScanned = 0;
   let totalMatched = 0;
   for (const root of normalizedRoots) {
@@ -409,11 +403,26 @@ async function searchImages({ roots, query, now, limit, semantic }) {
         if (fileStat.mtimeMs < start || fileStat.mtimeMs >= end) continue;
       }
       let match = scorePath(filePath, parsed, root);
-      if (semanticTextEmbedding && semanticProvider) {
-        const imageEmbedding = await semanticProvider.embedImage(filePath);
-        match = mergeSemanticMatch(match, parsed, cosineSimilarity(semanticTextEmbedding, imageEmbedding));
+      if (semanticProvider) {
+        const imageEmbedding = await semanticProvider.embedImage(filePath).catch(() => null);
+        if (imageEmbedding) {
+          if (semanticTextEmbedding) {
+            match = mergeSemanticMatch(match, parsed, cosineSimilarity(semanticTextEmbedding, imageEmbedding));
+          }
+          if (similarToEmbedding) {
+            const sim = cosineSimilarity(similarToEmbedding, imageEmbedding);
+            if (sim >= SEMANTIC_MIN_SIMILARITY) {
+              match = {
+                score: match.score + sim * SEMANTIC_SCORE_SCALE,
+                matchedTerms: match.matchedTerms,
+                reasons: [...match.reasons, `similar-to:${sim.toFixed(3)}`],
+              };
+            }
+          }
+        }
       }
-      if (parsed.contentTerms.length > 0 && match.score <= 0) continue;
+      if (parsed.contentTerms.length > 0 && !similarTo && match.score <= 0) continue;
+      if (similarTo && match.score <= 0) continue;
       totalMatched += 1;
       results.push({
         path: filePath,
@@ -434,7 +443,7 @@ async function searchImages({ roots, query, now, limit, semantic }) {
     totalScanned,
     totalMatched,
     semantic: {
-      requested: Boolean(semantic),
+      requested: true,
       enabled: Boolean(semanticProvider),
       model: semanticProvider ? MOBILECLIP_MODEL_ID : null,
       ...(semanticError ? { error: semanticError } : {}),
@@ -445,13 +454,96 @@ async function searchImages({ roots, query, now, limit, semantic }) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.query || args.roots.length === 0) {
-    console.error('Usage: search-images.mjs --root <directory> --query "<query>" [--limit 50] [--semantic] [--json]');
+  const hostApiPort = process.env.KTCLAW_HOST_API_PORT?.trim();
+
+  // --status: check index status via Host API or print standalone message
+  if (args.status) {
+    if (hostApiPort) {
+      try {
+        const res = await fetch(`http://localhost:${hostApiPort}/api/image-search/index/status`);
+        const data = await res.json();
+        if (args.json) {
+          console.log(JSON.stringify(data, null, 2));
+        } else {
+          console.log(`Index state: ${data.state}`);
+          if (data.progress) {
+            console.log(`Progress: ${data.progress.indexed}/${data.progress.total} indexed, ${data.progress.skipped} skipped`);
+          }
+          if (data.lastIndexedAt) {
+            console.log(`Last indexed: ${data.lastIndexedAt}`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to get index status:', err instanceof Error ? err.message : String(err));
+        process.exitCode = 1;
+      }
+    } else {
+      const statusMsg = { state: 'standalone', message: 'Running without Host API — no persistent index available.' };
+      if (args.json) {
+        console.log(JSON.stringify(statusMsg, null, 2));
+      } else {
+        console.log('Running in standalone mode — no persistent index.');
+      }
+    }
+    return;
+  }
+
+  if (!args.query && !args.similarTo) {
+    console.error('Usage: search-images.mjs --root <directory> (--query "<query>" | --similar-to <path>) [--limit 50] [--status] [--json]');
     process.exitCode = 2;
     return;
   }
+  if (args.roots.length === 0) {
+    console.error('Error: at least one --root <directory> is required');
+    process.exitCode = 2;
+    return;
+  }
+
   const now = args.now ? new Date(args.now) : new Date();
-  const result = await searchImages({ roots: args.roots, query: args.query, now, limit: args.limit, semantic: args.semantic });
+
+  // Use Host API when available (fast vector index search)
+  if (hostApiPort) {
+    try {
+      const body = {
+        query: args.query || '',
+        roots: args.roots,
+        limit: args.limit,
+        semantic: true,
+        ...(args.similarTo ? { similarTo: args.similarTo } : {}),
+        ...(args.now ? { now: args.now } : {}),
+      };
+      const res = await fetch(`http://localhost:${hostApiPort}/api/image-search/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        throw new Error(`Host API error ${res.status}: ${errText}`);
+      }
+      const result = await res.json();
+      if (args.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      for (const entry of (result.results || [])) {
+        console.log(`${entry.path}\t${entry.match?.reasons?.join(',') || ''}`);
+      }
+      return;
+    } catch (err) {
+      // Fall through to standalone search on Host API failure
+      process.stderr.write(`Host API unavailable (${err instanceof Error ? err.message : String(err)}), falling back to standalone search\n`);
+    }
+  }
+
+  // Standalone fallback: real-time semantic search without Host API
+  const result = await searchImagesStandalone({
+    roots: args.roots,
+    query: args.query,
+    now,
+    limit: args.limit,
+    similarTo: args.similarTo,
+  });
   if (args.json) {
     console.log(JSON.stringify(result, null, 2));
     return;
