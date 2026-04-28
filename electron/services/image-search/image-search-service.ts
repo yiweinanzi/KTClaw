@@ -70,6 +70,17 @@ const TERM_SYNONYMS: Record<string, string[]> = {
   海边: ['beach', 'sea', 'ocean', 'coast', 'shore', 'seaside'],
   会议: ['meeting', 'conference', 'sync', 'standup'],
   截图: ['screenshot', 'screen shot', 'screen-shot', 'screen_capture', 'snapshot'],
+  // Extended synonyms for new dictionary terms (most likely to appear in filenames)
+  旅游: ['travel', 'trip', 'journey', 'vacation', 'tour'],
+  旅行: ['travel', 'trip', 'journey', 'vacation'],
+  婚礼: ['wedding', 'marriage', 'bride', 'groom'],
+  生日: ['birthday', 'bday', 'birth_day'],
+  毕业: ['graduation', 'graduate', 'commencement'],
+  风景: ['landscape', 'scenery', 'scenic', 'nature'],
+  自拍: ['selfie', 'self-portrait', 'self_portrait'],
+  全家福: ['family', 'family_photo', 'family-photo'],
+  夜景: ['night', 'nightscape', 'night_view', 'nighttime'],
+  狗: ['dog', 'puppy', 'canine'],
 };
 
 const SEMANTIC_SCORE_SCALE = 10;
