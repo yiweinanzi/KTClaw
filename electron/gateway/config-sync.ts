@@ -414,6 +414,8 @@ export async function prepareGatewayLaunchContext(port: number): Promise<Gateway
     OPENCLAW_SKIP_CHANNELS: skipChannels ? '1' : '',
     CLAWDBOT_SKIP_CHANNELS: skipChannels ? '1' : '',
     OPENCLAW_NO_RESPAWN: '1',
+    PYTHONUTF8: '1',
+    PYTHONIOENCODING: 'utf-8',
     ...getImageSearchModelRuntimeEnv(),
   };
 
