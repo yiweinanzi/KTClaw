@@ -335,6 +335,9 @@ const createComponents = (resolveLocalFilePath?: (href: string, text: string) =>
     },
     img: ({ src, alt, node, ...props }: MarkdownComponentProps<'img'>) => {
       void node;
+      if (typeof src === 'string' && isLikelyLocalFilePath(src)) {
+        return <LocalImagePreview src={src} alt={alt || ''} />;
+      }
       const resolvedSrc = typeof src === 'string' && src.startsWith('file://')
         ? src.replace(/^file:\/\//, 'localfile://')
         : src;
@@ -423,6 +426,55 @@ const createComponents = (resolveLocalFilePath?: (href: string, text: string) =>
 
   return components;
 };
+
+// ── Local Image Preview (loads local file paths via IPC) ────────
+
+function LocalImagePreview({ src, alt }: { src: string; alt: string }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const filePath = src.replace(/^file:\/\/\/?/, '');
+    invokeIpc('media:getThumbnails', [{ filePath, mimeType: 'image/jpeg' }])
+      .then((result: unknown) => {
+        if (cancelled) return;
+        const thumbs = result as Record<string, { preview: string | null; fileSize: number }>;
+        const thumb = thumbs[filePath];
+        if (thumb?.preview) setPreview(thumb.preview);
+        else setError(true);
+      })
+      .catch(() => { if (!cancelled) setError(true); });
+    return () => { cancelled = true; };
+  }, [src]);
+
+  const handleClick = useCallback(() => {
+    const filePath = src.replace(/^file:\/\/\/?/, '');
+    invokeIpc('shell:openPath', filePath);
+  }, [src]);
+
+  if (error) {
+    return (
+      <button type="button" onClick={handleClick} className="inline-flex items-center gap-2 text-xs text-accent-foreground hover:underline my-1 cursor-pointer">
+        <File className="h-4 w-4" />
+        <span>{alt || src.split(/[\\/]/).pop() || 'image'}</span>
+      </button>
+    );
+  }
+
+  if (!preview) {
+    return <span className="inline-block w-48 h-32 rounded-xl bg-black/5 dark:bg-white/5 animate-pulse my-3" />;
+  }
+
+  return (
+    <button type="button" onClick={handleClick} className="block my-3 cursor-pointer group/img relative" title={alt || 'Click to open'}>
+      <img src={preview} alt={alt} className="max-w-full max-h-80 h-auto rounded-xl border border-black/10 dark:border-white/10" />
+      <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded opacity-0 group-hover/img:opacity-100 transition-opacity">
+        {alt || src.split(/[\\/]/).pop() || 'Open image'}
+      </div>
+    </button>
+  );
+}
 
 // ── Public API ───────────────────────────────────────────────────
 
