@@ -3,15 +3,19 @@
  *
  * Singleton that owns the Worker Thread lifecycle for background image indexing.
  * Implements exponential backoff crash recovery and dimension mismatch detection.
+ * After first full index completes, starts a chokidar file watcher to keep the
+ * index up-to-date with real-time changes (D-11).
  *
- * Design decisions (D-09, D-10, D-15, SC-3):
+ * Design decisions (D-09, D-10, D-11, D-15, SC-3):
  * - D-09: Worker never touches DB directly — manager receives batches and writes via vectorStore
  * - D-10: ImageVectorStore is lazy-open, always-open singleton
+ * - D-11: File watcher does NOT start before first full index is complete
  * - D-15: Exponential backoff crash recovery (1s, 2s, 4s, 8s, cap 60s)
  * - SC-3: 3 crashes in 30s window → 'unavailable' state (no infinite loop)
  */
 import { Worker } from 'node:worker_threads';
-import { join } from 'node:path';
+import { join, extname } from 'node:path';
+import chokidar, { type FSWatcher } from 'chokidar';
 import { ImageVectorStore } from './image-vector-store';
 import {
   getImageSearchModelCacheDir,
@@ -37,6 +41,9 @@ const MAX_RESTART_DELAY_MS = 60_000;
 
 /** Batch size for worker */
 const INDEXING_BATCH_SIZE = 50;
+
+/** Image file extensions monitored by the file watcher */
+const WATCHED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.heic', '.heif']);
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -108,6 +115,18 @@ export class ImageIndexManager {
 
   /** Pending restart timer */
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** chokidar file watcher instance, started after first full index */
+  private watcher: FSWatcher | null = null;
+
+  /** Debounce timer for batching rapid file-system changes */
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Paths with pending changes awaiting debounce flush */
+  private pendingChanges = new Set<string>();
+
+  /** Debounce delay (ms) before triggering incremental re-index */
+  private readonly DEBOUNCE_MS = 5000;
 
   constructor(vectorStore?: ImageVectorStore) {
     this.vectorStore = vectorStore ?? new ImageVectorStore();
@@ -230,6 +249,11 @@ export class ImageIndexManager {
         this.vectorStore.setMeta('embedding_dim', String(CURRENT_EMBEDDING_DIM));
 
         logger.info(`ImageIndexManager: Indexing complete — ${msg.indexed} indexed, ${msg.skipped} skipped, ${msg.errors} errors`);
+
+        // Start file watcher after first full index is complete (D-11)
+        if (!this.watcher) {
+          this.startWatcher(this.roots);
+        }
         break;
 
       case 'error':
@@ -331,6 +355,7 @@ export class ImageIndexManager {
    * Safe to call from app.before-quit event handler.
    */
   shutdown(): void {
+    this.stopWatcher();
     if (this.restartTimer !== null) {
       clearTimeout(this.restartTimer);
       this.restartTimer = null;
@@ -347,9 +372,101 @@ export class ImageIndexManager {
   }
 
   /**
-   * Returns the underlying ImageVectorStore instance.
-   * Used by the search service to perform KNN queries.
+   * Starts the chokidar file watcher on the given root directories.
+   *
+   * Called automatically after the first full index completes (D-11).
+   * Guards against double-start — if `this.watcher` already exists, returns early.
+   *
+   * File events are debounced at 5s to avoid triggering re-indexing on every
+   * write during a large file copy. Deleted files are removed from the index
+   * immediately (no debounce needed).
    */
+  startWatcher(roots: string[]): void {
+    if (this.watcher) {
+      // Already watching — do not create a second watcher
+      return;
+    }
+
+    this.watcher = chokidar.watch(roots, {
+      ignoreInitial: true,
+      persistent: true,
+      awaitWriteFinish: { stabilityThreshold: 2000 },
+      ignored: /(^|[\/\\])\../,
+      depth: 20,
+    });
+
+    const scheduleChange = (filePath: string) => {
+      const ext = extname(filePath).toLowerCase();
+      if (!WATCHED_EXTENSIONS.has(ext)) return;
+      this.pendingChanges.add(filePath);
+      if (this.debounceTimer) clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(() => {
+        const changedFiles = [...this.pendingChanges];
+        this.pendingChanges.clear();
+        this.indexChangedFiles(changedFiles);
+      }, this.DEBOUNCE_MS);
+    };
+
+    this.watcher
+      .on('add', scheduleChange)
+      .on('change', scheduleChange)
+      .on('unlink', (filePath: string) => {
+        const ext = extname(filePath).toLowerCase();
+        if (!WATCHED_EXTENSIONS.has(ext)) return;
+        try {
+          this.vectorStore.deleteByPath(filePath);
+          logger.info(`ImageIndexManager: Removed from index: ${filePath}`);
+        } catch (err) {
+          logger.warn(`ImageIndexManager: Failed to remove from index: ${filePath}`, err);
+        }
+      })
+      .on('error', (err: unknown) => {
+        logger.warn('ImageIndexManager: File watcher error:', err);
+      });
+
+    logger.info(`ImageIndexManager: File watcher started on ${roots.length} root(s)`);
+  }
+
+  /**
+   * Triggers incremental re-indexing for a set of changed files.
+   *
+   * If a full scan is currently in progress, the changed files are added to
+   * `pendingChanges` so they get picked up on the next watcher fire.
+   * Otherwise, triggers a full incremental re-index via startIndexing() —
+   * the incremental skip map ensures only changed files (updated mtimes) get
+   * re-embedded.
+   */
+  private indexChangedFiles(files: string[]): void {
+    if (this.state === 'indexing') {
+      // Full scan in progress — re-queue changed files for later
+      for (const f of files) this.pendingChanges.add(f);
+      logger.info(`ImageIndexManager: Deferred ${files.length} changed file(s) — full index in progress`);
+      return;
+    }
+
+    logger.info(`ImageIndexManager: ${files.length} changed file(s) detected — triggering incremental re-index`);
+    this.startIndexing(this.roots);
+  }
+
+  /**
+   * Stops the chokidar file watcher and clears any pending debounce timer.
+   */
+  stopWatcher(): void {
+    if (this.watcher) {
+      this.watcher.close().catch(() => {
+        // Ignore errors on close
+      });
+      this.watcher = null;
+    }
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    this.pendingChanges.clear();
+    logger.info('ImageIndexManager: File watcher stopped');
+  }
+
+  /**
   getVectorStore(): ImageVectorStore {
     return this.vectorStore;
   }
