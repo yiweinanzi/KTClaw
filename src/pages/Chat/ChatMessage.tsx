@@ -273,20 +273,13 @@ export const ChatMessage = memo(function ChatMessage({
             {attachedFiles.map((file, i) => {
               const isImage = file.mimeType.startsWith('image/');
               if (isImage && images.length > 0) return null;
-              if (isImage && file.preview) {
-                return (
-                  <ImagePreviewCard
-                    key={`local-${i}`}
-                    src={file.preview}
-                    fileName={file.fileName}
-                    filePath={file.filePath}
-                    mimeType={file.mimeType}
-                    onPreview={() => setLightboxImg({ src: file.preview!, fileName: file.fileName, filePath: file.filePath, mimeType: file.mimeType })}
-                  />
-                );
-              }
-              if (isImage && !file.preview) return <FileCard key={`local-${i}`} file={file} />;
-              return <FileCard key={`local-${i}`} file={file} />;
+              return (
+                <FileCard
+                  key={`local-${i}`}
+                  file={file}
+                  onPreview={isImage && file.preview ? () => setLightboxImg({ src: file.preview!, fileName: file.fileName, filePath: file.filePath, mimeType: file.mimeType }) : undefined}
+                />
+              );
             })}
           </div>
         )}
@@ -489,7 +482,7 @@ function FileIcon({ mimeType, className }: { mimeType: string; className?: strin
   return <File className={className} />;
 }
 
-function FileCard({ file }: { file: AttachedFileMeta }) {
+function FileCard({ file, onPreview }: { file: AttachedFileMeta; onPreview?: () => void }) {
   const isImage = file.mimeType.startsWith('image/');
   const canOpen = Boolean(file.filePath);
   const handleOpen = useCallback(() => {
@@ -498,13 +491,32 @@ function FileCard({ file }: { file: AttachedFileMeta }) {
     }
   }, [file.filePath]);
 
+  if (isImage && file.preview) {
+    return (
+      <button
+        type="button"
+        className="relative w-28 rounded-xl border overflow-hidden border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 group/img cursor-pointer p-0 text-left"
+        onClick={onPreview || handleOpen}
+        aria-label={`Open ${file.fileName}`}
+      >
+        <img src={file.preview} alt={file.fileName} className="block w-full h-20 object-cover" />
+        <div className="px-2 py-1.5 min-w-0 overflow-hidden">
+          <p className="text-[10px] font-medium truncate">{file.fileName}</p>
+          {file.fileSize > 0 && (
+            <p className="text-[9px] text-muted-foreground">{formatFileSize(file.fileSize)}</p>
+          )}
+        </div>
+      </button>
+    );
+  }
+
   const content = (
     <>
       <FileIcon mimeType={file.mimeType} className="h-5 w-5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 overflow-hidden">
         <p className="text-xs font-medium truncate">{file.fileName}</p>
         <p className="text-[10px] text-muted-foreground">
-          {isImage && !file.preview ? 'Preview unavailable' : file.fileSize > 0 ? formatFileSize(file.fileSize) : 'File'}
+          {file.fileSize > 0 ? formatFileSize(file.fileSize) : 'File'}
         </p>
       </div>
     </>
