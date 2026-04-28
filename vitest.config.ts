@@ -23,6 +23,7 @@ const nodeTestInclude = [
   'tests/unit/token-usage*.test.ts',
   'tests/unit/uv-download-script.test.ts',
   'tests/unit/channel-*.test.ts',
+  'tests/unit/image-vector-store.test.ts',
 ];
 
 const sharedResolve = {

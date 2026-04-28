@@ -9,10 +9,20 @@
  * - getEmbeddingByPath
  * - close / open lifecycle
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// Mock electron paths module so tests can run without Electron runtime
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn(() => join(tmpdir(), 'ktclaw-test')),
+    getAppPath: vi.fn(() => join(tmpdir(), 'ktclaw-test')),
+    isPackaged: false,
+  },
+}));
+
 import { ImageVectorStore, getImageIndexDbPath } from '../../electron/services/image-search/image-vector-store';
 
 const DIM = 512;
