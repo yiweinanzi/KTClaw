@@ -511,18 +511,24 @@ async function loadMissingPreviews(messages: RawMessage[]): Promise<boolean> {
     for (const msg of messages) {
       if (!msg._attachedFiles) continue;
 
-      // Update files that have filePath
-      for (const file of msg._attachedFiles) {
+      // Update files that have filePath — remove entries where the file doesn't exist on disk
+      msg._attachedFiles = msg._attachedFiles.filter((file) => {
         const fp = file.filePath;
-        if (!fp) continue;
+        if (!fp) return true;
         const thumb = thumbnails[fp];
         if (thumb && (thumb.preview || thumb.fileSize)) {
           if (thumb.preview) file.preview = thumb.preview;
           if (thumb.fileSize) file.fileSize = thumb.fileSize;
           _imageCache.set(fp, { ...file });
           updated = true;
+          return true;
         }
-      }
+        if (thumb && !thumb.preview && !thumb.fileSize) {
+          updated = true;
+          return false;
+        }
+        return true;
+      });
 
       // Legacy: update by index for [media attached: ...] refs
       if (msg.role === 'user') {

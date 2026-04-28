@@ -102,6 +102,16 @@ JSON output includes:
 - `results`: paths, timestamps, size, and match reasons.
 - `semantic`: whether semantic search was active and which model was used.
 
-## Important: Do NOT Output File Attachments
+## How to Present Results
 
-When presenting search results, only show the text table (filename, time, size). Do NOT attempt to output or attach the image files themselves — the preview system cannot render arbitrary local file paths and will show "Preview unavailable". Just present the results as a text table and let the user open the files from their file manager.
+When presenting search results to the user:
+
+1. Show a summary text table with filename, time, and size.
+2. After the table, list the **full absolute paths** of the top results (up to 5) on separate lines. The chat system will automatically detect these paths and generate clickable image previews. Example format:
+
+```
+C:\Users\username\Pictures\photo.jpg
+C:\Users\username\Pictures\sunset.png
+```
+
+Do NOT create fake file references, placeholder paths, or example paths like `reference.jpg`. Only output paths that actually appear in the search results JSON.
