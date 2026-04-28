@@ -24,6 +24,7 @@ const nodeTestInclude = [
   'tests/unit/uv-download-script.test.ts',
   'tests/unit/channel-*.test.ts',
   'tests/unit/image-vector-store.test.ts',
+  'tests/unit/image-index-manager.test.ts',
 ];
 
 const sharedResolve = {
