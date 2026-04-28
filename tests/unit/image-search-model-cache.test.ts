@@ -47,22 +47,23 @@ describe('image search model cache path', () => {
     ]);
   });
 
-  it('does not include MobileCLIP sources unless semantic search is explicitly enabled', async () => {
+  it('semantic search is always enabled (always-on, no env var gate)', async () => {
     const { getImageSearchModelSources, isImageSearchSemanticEnabled } = await import(
       '@electron/services/image-search/model-cache'
     );
 
-    expect(isImageSearchSemanticEnabled()).toBe(false);
+    // Semantic is always on regardless of env var
+    expect(isImageSearchSemanticEnabled()).toBe(true);
+    expect(isImageSearchSemanticEnabled({})).toBe(true);
+    expect(isImageSearchSemanticEnabled({ KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '' })).toBe(true);
+
+    // Without local model or cached model, no sources available
+    // (remote sources removed per D-05 — model is bundled)
     expect(getImageSearchModelSources()).toEqual([]);
 
-    vi.stubEnv('KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC', '1');
-    vi.stubEnv('KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS', '1');
-    expect(isImageSearchSemanticEnabled()).toBe(true);
-    expect(getImageSearchModelSources().map((source) => source.name)).toEqual([
-      'modelscope',
-      'hf-mirror',
-      'huggingface',
-    ]);
+    // With local model path set, source is available
+    vi.stubEnv('KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH', join('E:', 'my-models'));
+    expect(getImageSearchModelSources().map((source) => source.name)).toEqual(['local']);
   });
 
   it('supports custom remote model hosts for private mirrors or CDNs', async () => {
@@ -85,7 +86,7 @@ describe('image search model cache path', () => {
 
   it('exports shared runtime env for gateway skill processes', async () => {
     vi.stubEnv('KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH', join('E:', 'offline-models'));
-    vi.stubEnv('KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC', '1');
+    // KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC no longer needed — semantic is always on
     const { getImageSearchModelRuntimeEnv } = await import('@electron/services/image-search/model-cache');
 
     expect(getImageSearchModelRuntimeEnv()).toEqual({

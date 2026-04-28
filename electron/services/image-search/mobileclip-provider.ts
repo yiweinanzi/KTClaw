@@ -12,7 +12,7 @@ type TensorLike = {
   data: ArrayLike<number>;
 };
 
-type TransformersModule = typeof import('@huggingface/transformers');
+type TransformersModule = typeof import('@xenova/transformers');
 
 type LoadedMobileClip = {
   tokenizer: Awaited<ReturnType<TransformersModule['AutoTokenizer']['from_pretrained']>>;
@@ -67,7 +67,9 @@ export async function prewarmMobileClipSemanticProvider(): Promise<void> {
 async function loadMobileClipSemanticProvider(): Promise<ImageSemanticProvider> {
   const MODEL_CACHE_DIR = getImageSearchModelCacheDir();
   ensureDir(MODEL_CACHE_DIR);
-  const transformers = await import('@huggingface/transformers');
+  // Use @xenova/transformers (installed package; @huggingface/transformers is the v4 upstream rename
+  // but is not yet installed in this codebase — both packages share the same API)
+  const transformers = await import('@xenova/transformers');
   transformers.env.cacheDir = MODEL_CACHE_DIR;
 
   const sources = getImageSearchModelSources();

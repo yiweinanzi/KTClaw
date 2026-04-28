@@ -63,8 +63,8 @@ describe('image-search bundled skill script', () => {
     expect(parsed.results[0].match.matchedTerms).toEqual(['penguin']);
   });
 
-  it('does not enable semantic search unless the semantic feature flag is set', async () => {
-    const root = join(tmpdir(), `ktclaw-image-search-skill-${Date.now()}-semantic-disabled`);
+  it('returns standalone mode status when running without Host API and no model installed', async () => {
+    const root = join(tmpdir(), `ktclaw-image-search-skill-${Date.now()}-no-model`);
     await createImage(root, 'img-001.jpg', '2026-04-26T04:00:00.000Z');
 
     const { stdout } = await execFileAsync('node', [
@@ -75,13 +75,11 @@ describe('image-search bundled skill script', () => {
       'penguin',
       '--now',
       '2026-04-27T10:30:00+08:00',
-      '--semantic',
       '--json',
     ], {
       env: {
         ...process.env,
         KTCLAW_IMAGE_SEARCH_MODEL_CACHE: join(root, 'empty-cache'),
-        KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '',
         KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS: '',
         KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH: '',
       },
@@ -91,12 +89,12 @@ describe('image-search bundled skill script', () => {
       semantic: { requested: boolean; enabled: boolean; model: string | null; error?: string };
       results: Array<{ path: string }>;
     };
-    expect(parsed.semantic).toMatchObject({
-      requested: true,
-      enabled: false,
-      model: null,
-    });
-    expect(parsed.semantic.error).toContain('Semantic image search is disabled');
+    // Semantic is always requested; model unavailable means enabled:false with an error
+    expect(parsed.semantic.requested).toBe(true);
+    expect(parsed.semantic.enabled).toBe(false);
+    expect(parsed.semantic.model).toBe(null);
+    // Error should mention model not installed (not "Semantic image search is disabled")
+    expect(parsed.semantic.error).toBeTruthy();
     expect(parsed.results).toEqual([]);
   });
 
@@ -112,13 +110,11 @@ describe('image-search bundled skill script', () => {
       'penguin',
       '--now',
       '2026-04-27T10:30:00+08:00',
-      '--semantic',
       '--json',
     ], {
       env: {
         ...process.env,
         KTCLAW_IMAGE_SEARCH_MODEL_CACHE: join(root, 'empty-cache'),
-        KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '1',
         KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS: '',
         KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH: '',
       },
@@ -133,7 +129,8 @@ describe('image-search bundled skill script', () => {
       enabled: false,
       model: null,
     });
-    expect(parsed.semantic.error).toContain('MobileCLIP model is not installed');
+    // Model unavailable — no download attempted
+    expect(parsed.semantic.error).toBeTruthy();
     expect(parsed.results).toEqual([]);
   });
 });

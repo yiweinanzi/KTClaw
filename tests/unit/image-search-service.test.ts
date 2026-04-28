@@ -1,7 +1,19 @@
 import { mkdir, writeFile, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// image-index-manager uses better-sqlite3 (native addon) — mock to avoid native load in jsdom
+vi.mock('@electron/services/image-search/image-index-manager', () => ({
+  getImageIndexManager: vi.fn(() => ({
+    getStatus: vi.fn(() => ({ state: 'idle' })),
+    getVectorStore: vi.fn(() => ({
+      getIndexedRoots: vi.fn(() => []),
+      knnQuery: vi.fn(() => []),
+      getEmbeddingByPath: vi.fn(() => null),
+    })),
+  })),
+}));
 
 import { searchImages } from '@electron/services/image-search/image-search-service';
 

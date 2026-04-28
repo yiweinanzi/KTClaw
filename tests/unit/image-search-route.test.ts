@@ -64,7 +64,7 @@ describe('image search route', () => {
     });
   });
 
-  it('does not enable semantic search unless the request opts in', async () => {
+  it('always enables semantic search (semantic is always-on)', async () => {
     mocks.parseJsonBody.mockResolvedValue({
       query: 'cat',
       roots: ['C:\\Pictures'],
@@ -86,12 +86,14 @@ describe('image search route', () => {
       {} as never,
     );
 
+    // Semantic is always true regardless of request body (always-on per D-04)
     expect(mocks.searchImages).toHaveBeenCalledWith({
       query: 'cat',
       roots: ['C:\\Pictures'],
       limit: undefined,
       now: undefined,
-      semantic: false,
+      semantic: true,
+      similarTo: undefined,
     });
   });
 

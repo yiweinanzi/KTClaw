@@ -71,8 +71,12 @@ describe('image search semantic model prewarm', () => {
     expect(prewarm).not.toHaveBeenCalled();
   });
 
-  it('does not schedule prewarm when semantic search is not enabled', async () => {
-    const setTimer = vi.fn();
+  it('schedules prewarm when enabled flag is set (semantic always-on, no separate semantic gate)', async () => {
+    const scheduled: Array<() => void> = [];
+    const setTimer = vi.fn((handler: () => void, _delayMs: number) => {
+      scheduled.push(handler);
+      return 1;
+    });
     const prewarm = vi.fn().mockResolvedValue(undefined);
 
     const { scheduleImageSearchSemanticPrewarm, resetImageSearchSemanticPrewarmForTests } = await import(
@@ -80,14 +84,14 @@ describe('image search semantic model prewarm', () => {
     );
     resetImageSearchSemanticPrewarmForTests();
 
+    // Semantic is always-on — prewarm schedules based only on KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM
     scheduleImageSearchSemanticPrewarm({
       env: { KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM: '1' },
       prewarm,
       setTimer,
     });
 
-    expect(setTimer).not.toHaveBeenCalled();
-    expect(prewarm).not.toHaveBeenCalled();
+    expect(setTimer).toHaveBeenCalledTimes(1);
   });
 
   it('logs prewarm failures instead of throwing from the timer', async () => {
