@@ -15,7 +15,7 @@ Use this skill when the user asks to find local images, photos, screenshots, or 
 - Season: `春天`, `夏天`, `秋天`, `冬天`
 - Content words: `猫`, `海边`, `会议截图`
 - Combined conditions: `昨天创建的猫的图片`, `上周末在海边拍的照片`, `去年夏天的风景照`
-- Similarity: `find photos similar to /path/to/reference.jpg`
+- Similarity: find photos similar to a given image path
 
 ## Check Index Status First
 
@@ -60,8 +60,8 @@ node {baseDir}/scripts/search-images.mjs --root ~/Pictures --query "上周末在
 node {baseDir}/scripts/search-images.mjs --root ~/Pictures --query "去年夏天的风景照" --json
 node {baseDir}/scripts/search-images.mjs --root ~/Pictures --query "last week beach photos" --json
 
-# Find similar images
-node {baseDir}/scripts/search-images.mjs --root ~/Pictures --similar-to ~/Pictures/reference.jpg --json
+# Find similar images (replace <image-path> with the actual path the user provides)
+node {baseDir}/scripts/search-images.mjs --root ~/Pictures --similar-to <image-path> --json
 
 # Search by season
 node {baseDir}/scripts/search-images.mjs --root ~/Pictures --query "春天的花" --json
@@ -101,3 +101,7 @@ JSON output includes:
 - `totalMatched`: number matching before limit.
 - `results`: paths, timestamps, size, and match reasons.
 - `semantic`: whether semantic search was active and which model was used.
+
+## Important: Do NOT Output File Attachments
+
+When presenting search results, only show the text table (filename, time, size). Do NOT attempt to output or attach the image files themselves — the preview system cannot render arbitrary local file paths and will show "Preview unavailable". Just present the results as a text table and let the user open the files from their file manager.
