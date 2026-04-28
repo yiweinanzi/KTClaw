@@ -47,6 +47,21 @@ export default defineConfig(({ command }) => {
         },
       },
       {
+        // Worker Thread for background image indexing — must be a separate file
+        // so it can be spawned via `new Worker(path)` at runtime.
+        entry: 'electron/services/image-search/image-index-worker.ts',
+        vite: {
+          build: {
+            outDir: 'dist-electron/main',
+            lib: { entry: 'electron/services/image-search/image-index-worker.ts', formats: ['cjs'], fileName: () => 'image-index-worker.js' },
+            rollupOptions: {
+              external: mainProcessExternal,
+            },
+            emptyOutDir: false,
+          },
+        },
+      },
+      {
         // Preload scripts entry file
         entry: 'electron/preload/index.ts',
         onstart(options) {
