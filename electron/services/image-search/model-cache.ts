@@ -38,8 +38,8 @@ export function getImageSearchModelCacheDir(): string {
   return join(getDataDir(), 'image-search-models');
 }
 
-export function isImageSearchSemanticEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC === '1';
+export function isImageSearchSemanticEnabled(_env?: NodeJS.ProcessEnv): boolean {
+  return true;
 }
 
 export function getImageSearchLocalModelPath(env: NodeJS.ProcessEnv = process.env): string | null {
@@ -121,28 +121,24 @@ export function getImageSearchRemoteModelSources(env: NodeJS.ProcessEnv = proces
 }
 
 export function getImageSearchModelSources(env: NodeJS.ProcessEnv = process.env): ImageSearchModelSource[] {
-  if (!isImageSearchSemanticEnabled(env)) return [];
-
+  const sources: ImageSearchModelSource[] = [];
   const localModelPath = getImageSearchLocalModelPath(env);
-  const sources: ImageSearchModelSource[] = localModelPath
-    ? [{ name: 'local', modelId: MOBILECLIP_MODEL_ID, localModelPath }]
-    : [];
+  if (localModelPath) {
+    sources.push({ name: 'local', modelId: MOBILECLIP_MODEL_ID, localModelPath });
+  }
+  // Cache directory as fallback — model is bundled per D-05, no remote sources
   if (!localModelPath && hasCachedImageSearchModel()) {
     sources.push({ name: 'cache', modelId: MOBILECLIP_MODEL_ID });
   }
-  if (env.KTCLAW_IMAGE_SEARCH_ALLOW_REMOTE_MODELS === '1') {
-    sources.push(...getImageSearchRemoteModelSources(env));
-  }
+  // NO remote sources — model is bundled per D-05
   return sources;
 }
 
 export function getImageSearchModelRuntimeEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const runtimeEnv: Record<string, string> = {
     KTCLAW_IMAGE_SEARCH_MODEL_CACHE: getImageSearchModelCacheDir(),
+    KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC: '1',
   };
-  if (isImageSearchSemanticEnabled(env)) {
-    runtimeEnv.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC = '1';
-  }
   const localModelPath = getImageSearchLocalModelPath(env);
   if (localModelPath) {
     runtimeEnv.KTCLAW_IMAGE_SEARCH_LOCAL_MODEL_PATH = localModelPath;

@@ -8,7 +8,7 @@ export interface ImageSearchSemanticPrewarmOptions {
   delayMs?: number;
   env?: Pick<
     NodeJS.ProcessEnv,
-    'KTCLAW_DISABLE_IMAGE_SEARCH_PREWARM' | 'KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM' | 'KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC'
+    'KTCLAW_DISABLE_IMAGE_SEARCH_PREWARM' | 'KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM'
   >;
   logWarn?: (message: string, error: unknown) => void;
   prewarm?: () => Promise<void>;
@@ -22,7 +22,6 @@ export function scheduleImageSearchSemanticPrewarm(options: ImageSearchSemanticP
   const env = options.env ?? process.env;
   if (env.KTCLAW_DISABLE_IMAGE_SEARCH_PREWARM === '1') return;
   if (env.KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM !== '1') return;
-  if (env.KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC !== '1') return;
   if (scheduled) return;
 
   scheduled = true;

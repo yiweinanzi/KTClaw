@@ -3,6 +3,7 @@ import { basename, extname, join, relative, resolve } from 'node:path';
 import { getMobileClipSemanticProvider } from './mobileclip-provider';
 import { MOBILECLIP_MODEL_ID } from './model-cache';
 import { parseImageSearchQuery, type ParsedImageSearchQuery } from './query-parser';
+import { getImageIndexManager } from './image-index-manager';
 
 export interface ImageSearchRequest {
   query: string;
@@ -11,6 +12,7 @@ export interface ImageSearchRequest {
   limit?: number;
   semantic?: boolean;
   semanticProvider?: ImageSemanticProvider;
+  similarTo?: string;  // image path for similarity search (以图搜图)
 }
 
 export interface ImageSemanticProvider {
@@ -43,6 +45,7 @@ export interface ImageSearchResult {
     enabled: boolean;
     model: string | null;
     error?: string;
+    indexStatus?: string;
   };
   results: ImageSearchResultEntry[];
 }
@@ -223,53 +226,143 @@ export async function searchImages(request: ImageSearchRequest): Promise<ImageSe
   const limit = normalizeLimit(request.limit);
   const results: ImageSearchResultEntry[] = [];
   let semanticError: string | undefined;
-  const semanticProvider = request.semanticProvider
-    ?? (request.semantic === true
-      ? await getMobileClipSemanticProvider().catch((error) => {
-        semanticError = error instanceof Error ? error.message : String(error);
-        return null;
-      })
-      : null);
-  const useSemantic = request.semantic === true && semanticProvider && parsed.contentQuery;
-  const semanticTextEmbedding = useSemantic
-    ? await semanticProvider!.embedText(parsed.contentQuery)
-    : null;
   let totalScanned = 0;
   let totalMatched = 0;
 
-  for (const root of roots) {
-    for await (const filePath of walkImages(root)) {
-      if (!isInsideRoot(filePath, root)) continue;
-      totalScanned += 1;
+  // ── Index-first strategy (D-07) ───────────────────────────────────────────
+  const indexManager = getImageIndexManager();
+  const vectorStore = indexManager.getVectorStore();
+  const indexedRoots = vectorStore.getIndexedRoots();
+  const indexedRootsSet = new Set(indexedRoots);
+  const rootsWithIndex = roots.filter((r) => indexedRootsSet.has(r));
+  const rootsWithoutIndex = roots.filter((r) => !indexedRootsSet.has(r));
 
-      const fileStat = await stat(filePath).catch(() => null);
-      if (!fileStat?.isFile()) continue;
-
-      const fileTimeMs = fileStat.mtimeMs;
-      if (!isInTimeRange(fileTimeMs, parsed)) continue;
-
-      let match = scorePath(filePath, parsed, root);
-      if (semanticTextEmbedding && semanticProvider) {
-        const imageEmbedding = await semanticProvider.embedImage(filePath);
-        match = mergeSemanticMatch(
-          match,
-          parsed,
-          cosineSimilarity(semanticTextEmbedding, imageEmbedding),
-        );
-      }
-      if (parsed.contentTerms.length > 0 && match.score <= 0) continue;
-
-      totalMatched += 1;
-      results.push({
-        path: filePath,
-        fileName: basename(filePath),
-        extension: extname(filePath).toLowerCase(),
-        sizeBytes: fileStat.size,
-        createdAt: fileStat.birthtime.toISOString(),
-        modifiedAt: fileStat.mtime.toISOString(),
-        fileTime: fileStat.mtime.toISOString(),
-        match,
+  // ── Image-similarity search (以图搜图) ────────────────────────────────────
+  if (request.similarTo) {
+    const storedEmbedding = vectorStore.getEmbeddingByPath(request.similarTo);
+    if (storedEmbedding) {
+      const knnResults = vectorStore.knnQuery(storedEmbedding, {
+        limit: (limit + 1) * 2,  // +1 to account for the query image itself
+        roots: rootsWithIndex.length > 0 ? rootsWithIndex : undefined,
       });
+      for (const knnResult of knnResults) {
+        if (knnResult.path === request.similarTo) continue;  // exclude query image itself
+        const similarity = 1 - knnResult.distance;
+        if (similarity < SEMANTIC_MIN_SIMILARITY) continue;
+        const pathRoot = rootsWithIndex.find((r) => knnResult.path.startsWith(r));
+        const pathMatch = scorePath(knnResult.path, parsed, pathRoot);
+        const match = mergeSemanticMatch(pathMatch, parsed, similarity);
+        results.push({
+          path: knnResult.path,
+          fileName: basename(knnResult.path),
+          extension: extname(knnResult.path).toLowerCase(),
+          sizeBytes: knnResult.size,
+          createdAt: new Date(knnResult.fileTime).toISOString(),
+          modifiedAt: new Date(knnResult.fileTime).toISOString(),
+          fileTime: new Date(knnResult.fileTime).toISOString(),
+          match,
+        });
+        totalMatched += 1;
+      }
+      totalScanned += vectorStore.getIndexedCount();
+    }
+  } else {
+    // ── Text query: KNN for indexed roots ────────────────────────────────────
+    if (rootsWithIndex.length > 0 && parsed.contentQuery) {
+      const semanticProvider = request.semanticProvider
+        ?? await getMobileClipSemanticProvider().catch((error) => {
+          semanticError = error instanceof Error ? error.message : String(error);
+          return null;
+        });
+
+      if (semanticProvider) {
+        const textEmbedding = await semanticProvider.embedText(parsed.contentQuery);
+        const embeddingF32 = new Float32Array(textEmbedding);
+        const knnResults = vectorStore.knnQuery(embeddingF32, {
+          limit: limit * 2,  // fetch extra for post-filtering
+          timeStart: parsed.timeRange ? Date.parse(parsed.timeRange.start) : undefined,
+          timeEnd: parsed.timeRange ? Date.parse(parsed.timeRange.end) : undefined,
+          roots: rootsWithIndex,
+        });
+        for (const knnResult of knnResults) {
+          const similarity = 1 - knnResult.distance;  // cosine distance to similarity
+          if (similarity < SEMANTIC_MIN_SIMILARITY) continue;
+          const pathRoot = rootsWithIndex.find((r) => knnResult.path.startsWith(r));
+          const pathMatch = scorePath(knnResult.path, parsed, pathRoot);
+          const match = mergeSemanticMatch(pathMatch, parsed, similarity);
+          results.push({
+            path: knnResult.path,
+            fileName: basename(knnResult.path),
+            extension: extname(knnResult.path).toLowerCase(),
+            sizeBytes: knnResult.size,
+            createdAt: new Date(knnResult.fileTime).toISOString(),
+            modifiedAt: new Date(knnResult.fileTime).toISOString(),
+            fileTime: new Date(knnResult.fileTime).toISOString(),
+            match,
+          });
+          totalMatched += 1;
+        }
+        totalScanned += vectorStore.getIndexedCount();
+      }
+    }
+
+    // ── Filesystem walk for unindexed roots (fallback) ────────────────────────
+    const fallbackRoots = rootsWithoutIndex.length > 0 ? rootsWithoutIndex : (rootsWithIndex.length === 0 ? roots : []);
+    const useSemantic = request.semantic !== false && parsed.contentQuery;
+    let semanticTextEmbedding: number[] | null = null;
+
+    if (fallbackRoots.length > 0 && useSemantic && !semanticError) {
+      const semanticProvider = request.semanticProvider
+        ?? await getMobileClipSemanticProvider().catch((error) => {
+          semanticError = error instanceof Error ? error.message : String(error);
+          return null;
+        });
+      if (semanticProvider && parsed.contentQuery) {
+        semanticTextEmbedding = await semanticProvider.embedText(parsed.contentQuery).catch((err) => {
+          semanticError = err instanceof Error ? err.message : String(err);
+          return null;
+        });
+      }
+    }
+
+    for (const root of fallbackRoots) {
+      for await (const filePath of walkImages(root)) {
+        if (!isInsideRoot(filePath, root)) continue;
+        totalScanned += 1;
+
+        const fileStat = await stat(filePath).catch(() => null);
+        if (!fileStat?.isFile()) continue;
+
+        const fileTimeMs = fileStat.mtimeMs;
+        if (!isInTimeRange(fileTimeMs, parsed)) continue;
+
+        let match = scorePath(filePath, parsed, root);
+        if (semanticTextEmbedding) {
+          const walkProvider = request.semanticProvider
+            ?? await getMobileClipSemanticProvider().catch(() => null);
+          if (walkProvider) {
+            const imageEmbedding = await walkProvider.embedImage(filePath);
+            match = mergeSemanticMatch(
+              match,
+              parsed,
+              cosineSimilarity(semanticTextEmbedding, imageEmbedding),
+            );
+          }
+        }
+        if (parsed.contentTerms.length > 0 && match.score <= 0) continue;
+
+        totalMatched += 1;
+        results.push({
+          path: filePath,
+          fileName: basename(filePath),
+          extension: extname(filePath).toLowerCase(),
+          sizeBytes: fileStat.size,
+          createdAt: fileStat.birthtime.toISOString(),
+          modifiedAt: fileStat.mtime.toISOString(),
+          fileTime: fileStat.mtime.toISOString(),
+          match,
+        });
+      }
     }
   }
 
@@ -283,14 +376,13 @@ export async function searchImages(request: ImageSearchRequest): Promise<ImageSe
     roots,
     totalScanned,
     totalMatched,
-    semantic: request.semantic === true
-      ? {
-        requested: true,
-        enabled: Boolean(semanticProvider),
-        model: semanticProvider ? MOBILECLIP_MODEL_ID : null,
-        ...(semanticError ? { error: semanticError } : {}),
-      }
-      : undefined,
+    semantic: {
+      requested: true,
+      enabled: true,
+      model: MOBILECLIP_MODEL_ID,
+      indexStatus: indexManager.getStatus().state,
+      ...(semanticError ? { error: semanticError } : {}),
+    },
     results: results.slice(0, limit),
   };
 }

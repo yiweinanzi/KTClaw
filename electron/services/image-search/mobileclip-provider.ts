@@ -3,7 +3,6 @@ import type { ImageSemanticProvider } from './image-search-service';
 import {
   getImageSearchModelCacheDir,
   getImageSearchModelSources,
-  isImageSearchSemanticEnabled,
   type ImageSearchModelSource,
 } from './model-cache';
 
@@ -13,7 +12,7 @@ type TensorLike = {
   data: ArrayLike<number>;
 };
 
-type TransformersModule = typeof import('@xenova/transformers');
+type TransformersModule = typeof import('@huggingface/transformers');
 
 type LoadedMobileClip = {
   tokenizer: Awaited<ReturnType<TransformersModule['AutoTokenizer']['from_pretrained']>>;
@@ -66,13 +65,9 @@ export async function prewarmMobileClipSemanticProvider(): Promise<void> {
 }
 
 async function loadMobileClipSemanticProvider(): Promise<ImageSemanticProvider> {
-  if (!isImageSearchSemanticEnabled()) {
-    throw new Error('Semantic image search is disabled. Set KTCLAW_IMAGE_SEARCH_ENABLE_SEMANTIC=1 to enable it.');
-  }
-
   const MODEL_CACHE_DIR = getImageSearchModelCacheDir();
   ensureDir(MODEL_CACHE_DIR);
-  const transformers = await import('@xenova/transformers');
+  const transformers = await import('@huggingface/transformers');
   transformers.env.cacheDir = MODEL_CACHE_DIR;
 
   const sources = getImageSearchModelSources();
