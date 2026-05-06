@@ -1,0 +1,145 @@
+#!/usr/bin/env node
+
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { spawn } from 'node:child_process';
+
+const cwd = process.cwd();
+const args = new Map(
+  process.argv.slice(2).map((arg) => {
+    const [key, value = ''] = arg.split('=');
+    return [key.replace(/^--/, ''), value];
+  }),
+);
+
+const releaseDir = path.resolve(cwd, args.get('release-dir') || 'release');
+const explicitExecutable = args.get('executable');
+const platformArg = args.get('platform') || '';
+const timeoutMs = Number.parseInt(args.get('timeout-ms') || '', 10) || 90_000;
+
+function fail(message) {
+  console.error(`[packaged-startup-smoke] FAIL: ${message}`);
+  process.exit(1);
+}
+
+function normalizePlatform(raw) {
+  if (raw === 'win32' || raw === 'win') return 'win';
+  if (raw === 'darwin' || raw === 'mac' || raw === 'macos') return 'mac';
+  if (raw === 'linux') return 'linux';
+  fail(`unsupported platform: ${raw}`);
+}
+
+function walk(rootDir) {
+  if (!existsSync(rootDir)) return [];
+  const results = [];
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile()) {
+        results.push(fullPath);
+      }
+    }
+  }
+  return results;
+}
+
+function newest(paths) {
+  const existing = paths.filter((file) => existsSync(file));
+  return [...existing].sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+}
+
+function findExecutable(platform, releaseRoot) {
+  if (explicitExecutable) {
+    const resolved = path.resolve(cwd, explicitExecutable);
+    if (!existsSync(resolved)) {
+      fail(`explicit executable not found: ${resolved}`);
+    }
+    return resolved;
+  }
+
+  if (!existsSync(releaseRoot)) {
+    fail(`release directory not found: ${releaseRoot}`);
+  }
+
+  const files = walk(releaseRoot);
+  if (platform === 'win') {
+    const candidates = files.filter((file) => /win-unpacked[\\/].+\.exe$/i.test(file));
+    const target = newest(candidates);
+    if (!target) fail(`no win-unpacked executable found under ${releaseRoot}`);
+    return target;
+  }
+
+  if (platform === 'linux') {
+    const candidates = files.filter((file) => /linux-unpacked[\\/](KTClaw|ktclaw)$/i.test(file));
+    const target = newest(candidates);
+    if (!target) fail(`no linux-unpacked executable found under ${releaseRoot}`);
+    return target;
+  }
+
+  const candidates = files.filter((file) => /KTClaw\.app[\\/]Contents[\\/]MacOS[\\/]KTClaw$/i.test(file));
+  const target = newest(candidates);
+  if (!target) fail(`no macOS app executable found under ${releaseRoot}`);
+  return target;
+}
+
+async function main() {
+  const platform = normalizePlatform(platformArg || process.platform);
+  const executable = findExecutable(platform, releaseDir);
+  const child = spawn(executable, [], {
+    cwd: path.dirname(executable),
+    env: {
+      ...process.env,
+      CI: process.env.CI || '1',
+      KTCLAW_STARTUP_SMOKE: '1',
+      KTCLAW_STARTUP_SMOKE_TIMEOUT_MS: String(Math.max(15_000, timeoutMs - 5_000)),
+      KTCLAW_LOG_TO_CONSOLE: '1',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+
+  let stdout = '';
+  let stderr = '';
+  child.stdout?.on('data', (chunk) => {
+    stdout += chunk.toString();
+  });
+  child.stderr?.on('data', (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  const result = await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM');
+      resolve({ code: null, signal: 'timeout' });
+    }, timeoutMs);
+
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      resolve({ code: null, signal: `spawn-error:${error.message}` });
+    });
+
+    child.once('exit', (code, signal) => {
+      clearTimeout(timer);
+      resolve({ code, signal });
+    });
+  });
+
+  if (result.code !== 0) {
+    const stderrTail = stderr.split(/\r?\n/).filter(Boolean).slice(-20).join('\n');
+    const stdoutTail = stdout.split(/\r?\n/).filter(Boolean).slice(-20).join('\n');
+    fail(
+      `startup smoke failed for ${executable} (code=${result.code}, signal=${result.signal})\nstdout:\n${stdoutTail}\nstderr:\n${stderrTail}`,
+    );
+  }
+
+  console.log(`[packaged-startup-smoke] PASS: ${executable}`);
+}
+
+void main().catch((error) => {
+  fail(error instanceof Error ? error.stack || error.message : String(error));
+});

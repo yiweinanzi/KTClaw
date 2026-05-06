@@ -66,6 +66,7 @@
         "package:linux:smoke": "pnpm run package:prepare && electron-builder --linux dir deb --publish never",
         "smoke:release:linux": "node scripts/smoke/release-smoke.mjs --release-dir=release --linux-unpacked=release/linux-unpacked",
         "smoke:install:linux": "node scripts/smoke/install-smoke-linux.mjs --release-dir=release",
+        "smoke:startup:packaged": "node scripts/smoke/packaged-startup.mjs",
         "smoke:linux": "pnpm run package:linux:smoke && pnpm run smoke:release:linux && pnpm run smoke:install:linux",
         "release": "pnpm run uv:download && pnpm run package:prepare && electron-builder --publish always",
         "version:patch": "pnpm version patch",

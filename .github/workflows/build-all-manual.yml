@@ -152,6 +152,10 @@ jobs:
           ulimit -n 65536
           pnpm run package:mac:ci
 
+      - name: Startup smoke (macOS)
+        if: matrix.platform == 'mac'
+        run: pnpm run smoke:startup:packaged -- --platform=mac
+
       - name: Build Windows
         if: matrix.platform == 'win'
         env:
@@ -165,11 +169,19 @@ jobs:
           pnpm exec electron-builder --win --x64 --publish never
           pnpm exec electron-builder --win --arm64 --publish never
 
+      - name: Startup smoke (Windows)
+        if: matrix.platform == 'win'
+        run: pnpm run smoke:startup:packaged -- --platform=win
+
       - name: Build Linux
         if: matrix.platform == 'linux'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm run package:linux:ci
+
+      - name: Startup smoke (Linux)
+        if: matrix.platform == 'linux'
+        run: xvfb-run -a pnpm run smoke:startup:packaged -- --platform=linux
 
       # ── Upload artifacts ────────────────────────────────────────────
       # Linux: split by format × arch so each file is downloadable individually.

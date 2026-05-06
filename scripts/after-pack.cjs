@@ -454,6 +454,7 @@ exports.default = async function afterPack(context) {
   const openclawRoot = join(resourcesDir, 'openclaw');
   const dest = join(openclawRoot, 'node_modules');
   const nodeModulesRoot = join(__dirname, '..', 'node_modules');
+  const runtimeNodeModulesRoot = join(resourcesDir, 'node_modules');
   const pluginsDestRoot = join(resourcesDir, 'openclaw-plugins');
   const preinstalledSkillsDestRoot = join(resourcesDir, 'preinstalled-skills');
 
@@ -486,6 +487,15 @@ exports.default = async function afterPack(context) {
   if (nestedRepairCount > 0) {
     console.log(`[after-pack] ✅ Repaired ${nestedRepairCount} nested dependency edge case(s).`);
   }
+
+  const RUNTIME_NATIVE_MODULES = ['better-sqlite3', 'sqlite-vec'];
+  mkdirSync(runtimeNodeModulesRoot, { recursive: true });
+  for (const npmName of RUNTIME_NATIVE_MODULES) {
+    const runtimeDestDir = join(runtimeNodeModulesRoot, ...npmName.split('/'));
+    console.log(`[after-pack] Bundling runtime dependency ${npmName} -> ${runtimeDestDir}`);
+    bundlePlugin(nodeModulesRoot, npmName, runtimeDestDir);
+  }
+  cleanupNativePlatformPackages(runtimeNodeModulesRoot, platform, arch);
 
   // 1.1 Bundle OpenClaw plugins directly from node_modules into packaged resources.
   //     This is intentionally done in afterPack (not extraResources) because:

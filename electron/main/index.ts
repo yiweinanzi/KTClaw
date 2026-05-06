@@ -54,6 +54,8 @@ import { getImageIndexManager } from '../services/image-search/image-index-manag
 import { getDefaultImageDirectories } from '../services/image-search/image-directories';
 import { loadMcpConfig } from '../api/routes/mcp';
 import { resolveWindowChromeOptions } from './window-chrome';
+import { createInitialWindowPresenter } from './initial-window-presenter';
+import { createStartupSmokeController } from './startup-smoke';
 
 // Disable GPU hardware acceleration globally for maximum stability across
 // all GPU configurations (no GPU, integrated, discrete).
@@ -84,6 +86,19 @@ clearDevChromiumCaches({
 if (process.platform === 'linux') {
   (app as Electron.App & { setDesktopName?: (name: string) => void }).setDesktopName?.('ktclaw.desktop');
 }
+
+const STARTUP_SMOKE_ENABLED = process.env.KTCLAW_STARTUP_SMOKE === '1';
+const STARTUP_SMOKE_EXIT_DELAY_MS = 250;
+
+function resolveStartupSmokeTimeoutMs(raw: string | undefined): number {
+  const parsed = Number.parseInt(raw ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 5_000) {
+    return 45_000;
+  }
+  return parsed;
+}
+
+const STARTUP_SMOKE_TIMEOUT_MS = resolveStartupSmokeTimeoutMs(process.env.KTCLAW_STARTUP_SMOKE_TIMEOUT_MS);
 
 // Prevent multiple instances of the app from running simultaneously.
 // Without this, two instances each spawn their own gateway process on the
@@ -135,6 +150,18 @@ let hostApiServer: Server | null = null;
 const hostApiSessionToken = randomBytes(24).toString('hex');
 const mainWindowFocusState = createMainWindowFocusState();
 const quitLifecycleState = createQuitLifecycleState();
+const startupSmokeController = createStartupSmokeController({
+  enabled: STARTUP_SMOKE_ENABLED,
+  timeoutMs: STARTUP_SMOKE_TIMEOUT_MS,
+  onPass: () => {
+    setTimeout(() => app.exit(0), STARTUP_SMOKE_EXIT_DELAY_MS);
+  },
+  onFail: () => {
+    setTimeout(() => app.exit(1), 0);
+  },
+  logInfo: (message) => logger.info(message),
+  logError: (message) => logger.error(message),
+});
 let mainWindowRecoveryTimer: NodeJS.Timeout | null = null;
 let mainWindowRecoveryPending = false;
 let mainWindowRecoveryCount = 0;
@@ -239,6 +266,9 @@ function createWindow(): BrowserWindow {
   // Debug: Log rendering errors (especially for Linux)
   win.webContents.on('render-process-gone', (_event, details) => {
     logger.error('Render process gone:', details);
+    if (startupSmokeController.enabled) {
+      startupSmokeController.fail(`render-process-gone: ${details.reason}`);
+    }
     if (mainWindow === win) {
       scheduleMainWindowRecovery('render-process-gone', details, win);
     }
@@ -246,6 +276,9 @@ function createWindow(): BrowserWindow {
 
   win.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     logger.error('Failed to load:', errorCode, errorDescription, validatedURL);
+    if (startupSmokeController.enabled && errorCode !== -3) {
+      startupSmokeController.fail(`did-fail-load ${errorCode}: ${errorDescription}`);
+    }
     scheduleDevServerReload(win, errorCode);
   });
 
@@ -368,23 +401,27 @@ function scheduleMainWindowRecovery(reason: string, details?: unknown, windowToR
 
 function createMainWindow(): BrowserWindow {
   const win = createWindow();
+  const initialPresenter = createInitialWindowPresenter(win, {
+    getAction: () => consumeMainWindowReady(mainWindowFocusState),
+    shouldSuppressInitialShow: () => _suppressInitialShow,
+    logInfo: (message) => logger.info(message),
+    logWarn: (message) => logger.warn(message),
+  });
 
   win.once('ready-to-show', () => {
     if (mainWindow !== win) {
       return;
     }
+    initialPresenter.onReadyToShow();
+  });
 
-    const action = consumeMainWindowReady(mainWindowFocusState);
-    if (action === 'focus') {
-      focusWindow(win);
+  win.webContents.once('did-finish-load', () => {
+    if (mainWindow !== win) {
       return;
     }
-
-    if (_suppressInitialShow) {
-      return;
-    }
-
-    win.show();
+    logger.info('Main window renderer finished load');
+    initialPresenter.onDidFinishLoad();
+    startupSmokeController.pass('did-finish-load');
   });
 
   win.on('close', (event) => {
@@ -396,6 +433,7 @@ function createMainWindow(): BrowserWindow {
   });
 
   win.on('closed', () => {
+    initialPresenter.dispose();
     logger.info('Main window closed', { quitting: isQuitting(), recoveryPending: mainWindowRecoveryPending });
     if (mainWindow === win) {
       mainWindow = null;
@@ -436,6 +474,11 @@ async function initialize(): Promise<void> {
   _minimizeToTray = minimizeToTray;
   _notificationsEnabled = notificationsEnabled;
   _suppressInitialShow = isAutostart && startMinimized;
+  if (startupSmokeController.enabled) {
+    _minimizeToTray = false;
+    _suppressInitialShow = false;
+    logger.info(`Startup smoke mode enabled (timeoutMs=${STARTUP_SMOKE_TIMEOUT_MS})`);
+  }
 
   // Start watched-directory memory watchers
   const watchedDirs = await getSetting('watchedMemoryDirs');
@@ -579,49 +622,51 @@ async function initialize(): Promise<void> {
   // Note: Auto-check for updates is driven by the renderer (update store init)
   // so it respects the user's "Auto-check for updates" setting.
 
-  // Repair any bootstrap files that only contain KTClaw markers (no OpenClaw
-  // template content). This fixes a race condition where ensureKTClawContext()
-  // previously created the file before the gateway could seed the full template.
-  void repairKTClawOnlyBootstrapFiles().catch((error) => {
-    logger.warn('Failed to repair bootstrap files:', error);
-  });
+  if (!startupSmokeController.enabled) {
+    // Repair any bootstrap files that only contain KTClaw markers (no OpenClaw
+    // template content). This fixes a race condition where ensureKTClawContext()
+    // previously created the file before the gateway could seed the full template.
+    void repairKTClawOnlyBootstrapFiles().catch((error) => {
+      logger.warn('Failed to repair bootstrap files:', error);
+    });
 
-  // Pre-deploy built-in skills (feishu-doc, feishu-drive, feishu-perm, feishu-wiki)
-  // to ~/.openclaw/skills/ so they are immediately available without manual install.
-  void ensureBuiltinSkillsInstalled().catch((error) => {
-    logger.warn('Failed to install built-in skills:', error);
-  });
+    // Pre-deploy built-in skills (feishu-doc, feishu-drive, feishu-perm, feishu-wiki)
+    // to ~/.openclaw/skills/ so they are immediately available without manual install.
+    void ensureBuiltinSkillsInstalled().catch((error) => {
+      logger.warn('Failed to install built-in skills:', error);
+    });
 
-  // Pre-deploy bundled third-party skills from resources/preinstalled-skills.
-  // This installs full skill directories (not only SKILL.md) in an idempotent,
-  // non-destructive way and never blocks startup.
-  void ensurePreinstalledSkillsInstalled().catch((error) => {
-    logger.warn('Failed to install preinstalled skills:', error);
-  });
+    // Pre-deploy bundled third-party skills from resources/preinstalled-skills.
+    // This installs full skill directories (not only SKILL.md) in an idempotent,
+    // non-destructive way and never blocks startup.
+    void ensurePreinstalledSkillsInstalled().catch((error) => {
+      logger.warn('Failed to install preinstalled skills:', error);
+    });
 
-  // Optional semantic image model prewarm. This is disabled by default and only
-  // runs when KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM=1 is set.
-  scheduleImageSearchSemanticPrewarm();
+    // Optional semantic image model prewarm. This is disabled by default and only
+    // runs when KTCLAW_ENABLE_IMAGE_SEARCH_PREWARM=1 is set.
+    scheduleImageSearchSemanticPrewarm();
 
-  // Auto-start image indexing (D-02: silent background, D-01: auto-detect Pictures)
-  setTimeout(() => {
-    try {
-      const dirs = getDefaultImageDirectories();
-      if (dirs.length > 0) {
-        const manager = getImageIndexManager();
-        manager.startIndexing(dirs);
-        logger.info(`Auto-indexing started for ${dirs.length} directory(s): ${dirs.join(', ')}`);
+    // Auto-start image indexing (D-02: silent background, D-01: auto-detect Pictures)
+    setTimeout(() => {
+      try {
+        const dirs = getDefaultImageDirectories();
+        if (dirs.length > 0) {
+          const manager = getImageIndexManager();
+          manager.startIndexing(dirs);
+          logger.info(`Auto-indexing started for ${dirs.length} directory(s): ${dirs.join(', ')}`);
+        }
+      } catch (err) {
+        logger.warn('Auto-indexing startup failed:', err);
       }
-    } catch (err) {
-      logger.warn('Auto-indexing startup failed:', err);
-    }
-  }, 10000); // 10s delay to let app settle
+    }, 10000); // 10s delay to let app settle
+  }
 
   // Bridge gateway and host-side events before any auto-start logic runs, so
   // renderer subscribers observe the full startup lifecycle.
   gatewayManager.on('status', (status: { state: string }) => {
     hostEventBus.emit('gateway:status', status);
-    if (status.state === 'running') {
+    if (!startupSmokeController.enabled && status.state === 'running') {
       void ensureKTClawContext().catch((error) => {
         logger.warn('Failed to re-merge KTClaw context after gateway reconnect:', error);
       });
@@ -698,7 +743,7 @@ async function initialize(): Promise<void> {
 
   // Start Gateway automatically (this seeds missing bootstrap files with full templates)
   const gatewayAutoStart = await getSetting('gatewayAutoStart');
-  if (gatewayAutoStart) {
+  if (!startupSmokeController.enabled && gatewayAutoStart) {
     try {
       await syncAllProviderAuthToRuntime();
       logger.debug('Auto-starting Gateway...');
@@ -708,26 +753,30 @@ async function initialize(): Promise<void> {
       logger.error('Gateway auto-start failed:', error);
       mainWindow?.webContents.send('gateway:error', String(error));
     }
-  } else {
+  } else if (!startupSmokeController.enabled) {
     logger.info('Gateway auto-start disabled in settings');
   }
 
   // Merge KTClaw context snippets into the workspace bootstrap files.
   // The gateway seeds workspace files asynchronously after its HTTP server
   // is ready, so ensureKTClawContext will retry until the target files appear.
-  void ensureKTClawContext().catch((error) => {
-    logger.warn('Failed to merge KTClaw context into workspace:', error);
-  });
+  if (!startupSmokeController.enabled) {
+    void ensureKTClawContext().catch((error) => {
+      logger.warn('Failed to merge KTClaw context into workspace:', error);
+    });
+  }
 
   // Auto-install openclaw CLI and shell completions (non-blocking).
-  void autoInstallCliIfNeeded((installedPath) => {
-    mainWindow?.webContents.send('openclaw:cli-installed', installedPath);
-  }).then(() => {
-    generateCompletionCache();
-    installCompletionToProfile();
-  }).catch((error) => {
-    logger.warn('CLI auto-install failed:', error);
-  });
+  if (!startupSmokeController.enabled) {
+    void autoInstallCliIfNeeded((installedPath) => {
+      mainWindow?.webContents.send('openclaw:cli-installed', installedPath);
+    }).then(() => {
+      generateCompletionCache();
+      installCompletionToProfile();
+    }).catch((error) => {
+      logger.warn('CLI auto-install failed:', error);
+    });
+  }
 }
 
 if (gotTheLock) {
@@ -833,6 +882,7 @@ if (gotTheLock) {
   app.whenReady().then(() => {
     void initialize().catch((error) => {
       logger.error('Application initialization failed:', error);
+      startupSmokeController.fail(`initialize error: ${error instanceof Error ? error.message : String(error)}`);
     });
 
     // Register activate handler AFTER app is ready to prevent
@@ -867,6 +917,7 @@ if (gotTheLock) {
   app.on('before-quit', (event) => {
     setQuitting();
     clearAllWatchers();
+    startupSmokeController.dispose();
     logger.warn('before-quit fired');
 
     if (mainWindowRecoveryTimer) {
