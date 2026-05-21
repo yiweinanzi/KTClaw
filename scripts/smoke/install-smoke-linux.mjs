@@ -58,6 +58,7 @@ if (!/(libgtk-3-0|libgtk-3-0t64)/i.test(fields)) {
 const requiredContentPatterns = [
   /resources\/preinstalled-skills\/\.preinstalled-lock\.json/,
   /resources\/openclaw\/package\.json/,
+  /resources\/openclaw\/node_modules\/@larksuiteoapi\/node-sdk\/package\.json/,
   /resources\/openclaw-plugins\/[^/]+\/openclaw\.plugin\.json/,
   /resources\/openclaw-plugins\/a2a\/openclaw\.plugin\.json/,
   /resources\/openclaw-plugins\/a2a\/node_modules\/@a2anet\/a2a-utils\/package\.json/,

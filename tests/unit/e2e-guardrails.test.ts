@@ -59,6 +59,16 @@ describe('E2E / release smoke guardrails', () => {
     }
   });
 
+  it('guards OpenClaw runtime SDK resources required by packaged doctor probes', () => {
+    const startupSmoke = readFileSync(resolve(process.cwd(), 'scripts/smoke/packaged-startup.mjs'), 'utf8');
+    const releaseSmoke = readFileSync(resolve(process.cwd(), 'scripts/smoke/release-smoke.mjs'), 'utf8');
+    const installSmokeLinux = readFileSync(resolve(process.cwd(), 'scripts/smoke/install-smoke-linux.mjs'), 'utf8');
+
+    for (const content of [startupSmoke, releaseSmoke, installSmokeLinux]) {
+      expect(content).toMatch(/openclaw(?:\\\/|\/)node_modules(?:\\\/|\/)@larksuiteoapi(?:\\\/|\/)node-sdk/);
+    }
+  });
+
   it('patches A2A utility package exports in plugin packaging paths', () => {
     const bundlePlugins = readFileSync(resolve(process.cwd(), 'scripts/bundle-openclaw-plugins.mjs'), 'utf8');
     const afterPack = readFileSync(resolve(process.cwd(), 'scripts/after-pack.cjs'), 'utf8');

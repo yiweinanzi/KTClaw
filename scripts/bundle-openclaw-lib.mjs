@@ -1,6 +1,7 @@
 export function getBundleRootPackages() {
   return [
     'openclaw',
+    '@larksuiteoapi/node-sdk',
     // '@whiskeysockets/baileys', // WhatsApp Web API — disabled
   ];
 }

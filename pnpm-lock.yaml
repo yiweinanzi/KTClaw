@@ -20,6 +20,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.4)
+      '@larksuiteoapi/node-sdk':
+        specifier: 1.59.0
+        version: 1.59.0
       '@tencent-weixin/openclaw-weixin':
         specifier: 2.1.1
         version: 2.1.1

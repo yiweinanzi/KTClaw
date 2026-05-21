@@ -6,7 +6,10 @@ import { getBundleRootPackages, getBundledNestedDependencyRepairs } from '../../
 
 describe('bundle openclaw script', () => {
   it('includes explicit runtime packages that KTClaw resolves from the OpenClaw context', () => {
-    expect(getBundleRootPackages()).toEqual(['openclaw']);
+    expect(getBundleRootPackages()).toEqual([
+      'openclaw',
+      '@larksuiteoapi/node-sdk',
+    ]);
   });
 
   it('pins nested dependency repairs for packages that break under flat dependency hoisting', () => {
