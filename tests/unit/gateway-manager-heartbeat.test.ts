@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
+  electronAppMock,
   startPingMock,
   markAliveMock,
   clearMonitorMock,
   terminateOwnedGatewayProcessMock,
 } = vi.hoisted(() => ({
+  electronAppMock: {
+    getPath: () => '/tmp',
+    isPackaged: false,
+  },
   startPingMock: vi.fn(),
   markAliveMock: vi.fn(),
   clearMonitorMock: vi.fn(),
@@ -13,10 +18,7 @@ const {
 }));
 
 vi.mock('electron', () => ({
-  app: {
-    getPath: () => '/tmp',
-    isPackaged: false,
-  },
+  app: electronAppMock,
   utilityProcess: {
     fork: vi.fn(),
   },
@@ -71,9 +73,13 @@ vi.mock('@electron/gateway/reload-policy', async () => {
 });
 
 describe('GatewayManager heartbeat integration', () => {
+  const originalPlatform = process.platform;
+
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    electronAppMock.isPackaged = false;
+    Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true });
     terminateOwnedGatewayProcessMock.mockResolvedValue(undefined);
   });
 
@@ -110,6 +116,31 @@ describe('GatewayManager heartbeat integration', () => {
 
     (firstArg as { sendPing: () => void }).sendPing();
     expect(ping).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables active websocket heartbeat for packaged Linux builds', async () => {
+    electronAppMock.isPackaged = true;
+    Object.defineProperty(process, 'platform', { value: 'linux', writable: true });
+
+    const { GatewayManager } = await import('@electron/gateway/manager');
+    const manager = new GatewayManager();
+    const shouldUseActiveHeartbeat = (manager as unknown as {
+      shouldUseActiveWebSocketHeartbeat: () => boolean;
+    }).shouldUseActiveWebSocketHeartbeat.bind(manager);
+
+    expect(shouldUseActiveHeartbeat()).toBe(false);
+  });
+
+  it('keeps active websocket heartbeat in non-Windows dev builds', async () => {
+    Object.defineProperty(process, 'platform', { value: 'linux', writable: true });
+
+    const { GatewayManager } = await import('@electron/gateway/manager');
+    const manager = new GatewayManager();
+    const shouldUseActiveHeartbeat = (manager as unknown as {
+      shouldUseActiveWebSocketHeartbeat: () => boolean;
+    }).shouldUseActiveWebSocketHeartbeat.bind(manager);
+
+    expect(shouldUseActiveHeartbeat()).toBe(true);
   });
 
   it('exposes best-effort force termination for quit timeout paths', async () => {

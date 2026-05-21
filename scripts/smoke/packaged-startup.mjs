@@ -15,7 +15,7 @@ const args = new Map(
 const releaseDir = path.resolve(cwd, args.get('release-dir') || 'release');
 const explicitExecutable = args.get('executable');
 const platformArg = args.get('platform') || '';
-const timeoutMs = Number.parseInt(args.get('timeout-ms') || '', 10) || 90_000;
+const timeoutMs = Number.parseInt(args.get('timeout-ms') || '', 10) || 120_000;
 
 function fail(message) {
   console.error(`[packaged-startup-smoke] FAIL: ${message}`);
@@ -133,6 +133,7 @@ async function main() {
       ...process.env,
       CI: process.env.CI || '1',
       KTCLAW_STARTUP_SMOKE: '1',
+      KTCLAW_STARTUP_SMOKE_WAIT_FOR_GATEWAY: '1',
       KTCLAW_STARTUP_SMOKE_TIMEOUT_MS: String(Math.max(15_000, timeoutMs - 5_000)),
       KTCLAW_LOG_TO_CONSOLE: '1',
     },

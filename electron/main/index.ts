@@ -88,6 +88,8 @@ if (process.platform === 'linux') {
 }
 
 const STARTUP_SMOKE_ENABLED = process.env.KTCLAW_STARTUP_SMOKE === '1';
+const STARTUP_SMOKE_WAIT_FOR_GATEWAY = STARTUP_SMOKE_ENABLED
+  && process.env.KTCLAW_STARTUP_SMOKE_WAIT_FOR_GATEWAY === '1';
 const STARTUP_SMOKE_EXIT_DELAY_MS = 250;
 
 function resolveStartupSmokeTimeoutMs(raw: string | undefined): number {
@@ -162,6 +164,8 @@ const startupSmokeController = createStartupSmokeController({
   logInfo: (message) => logger.info(message),
   logError: (message) => logger.error(message),
 });
+let startupSmokeRendererLoaded = false;
+let startupSmokeGatewayRunning = false;
 let mainWindowRecoveryTimer: NodeJS.Timeout | null = null;
 let mainWindowRecoveryPending = false;
 let mainWindowRecoveryCount = 0;
@@ -173,6 +177,15 @@ const MAIN_WINDOW_RECOVERY_MAX = 3;
 let _minimizeToTray = true;
 let _suppressInitialShow = false;
 let _notificationsEnabled = true;
+
+function tryPassGatewayStartupSmoke(): void {
+  if (!STARTUP_SMOKE_WAIT_FOR_GATEWAY) {
+    return;
+  }
+  if (startupSmokeRendererLoaded && startupSmokeGatewayRunning) {
+    startupSmokeController.pass('renderer-loaded-and-gateway-running');
+  }
+}
 
 async function loadWhatsAppLoginManager(): Promise<{
   whatsAppLoginManager: {
@@ -423,7 +436,12 @@ function createMainWindow(): BrowserWindow {
     }
     logger.info('Main window renderer finished load');
     initialPresenter.onDidFinishLoad();
-    startupSmokeController.pass('did-finish-load');
+    startupSmokeRendererLoaded = true;
+    if (!STARTUP_SMOKE_WAIT_FOR_GATEWAY) {
+      startupSmokeController.pass('did-finish-load');
+    } else {
+      tryPassGatewayStartupSmoke();
+    }
   });
 
   win.on('close', (event) => {
@@ -479,7 +497,9 @@ async function initialize(): Promise<void> {
   if (startupSmokeController.enabled) {
     _minimizeToTray = false;
     _suppressInitialShow = false;
-    logger.info(`Startup smoke mode enabled (timeoutMs=${STARTUP_SMOKE_TIMEOUT_MS})`);
+    logger.info(
+      `Startup smoke mode enabled (timeoutMs=${STARTUP_SMOKE_TIMEOUT_MS}, waitForGateway=${STARTUP_SMOKE_WAIT_FOR_GATEWAY ? 'yes' : 'no'})`,
+    );
   }
 
   // Start watched-directory memory watchers
@@ -659,6 +679,11 @@ async function initialize(): Promise<void> {
   // renderer subscribers observe the full startup lifecycle.
   gatewayManager.on('status', (status: { state: string }) => {
     hostEventBus.emit('gateway:status', status);
+    if (STARTUP_SMOKE_WAIT_FOR_GATEWAY && status.state === 'running') {
+      startupSmokeGatewayRunning = true;
+      tryPassGatewayStartupSmoke();
+      return;
+    }
     if (!startupSmokeController.enabled && status.state === 'running') {
       void ensureKTClawContext().catch((error) => {
         logger.warn('Failed to re-merge KTClaw context after gateway reconnect:', error);
@@ -669,6 +694,9 @@ async function initialize(): Promise<void> {
   gatewayManager.on('error', (error) => {
     hostEventBus.emit('gateway:error', { message: error.message });
     hostEventBus.emit('sync:failed', { message: error.message });
+    if (STARTUP_SMOKE_WAIT_FOR_GATEWAY) {
+      startupSmokeController.fail(`gateway error: ${error.message}`);
+    }
   });
 
   gatewayManager.on('notification', (notification) => {
@@ -685,6 +713,9 @@ async function initialize(): Promise<void> {
 
   gatewayManager.on('exit', (code) => {
     hostEventBus.emit('gateway:exit', { code });
+    if (STARTUP_SMOKE_WAIT_FOR_GATEWAY) {
+      startupSmokeController.fail(`gateway exited before startup smoke completed (code=${code ?? 'null'})`);
+    }
   });
 
   deviceOAuthManager.on('oauth:code', (payload) => {
@@ -736,7 +767,7 @@ async function initialize(): Promise<void> {
 
   // Start Gateway automatically (this seeds missing bootstrap files with full templates)
   const gatewayAutoStart = await getSetting('gatewayAutoStart');
-  if (!startupSmokeController.enabled && gatewayAutoStart) {
+  if ((gatewayAutoStart || STARTUP_SMOKE_WAIT_FOR_GATEWAY) && (!startupSmokeController.enabled || STARTUP_SMOKE_WAIT_FOR_GATEWAY)) {
     try {
       await syncAllProviderAuthToRuntime();
       logger.debug('Auto-starting Gateway...');
@@ -745,6 +776,9 @@ async function initialize(): Promise<void> {
     } catch (error) {
       logger.error('Gateway auto-start failed:', error);
       mainWindow?.webContents.send('gateway:error', String(error));
+      if (STARTUP_SMOKE_WAIT_FOR_GATEWAY) {
+        startupSmokeController.fail(`gateway auto-start failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   } else if (!startupSmokeController.enabled) {
     logger.info('Gateway auto-start disabled in settings');

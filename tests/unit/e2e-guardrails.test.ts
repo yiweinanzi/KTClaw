@@ -69,6 +69,19 @@ describe('E2E / release smoke guardrails', () => {
     }
   });
 
+  it('requires packaged startup smoke to wait for Gateway readiness', () => {
+    const startupSmoke = readFileSync(resolve(process.cwd(), 'scripts/smoke/packaged-startup.mjs'), 'utf8');
+    const mainProcess = readFileSync(resolve(process.cwd(), 'electron/main/index.ts'), 'utf8');
+
+    expect(startupSmoke).toContain('KTCLAW_STARTUP_SMOKE_WAIT_FOR_GATEWAY');
+    expect(mainProcess).toContain('STARTUP_SMOKE_WAIT_FOR_GATEWAY');
+    expect(mainProcess).toContain('startupSmokeRendererLoaded');
+    expect(mainProcess).toContain('startupSmokeGatewayRunning');
+    expect(mainProcess).toContain("startupSmokeController.pass('renderer-loaded-and-gateway-running')");
+    expect(mainProcess).toContain("startupSmokeController.pass('did-finish-load')");
+    expect(mainProcess).toContain('!STARTUP_SMOKE_WAIT_FOR_GATEWAY');
+  });
+
   it('patches A2A utility package exports in plugin packaging paths', () => {
     const bundlePlugins = readFileSync(resolve(process.cwd(), 'scripts/bundle-openclaw-plugins.mjs'), 'utf8');
     const afterPack = readFileSync(resolve(process.cwd(), 'scripts/after-pack.cjs'), 'utf8');

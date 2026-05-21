@@ -120,6 +120,22 @@ export class GatewayManager extends EventEmitter {
   private static readonly HEARTBEAT_TIMEOUT_MS = 12_000;
   private static readonly HEARTBEAT_MAX_MISSES = 3;
 
+  private shouldUseActiveWebSocketHeartbeat(): boolean {
+    if (process.platform === 'win32') {
+      return false;
+    }
+
+    // Packaged Linux builds already observe socket close/error events and
+    // inbound gateway traffic. The active client-side ping path has proven too
+    // aggressive there, where a busy utility process can miss pong deadlines
+    // and cause KTClaw to terminate an otherwise healthy local socket.
+    if (app.isPackaged && process.platform === 'linux') {
+      return false;
+    }
+
+    return true;
+  }
+
   constructor(config?: Partial<ReconnectConfig>) {
     super();
     this.stateController = new GatewayStateController({
@@ -818,9 +834,7 @@ export class GatewayManager extends EventEmitter {
           port,
           connectedAt: Date.now(),
         });
-        // On Windows, skip active ping heartbeats to reduce reconnection
-        // thrash during short-lived port release windows.
-        if (process.platform !== 'win32') {
+        if (this.shouldUseActiveWebSocketHeartbeat()) {
           this.startPing();
         }
       },
