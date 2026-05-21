@@ -5,13 +5,18 @@ import { useRemoteInstancesStore } from '@/stores/remote-instances';
 import { toast } from '@/lib/toast';
 import type { RemoteInstance } from '@/stores/remote-instances';
 
-const { hostApiFetchMock, clipboardWriteTextMock } = vi.hoisted(() => ({
+const { hostApiFetchMock, clipboardWriteTextMock, invokeIpcMock } = vi.hoisted(() => ({
   hostApiFetchMock: vi.fn(),
   clipboardWriteTextMock: vi.fn(async () => undefined),
+  invokeIpcMock: vi.fn(async () => ({ success: true })),
 }));
 
 vi.mock('@/lib/host-api', () => ({
   hostApiFetch: hostApiFetchMock,
+}));
+
+vi.mock('@/lib/api-client', () => ({
+  invokeIpc: invokeIpcMock,
 }));
 
 vi.mock('@/lib/toast', () => ({
@@ -272,6 +277,7 @@ function renderPanel() {
 describe('SettingsRemoteInstancesPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invokeIpcMock.mockResolvedValue({ success: true });
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: { writeText: clipboardWriteTextMock },
@@ -508,6 +514,27 @@ describe('SettingsRemoteInstancesPanel', () => {
     await waitFor(() => {
       expect(clipboardWriteTextMock).toHaveBeenCalledWith('Authorization: Bearer ktclaw_a2a_generated');
     });
+  });
+
+  it('falls back to Electron clipboard IPC when browser clipboard copy fails', async () => {
+    clipboardWriteTextMock.mockRejectedValueOnce(new Error('NotAllowedError'));
+    renderPanel();
+
+    expect(await screen.findByText('My Agent Card URL')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy LAN Agent Card URL' }));
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith(
+        'http://192.168.1.20:18789/.well-known/agent-card.json',
+      );
+      expect(invokeIpcMock).toHaveBeenCalledWith(
+        'clipboard:writeText',
+        'http://192.168.1.20:18789/.well-known/agent-card.json',
+      );
+    });
+    expect(toast.success).toHaveBeenCalledWith('Copied');
+    expect(toast.error).not.toHaveBeenCalledWith('Copy failed');
   });
 
   it('revokes self inbound A2A access keys from the settings block', async () => {

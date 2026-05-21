@@ -2,7 +2,7 @@
  * IPC Handlers
  * Registers all IPC handlers for main-renderer communication
  */
-import { ipcMain, BrowserWindow, shell, dialog, app, nativeImage } from 'electron';
+import { ipcMain, BrowserWindow, shell, dialog, app, nativeImage, clipboard } from 'electron';
 import { existsSync, cpSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, extname, basename } from 'node:path';
@@ -126,6 +126,9 @@ export function registerIpcHandlers(
 
   // Shell handlers
   registerShellHandlers();
+
+  // Clipboard handlers
+  registerClipboardHandlers();
 
   // Dialog handlers
   registerDialogHandlers();
@@ -2176,6 +2179,20 @@ function registerShellHandlers(): void {
   // Open path
   ipcMain.handle('shell:openPath', async (_, path: string) => {
     return await shell.openPath(path);
+  });
+}
+
+/**
+ * Clipboard-related IPC handlers
+ */
+function registerClipboardHandlers(): void {
+  ipcMain.handle('clipboard:writeText', async (_, value: unknown) => {
+    if (typeof value !== 'string') {
+      throw new Error('clipboard:writeText expects a string');
+    }
+
+    clipboard.writeText(value);
+    return { success: true };
   });
 }
 

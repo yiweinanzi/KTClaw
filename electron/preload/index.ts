@@ -30,6 +30,7 @@ const electronAPI = {
         'openclaw:status',
         'openclaw:isReady',
         // Shell
+        'clipboard:writeText',
         'shell:openExternal',
         'shell:showItemInFolder',
         'shell:openPath',

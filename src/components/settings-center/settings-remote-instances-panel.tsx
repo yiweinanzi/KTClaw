@@ -26,6 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from '@/lib/toast';
+import { invokeIpc } from '@/lib/api-client';
 import {
   useRemoteInstancesStore,
   type RemoteAgentCardCapability,
@@ -177,10 +178,18 @@ async function copyToClipboard(value: string, successMessage: string, fallbackMe
   }
 
   try {
-    await navigator.clipboard?.writeText(value);
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('Navigator clipboard API is unavailable');
+    }
+    await navigator.clipboard.writeText(value);
     toast.success(successMessage);
   } catch {
-    toast.error(fallbackMessage);
+    try {
+      await invokeIpc('clipboard:writeText', value);
+      toast.success(successMessage);
+    } catch {
+      toast.error(fallbackMessage);
+    }
   }
 }
 
